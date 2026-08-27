@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "tool": {"name": "ewp-waveform", "version": "0.0.0"},
+  "job": {
+    "job_id": "example-job",
+    "status": "SUCCEEDED",
+    "render_signature": "example-full-signature",
+    "seed": 123456789
+  },
+  "renderer": {
+    "name": "ffmpeg",
+    "version": "example",
+    "visual_contract_version": 1
+  },
+  "project": {"project_id": "s0e00", "track_id": "Szymon"},
+  "inputs": [{
+    "path": "s0e00-Szymon.wav",
+    "sha256": "EXAMPLE",
+    "size_bytes": 0,
+    "duration_seconds": 1800.0,
+    "codec": "pcm_s24le",
+    "sample_rate": 48000,
+    "channels": 1
+  }],
+  "preset": {"name": "iuris-default", "source": "builtin"},
+  "resolved_visual_config": {"fps": 30, "style": "mirrored", "color": "#C7E6EC"},
+  "resolved_performance_config": {"profile": "balanced", "chunk_seconds": 60, "jobs": 2},
+  "analysis": {},
+  "normalization": {"mode": "auto"},
+  "execution": {"formats": ["prores4444", "png"], "resumed": false},
+  "warnings": [],
+  "outputs": [],
+  "validation": {"passed": true},
+  "performance": {},
+  "resume_history": [],
+  "timestamps": {
+    "started_at": "2026-08-26T00:00:00Z",
+    "completed_at": "2026-08-26T00:00:01Z"
+  }
+}

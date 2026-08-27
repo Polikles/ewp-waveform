@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EWP Waveform Visual Preset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "canvas",
+    "waveform",
+    "signal",
+    "effects"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "fps"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "waveform": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "style",
+        "color",
+        "amplitude"
+      ],
+      "properties": {
+        "style": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "amplitude": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "stroke_width": {
+          "type": "number",
+          "minimum": 0
+        },
+        "center_line": {
+          "type": "boolean"
+        }
+      }
+    },
+    "signal": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "normalization"
+      ],
+      "properties": {
+        "scale": {
+          "type": "string"
+        },
+        "smoothing": {
+          "type": "number",
+          "minimum": 0
+        },
+        "normalization": {
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "none",
+                "auto",
+                "project",
+                "reference"
+              ]
+            },
+            "soft_clip": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "glow",
+        "particles"
+      ],
+      "properties": {
+        "glow": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "enabled",
+            "level"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "level": {
+              "enum": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "color": {
+              "type": "string"
+            }
+          }
+        },
+        "particles": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "motion": {
+              "type": "string"
+            },
+            "interaction": {
+              "type": "string"
+            },
+            "density": {
+              "type": "number",
+              "minimum": 0
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

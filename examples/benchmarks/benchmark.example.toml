@@ -1,0 +1,30 @@
+schema_version = 1
+name = "initial-style-and-performance-matrix"
+
+[[inputs]]
+path = "/path/to/s0e00-Szymon.wav"
+
+[[inputs]]
+path = "/path/to/s0e00-Damian.wav"
+
+[[variants]]
+name = "canonical"
+preset = "iuris-default"
+
+[[variants]]
+name = "filled-high-glow"
+preset = "iuris-default"
+
+[variants.overrides]
+style = "filled"
+glow = "high"
+
+[[variants]]
+name = "segmented-particles"
+preset_file = "/path/to/experimental-segmented.toml"
+
+[benchmark]
+renderers = ["ffmpeg"]
+formats = ["prores4444", "png"]
+performance_profiles = ["balanced", "maximum"]
+dry_run_estimates = true

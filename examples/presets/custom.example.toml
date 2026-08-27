@@ -1,0 +1,35 @@
+schema_version = 1
+name = "custom-example"
+description = "Example portable visual preset."
+
+[canvas]
+width = 1600
+height = 320
+fps = 30
+
+[waveform]
+style = "segmented"
+color = "#F2C558"
+amplitude = 0.85
+stroke_width = 3.0
+center_line = true
+
+[signal]
+scale = "sqrt"
+smoothing = 0.18
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[effects.glow]
+enabled = true
+level = "low"
+color = "#F2C558"
+
+[effects.particles]
+enabled = true
+motion = "float"
+interaction = "amplitude-reactive"
+density = 0.18
+intensity = 0.20

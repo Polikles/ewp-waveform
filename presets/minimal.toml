@@ -1,0 +1,35 @@
+schema_version = 1
+name = "minimal"
+description = "Minimal neutral diagnostic preset."
+
+[canvas]
+width = 1200
+height = 240
+fps = 30
+
+[waveform]
+style = "classic"
+color = "#FFFFFF"
+amplitude = 0.80
+stroke_width = 2.0
+center_line = true
+
+[signal]
+scale = "sqrt"
+smoothing = 0.10
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[effects.glow]
+enabled = false
+level = "none"
+color = "#FFFFFF"
+
+[effects.particles]
+enabled = false
+motion = "float"
+interaction = "none"
+density = 0.0
+intensity = 0.0

@@ -1,0 +1,13 @@
+schema_version = 1
+name = "maximum"
+description = "Initial high-throughput profile; benchmark target."
+
+[processing]
+chunk_seconds = 60
+jobs = 4
+ffmpeg_threads = 0
+
+[workdirs]
+persistent = false
+keep_on_success = false
+keep_on_failure = true

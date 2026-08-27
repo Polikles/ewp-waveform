@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EWP Waveform Application Config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "performance": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recursive": {
+          "type": "boolean"
+        },
+        "follow_symlinks": {
+          "type": "boolean"
+        },
+        "grouping": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "separator": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "workdirs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "persistent": {
+          "type": "boolean"
+        },
+        "root": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

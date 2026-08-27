@@ -1,0 +1,13 @@
+schema_version = 1
+name = "balanced"
+description = "Conservative initial profile; benchmark target."
+
+[processing]
+chunk_seconds = 60
+jobs = 2
+ffmpeg_threads = 0
+
+[workdirs]
+persistent = false
+keep_on_success = false
+keep_on_failure = true

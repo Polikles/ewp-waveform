@@ -1,0 +1,13 @@
+schema_version = 1
+name = "custom-performance-example"
+
+[processing]
+chunk_seconds = 120
+jobs = 2
+ffmpeg_threads = 8
+
+[workdirs]
+persistent = true
+keep_on_success = true
+keep_on_failure = true
+root = "/path/to/persistent-work"

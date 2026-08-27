@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EWP Waveform Render Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "tool",
+    "job",
+    "renderer",
+    "project",
+    "inputs",
+    "resolved_visual_config",
+    "resolved_performance_config",
+    "warnings",
+    "outputs",
+    "validation",
+    "timestamps"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "ewp-waveform"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "job": {
+      "type": "object",
+      "required": [
+        "job_id",
+        "status",
+        "render_signature",
+        "seed"
+      ],
+      "properties": {
+        "job_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "PLANNED",
+            "SKIPPED",
+            "RUNNING",
+            "RESUMED",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "render_signature": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        }
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "visual_contract_version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "visual_contract_version": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "track_id"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "track_id": {
+          "type": "string"
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256",
+          "duration_seconds",
+          "sample_rate",
+          "channels"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "codec": {
+            "type": "string"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "channels": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "preset": {
+      "type": "object"
+    },
+    "resolved_visual_config": {
+      "type": "object"
+    },
+    "resolved_performance_config": {
+      "type": "object"
+    },
+    "analysis": {
+      "type": "object"
+    },
+    "normalization": {
+      "type": "object"
+    },
+    "execution": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "passed"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "performance": {
+      "type": "object"
+    },
+    "resume_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "timestamps": {
+      "type": "object",
+      "required": [
+        "started_at",
+        "completed_at"
+      ],
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

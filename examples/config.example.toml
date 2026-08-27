@@ -1,0 +1,20 @@
+schema_version = 1
+
+[defaults]
+preset = "iuris-default"
+performance = "balanced"
+
+[input]
+recursive = false
+follow_symlinks = false
+
+[input.grouping]
+mode = "prefix"
+separator = "-"
+
+[output]
+directory_name = "waveform-output"
+formats = ["prores4444"]
+
+[workdirs]
+persistent = false

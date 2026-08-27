@@ -1,0 +1,42 @@
+schema_version = 1
+name = "iuris-default"
+description = "Default EWP visual preset based on the current podcast visual identity."
+
+[canvas]
+width = 1400
+height = 280
+fps = 30
+
+[waveform]
+style = "mirrored"
+color = "#C7E6EC"
+amplitude = 0.82
+stroke_width = 3.0
+center_line = true
+
+[signal]
+scale = "sqrt"
+smoothing = 0.15
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[effects.glow]
+enabled = true
+level = "medium"
+color = "#C7E6EC"
+
+[effects.particles]
+enabled = false
+motion = "float"
+interaction = "none"
+density = 0.20
+intensity = 0.25
+
+[palette]
+steel_blue = "#3D5D73"
+periwinkle_blue = "#6E7BA7"
+slate_teal = "#2F474F"
+pale_cyan = "#C7E6EC"
+soft_yellow = "#F2C558"

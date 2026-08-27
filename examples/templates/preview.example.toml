@@ -1,0 +1,32 @@
+schema_version = 1
+name = "three-speaker-preview"
+
+[canvas]
+width = 1920
+height = 1080
+background = "#2F474F"
+
+[[slots]]
+name = "speaker-1"
+x = 120
+y = 560
+width = 720
+height = 220
+
+[[slots]]
+name = "speaker-2"
+x = 1080
+y = 560
+width = 720
+height = 220
+
+[[slots]]
+name = "speaker-3"
+x = 600
+y = 180
+width = 720
+height = 220
+
+[notes]
+canonical = false
+purpose = "Visual inspection only."
