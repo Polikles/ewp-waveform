@@ -9,15 +9,18 @@ No dates are assigned until evidence supports them.
 - [x] Benchmark/continuity baseline.
 
 ## Phase 1 — FFmpeg research spike
-- [ ] waveform capability matrix;
-- [ ] ProRes alpha;
-- [ ] PNG alpha;
-- [ ] style approximations;
-- [ ] glow;
-- [ ] particles feasibility;
-- [ ] timing/drift;
-- [ ] resource baseline;
-- [ ] chunk behavior.
+- [x] waveform capability matrix (synthetic; see `docs/notes/ffmpeg-spike/capability-matrix.md`);
+- [x] ProRes alpha (encode path; 10 vs 12-bit probe still open);
+- [x] PNG alpha (CFR sequences);
+- [x] style approximations (`filled` baseline; `classic`/`mirrored` limited; `segmented` experimental);
+- [x] glow (split + `gblur` + overlay; medium σ=8);
+- [x] particles feasibility (**unsupported** in FFmpeg);
+- [x] timing/drift (CFR frame counts on 3/5/30 s synthetic);
+- [x] resource baseline (30 s CPU sample only);
+- [x] chunk behavior (frame count OK; visual warm-up seam — preroll required);
+- [ ] operator visual QA of local renders;
+- [ ] speech/silence/transient samples;
+- [ ] long-duration (~30/60/180 min) resource and continuity.
 
 ## Phase 2 — FFmpeg MVP
 - [ ] application API;

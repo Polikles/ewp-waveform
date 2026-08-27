@@ -44,6 +44,10 @@ Determine how FFmpeg can satisfy the canonical chunk/resume contract. Applicatio
 ### Performance
 Measure representative short, ~30 min, ~60 min, and available endurance material; ProRes/PNG/both; selected styles/glow.
 
+## Current evidence
+
+Partial synthetic CPU notes (2026-08-27): `docs/notes/ffmpeg-spike/capability-matrix.md` and `findings.md`. Not complete: no speech samples, no 30/60/180 min endurance, no GPU.
+
 ## Completion questions
 
 1. Which styles are maintainable?
