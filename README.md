@@ -6,12 +6,12 @@
 
 - Specification baseline: accepted.
 - Implementation status: pre-MVP; the FFmpeg research spike is the next phase.
-- Release status: internal release candidate; no public release yet.
+- Release status: internal beta; no release candidate; no public release.
 - Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
 - Python baseline: Python 3.12.
 - MVP reference renderer: FFmpeg.
-- Planned later renderer: custom multi-pass renderer.
-- License: TBD; a source-available license is planned before public release.
+- Planned MVP2 renderer: custom multi-pass renderer.
+- License: EWP Waveform Community License 1.0 (source-available, not OSI Open Source).
 
 ## Scope
 
@@ -34,6 +34,8 @@ Audio editing/mastering, transcription, subtitles, source separation, final scen
 
 ## Planned CLI
 
+Core operator commands:
+
 ```bash
 waveform render "/path/to/input" --output-dir "/path/to/output"
 waveform preview "/path/to/input"
@@ -43,6 +45,8 @@ waveform doctor
 ```
 
 `INPUT` may be one file or one directory. Directory processing is batch processing. Recursion is opt-in.
+
+Additional planned commands (`capabilities`, `benchmark`, `clean`, `preset`, `performance`) are specified in `docs/05-cli-specification.md`.
 
 ## Core rules
 
@@ -63,4 +67,6 @@ See `docs/README.md` for the documentation index and normative precedence.
 
 ## License
 
-License terms are intentionally not declared yet.
+`ewp-waveform` is source-available under the **EWP Waveform Community License 1.0**. It is not Open Source software in the OSI sense.
+
+See [`LICENSE`](./LICENSE) and [`LICENSING.md`](./LICENSING.md).
