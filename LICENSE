@@ -1,0 +1,407 @@
+# EWP Waveform Community License 1.0
+
+**Version 1.0**
+
+Copyright (c) 2026 Damian Szczech
+
+Author: Damian Szczech  
+Email: szczech.dam+ewpwaveform@gmail.com
+
+This license applies to `ewp-waveform` (the **Software**) except for files, assets,
+dependencies, or other materials that are expressly identified as being subject
+to separate license terms.
+
+This is a source-available license. It is not an Open Source license.
+
+## 1. Definitions
+
+**Licensor** means Damian Szczech and any lawful successor or assignee of the
+Licensor's rights in the Software.
+
+**You** means the individual or Entity exercising rights under this License.
+
+**Entity** means any individual acting in connection with a business or
+professional activity, sole proprietorship, company, partnership, association,
+foundation, nonprofit organization, educational institution, public institution,
+government body, or other organization, whether incorporated or not.
+
+**Control** means the direct or indirect power to direct the management or
+policies of an Entity, whether through ownership, voting rights, contract, or
+otherwise.
+
+Entities that control, are controlled by, or are under common control with one
+another are treated as a single Entity for purposes of calculating Revenue.
+
+**Revenue** means gross revenue from all sources before deduction of expenses,
+taxes, salaries, distributions, or other costs. Revenue is not limited to
+revenue generated through use of the Software.
+
+**Previous Financial Year** means the most recently completed financial, fiscal,
+or tax year applicable to the Entity.
+
+**Revenue Threshold** means EUR 25,000 of Revenue during the Previous Financial
+Year.
+
+If Revenue is denominated in another currency, it may be converted to euros
+using any reasonable, publicly available exchange rate applied in good faith.
+
+**Commercial Use** means use of the Software in connection with an activity
+intended to generate revenue, financial benefit, or commercial advantage,
+whether directly or indirectly. Commercial Use includes, without limitation:
+
+- internal business or professional use;
+- use in performing paid work or services;
+- use in producing monetized content;
+- use in a paid course, training program, or other commercial educational
+  activity;
+- use in connection with a paid product or service;
+- hosted or software-as-a-service use; and
+- use by a contractor, freelancer, or service provider in performing paid work.
+
+**Noncommercial Use** means use that is not Commercial Use.
+
+**Modified Version** means a copy of the Software that You have modified,
+adapted, extended, or combined with changes that form a derivative work of the
+Software.
+
+**Distribution** means providing a copy of the Software or a Modified Version to
+another person or Entity, whether in source, binary, packaged, hosted-download,
+or other transferable form.
+
+## 2. Grant of Rights
+
+Subject to this License, the Licensor grants You a worldwide, non-exclusive,
+royalty-free, non-transferable license to:
+
+1. use and run the Software;
+2. inspect and study its source code;
+3. make copies of the Software;
+4. modify the Software and create Modified Versions; and
+5. distribute the unmodified Software or Modified Versions,
+
+but only as permitted by the conditions and limitations below.
+
+No rights are granted except those expressly stated in this License.
+
+## 3. Noncommercial Use
+
+You may use the Software for Noncommercial Use without payment and without
+obtaining a separate license.
+
+Examples include personal projects, hobbies, experimentation, research,
+self-education, unpaid community activities, and ordinary noncommercial
+educational use.
+
+Legal form does not determine whether a use is Commercial Use. A nonprofit,
+foundation, school, university, public institution, or similar Entity is subject
+to the same rules as any other Entity.
+
+## 4. Free Commercial Use Below the Revenue Threshold
+
+You may use the Software for Commercial Use without obtaining a separate
+commercial license if the combined Revenue of You and all Entities treated as a
+single Entity under this License did not exceed the Revenue Threshold during the
+Previous Financial Year.
+
+The Revenue Threshold is:
+
+**EUR 25,000 in gross Revenue during the Previous Financial Year.**
+
+The nature or size of a particular contract, customer, project, or transaction
+does not change this rule. For example, an eligible freelancer or microbusiness
+may use the Software while performing work for a larger customer, provided that
+the freelancer or microbusiness itself remains eligible under this Section.
+
+Eligibility for a financial year is determined by reference to the Previous
+Financial Year. Exceeding EUR 25,000 during the current financial year does not
+automatically terminate eligibility during that same financial year.
+
+If Revenue during a financial year exceeds the Revenue Threshold, a separate
+commercial license is required for Commercial Use in the following financial
+year.
+
+## 5. New Entities
+
+If an Entity has not yet completed a financial year, it may use the Software
+under Section 4 if it reasonably and in good faith expects its Revenue during
+its first financial year not to exceed the Revenue Threshold.
+
+If that expectation is no longer reasonable, the Entity must obtain a separate
+commercial license before continuing Commercial Use.
+
+## 6. Commercial Use Above the Revenue Threshold
+
+If You do not qualify under Section 4 or Section 5, this License does not permit
+Commercial Use of the Software except where a specific exception in this
+License applies.
+
+You must obtain a separate commercial license from the Licensor before
+continuing such Commercial Use.
+
+The Licensor may offer commercial licenses on individually agreed terms,
+including discounted or no-fee licenses. The Licensor is not obligated to offer
+the same terms to different licensees.
+
+Commercial licensing inquiries may be sent to:
+
+**Damian Szczech**  
+**szczech.dam+ewpwaveform@gmail.com**
+
+## 7. Educational Use
+
+Ordinary Noncommercial educational use is permitted without payment regardless
+of the Revenue of the school, institution, teacher, or other Entity involved.
+
+Examples include using the Software:
+
+- as part of a lesson in a school or other educational institution;
+- in a free course or workshop; or
+- for demonstration, research, or teaching that is not itself a Commercial Use.
+
+Use of the Software as part of a paid course, paid training program, paid
+workshop, monetized educational product, or other Commercial Use is subject to
+the Revenue Threshold unless the Tutorial Exception in Section 8 applies.
+
+Educational institutions and other Entities may contact the Licensor to request
+a discounted or no-fee commercial license.
+
+## 8. Tutorial Exception
+
+You may use the Software without obtaining a separate commercial license to
+create, publish, sell, or monetize a tutorial, course, article, video, stream,
+book, workshop, or similar educational material whose primary subject is how to
+use `ewp-waveform`, even if Your Revenue exceeds the Revenue Threshold.
+
+This exception applies only when `ewp-waveform` is the sole software product
+being taught or is clearly the principal software product that is the subject of
+the material.
+
+This exception permits demonstration and use of the Software for the purpose of
+teaching the Software. It does not permit:
+
+- selling or commercially distributing the Software or a Modified Version;
+- bundling the Software or a Modified Version as a paid component of the
+  educational material;
+- using the Software merely as one tool among several in a broader paid course
+  where `ewp-waveform` is not the principal subject; or
+- representing the educational material as endorsed, certified, or officially
+  produced by the Licensor without permission.
+
+## 9. Modified Versions and Forks
+
+You may create Modified Versions for personal, internal, educational,
+experimental, or other use permitted by this License.
+
+If You are eligible for free Commercial Use under Section 4 or Section 5, You
+may also use Your own Modified Version internally for that Commercial Use.
+
+You may publicly distribute a Modified Version only on a **Noncommercial** basis.
+
+For the avoidance of doubt, the EUR 25,000 Revenue Threshold does not create a
+right to commercially distribute, sell, license for a fee, bundle for commercial
+distribution, or otherwise commercially exploit a Modified Version.
+
+Commercial Distribution of a Modified Version requires a separate license from
+the Licensor.
+
+Every permitted Distribution of a Modified Version must:
+
+1. remain subject to this EWP Waveform Community License 1.0;
+2. include a complete copy of this License;
+3. preserve applicable copyright, authorship, attribution, and license notices;
+4. clearly identify that the Software has been modified;
+5. not state or imply that the Modified Version is an official release of
+   `ewp-waveform`; and
+6. not grant recipients rights broader than those granted by this License.
+
+You may not remove, weaken, replace, or bypass the commercial-use or
+distribution restrictions of this License in a fork or Modified Version.
+
+## 10. Contributions Back to the Project
+
+You are not required to submit Your modifications to the original project.
+
+However, contributors are strongly encouraged to submit generally useful bug
+fixes, improvements, compatibility changes, and enhancements as pull requests to
+the original `ewp-waveform` project.
+
+Contributions submitted for inclusion in the original project are subject to the
+project's then-current Contributor Terms. Those terms may grant the Licensor
+additional rights, including rights necessary to provide alternative commercial
+licenses.
+
+## 11. Nonprofits, Educational Institutions, and Public-Interest Use
+
+Nonprofit status, charitable status, educational status, or public-institution
+status does not automatically exempt an Entity from the Commercial Use rules or
+Revenue Threshold.
+
+The Licensor may, at the Licensor's discretion, provide nonprofit,
+educational, cultural, charitable, public-interest, open-knowledge, community,
+or similar projects with:
+
+- a discounted commercial license;
+- a no-fee commercial license;
+- sponsorship;
+- technical assistance;
+- support; or
+- other additional benefits.
+
+Any such arrangement is separate from this License and applies only to the
+recipient to whom it is granted.
+
+## 12. No Artificial Separation to Avoid the Revenue Threshold
+
+You may not avoid the Revenue Threshold by assigning use of the Software to a
+shell, affiliate, controlled entity, special-purpose entity, or other related
+Entity whose separate treatment would not reflect the economic reality of the
+relationship.
+
+Revenue of Entities that control, are controlled by, or are under common control
+with one another must be combined when determining eligibility.
+
+## 13. Contractors and Service Providers
+
+A contractor, freelancer, consultant, hosting provider, or other service
+provider may use the Software on behalf of a customer if the person or Entity
+actually exercising the Software is itself permitted to do so under this
+License or holds a separate commercial license.
+
+Eligibility is determined by the Revenue of the person or Entity using the
+Software, not by the Revenue of that person's or Entity's customer.
+
+Nothing in this Section permits commercial Distribution of a Modified Version.
+
+## 14. Outputs and User Materials
+
+This License applies to the Software, not to ordinary outputs created using the
+Software.
+
+To the extent the Licensor has any copyright or similar rights that could
+otherwise arise solely because an output was generated using the Software, the
+Licensor claims no such rights in that output.
+
+Your outputs remain Yours, subject to any rights of third parties in the inputs,
+assets, fonts, audio, images, video, text, data, or other materials used to
+create them.
+
+Your right to retain, use, copy, modify, publish, license, sell, or otherwise
+exploit an output is not terminated merely because Your license to use the
+Software later expires or terminates.
+
+Termination of this License does not retroactively impose this License on
+outputs lawfully created while You were entitled to use the Software.
+
+You are solely responsible for ensuring that Your inputs, materials, processing,
+outputs, and distribution of outputs comply with applicable law and third-party
+rights.
+
+## 15. Project Samples and Example Materials
+
+Certain samples, excerpts, and example materials distributed with the project
+may be derived from episodes or other materials from the podcast **Etyka w
+Pętli (Ethics in the Loop)**, for which Damian Szczech is the rights holder.
+
+Where identified as such, those samples and example materials are licensed
+separately under the **Creative Commons Attribution-NonCommercial-ShareAlike
+4.0 International (CC BY-NC-SA 4.0)** license.
+
+Their inclusion in this repository does not license the complete podcast
+episodes, complete recordings, complete transcripts, branding, or other source
+works from which an excerpt may have been derived.
+
+The EWP Waveform Community License 1.0 does not replace or alter the separate
+CC BY-NC-SA 4.0 terms applicable to those identified samples and examples.
+
+## 16. External Dependencies and Downloads
+
+The Software may depend on, interoperate with, or optionally install third-party
+libraries, runtimes, codecs, tools, packages, assets, or other components.
+
+Such third-party components are not relicensed under this License.
+
+Where the Software offers to download or install a third-party component only
+after explicit user confirmation, including confirmation through a graphical
+interface or terminal prompt, that component remains subject to its own license,
+terms, notices, and other conditions.
+
+You are responsible for reviewing and complying with those third-party terms.
+
+## 17. Trademarks and Project Identity
+
+This License does not grant permission to use the Licensor's names, trademarks,
+logos, branding, podcast branding, or other project identity except as
+reasonably necessary for accurate attribution or to describe compatibility with
+the Software.
+
+You may not imply sponsorship, endorsement, certification, or official status
+without separate permission.
+
+## 18. Termination and Cure
+
+Your rights under this License terminate automatically if You materially violate
+its terms.
+
+If the violation is curable and this is Your first material violation of this
+License, Your rights are automatically reinstated if You fully cure the
+violation within 30 days after becoming aware of it.
+
+For subsequent material violations, reinstatement requires express permission
+from the Licensor.
+
+Termination does not:
+
+- revoke rights in outputs as described in Section 14;
+- retroactively change the license status of lawful acts performed before
+  termination; or
+- affect separate rights already granted under another agreement.
+
+## 19. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, OR NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR DOES NOT WARRANT
+THAT THE SOFTWARE WILL BE ERROR-FREE, SECURE, AVAILABLE, OR SUITABLE FOR ANY
+PARTICULAR PURPOSE.
+
+## 20. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR WILL NOT BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY,
+OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, REVENUE, DATA, GOODWILL, BUSINESS
+OPPORTUNITY, OR OTHER LOSS ARISING FROM OR RELATED TO THE SOFTWARE OR THIS
+LICENSE.
+
+WHERE APPLICABLE LAW DOES NOT PERMIT A PARTICULAR EXCLUSION OR LIMITATION,
+LIABILITY IS LIMITED TO THE MAXIMUM EXTENT PERMITTED BY LAW.
+
+## 21. Separate Licenses
+
+The Licensor may license the Software, or portions of the Software for which the
+Licensor has sufficient rights, to other persons or Entities under different
+terms, including proprietary or commercial terms.
+
+Nothing in this License obligates the Licensor to make a separate license
+available or to offer the same commercial terms to different licensees.
+
+## 22. No Waiver
+
+Failure by the Licensor to enforce any provision of this License does not waive
+the right to enforce that provision or any other provision later.
+
+## 23. Severability
+
+If a provision of this License is held unenforceable, that provision will be
+interpreted or limited to the minimum extent reasonably necessary to make it
+enforceable where possible. The remaining provisions remain in effect.
+
+## 24. Entire License
+
+This License describes the permissions granted by the Licensor for the Software
+unless You and the Licensor enter into a separate written agreement governing
+Your use.
+
+A separate written license may replace or supplement these terms for the parties
+to that agreement.
