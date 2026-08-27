@@ -63,6 +63,7 @@
 - **FR-RENDER-004** — FFmpeg remains selectable after a custom renderer is introduced.
 - **FR-RENDER-005** — FPS is canonical job state and part of render identity.
 - **FR-RENDER-006** — Initial default FPS is 30.
+- **FR-RENDER-013** — 30 and 60 are supported production FPS values. FPS remains part of render identity. Other rates are out of FFmpeg MVP unless an ADR accepts them.
 - **FR-RENDER-007** — Renderers expose relevant capability information.
 - **FR-RENDER-008** — Unsupported requested capabilities are not silently ignored.
 - **FR-RENDER-009** — Custom rendering should support independent base/effect passes where beneficial.

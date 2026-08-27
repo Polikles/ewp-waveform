@@ -46,7 +46,7 @@ Measure representative short, ~30 min, ~60 min, and available endurance material
 
 ## Current evidence
 
-Partial synthetic CPU notes (2026-08-27): `docs/notes/ffmpeg-spike/capability-matrix.md` and `findings.md`. Not complete: no speech samples, no 30/60/180 min endurance, no GPU.
+Partial notes (2026-08-27): `docs/notes/ffmpeg-spike/capability-matrix.md`, `findings.md`, `speech.md`. Short speech cuts done. Not complete: DaVinci 30/60 playback, full s2e9 / 2.5 h (off this VM), music sample, GPU.
 
 ## Completion questions
 

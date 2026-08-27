@@ -1,6 +1,6 @@
 # FFmpeg spike — capability matrix
 
-Environment: FFmpeg 6.1.1-3ubuntu5, CPU only, 2026-08-27. Synthetic `lavfi` audio. Manual frame inspection of PNG stills plus checkerboard composites. Media is not in git; see `../local-renders` on the authoring machine.
+Environment: FFmpeg 6.1.1-3ubuntu5, CPU only, 2026-08-27. First pass: synthetic `lavfi` noise. Second pass: 8 s podcast speech cuts (s0e00, s2e9). Operator QA: noise direction was right but too thick in the center; speech is the comparison target. Media is not in git.
 
 Ratings: `full` / `limited` / `experimental` / `unsupported`.
 
@@ -8,10 +8,10 @@ Ratings: `full` / `limited` / `experimental` / `unsupported`.
 
 | Style | Rating | FFmpeg approach | Notes |
 |---|---|---|---|
-| `classic` | **limited** | `showwaves=mode=p2p` + optional `drawbox` center line | Readable stroke. It is a **current-window oscilloscope**, not a whole-file ribbon. Stroke width is not a real `stroke_width` control. |
-| `mirrored` | **limited** | `showwaves=mode=cline` (default `draw=scale`) | Naturally symmetric about center. Body is semi-transparent because `draw=scale` accumulates coverage. |
-| `filled` | **full** (baseline) | `showwaves=mode=cline:draw=full` | Best match to a filled mirrored podcast waveform. Opaque body, alpha from luma-as-alpha `geq`. |
-| `segmented` | **experimental** | Low-width `cline` + `scale=flags=neighbor` + optional `geq` column gaps | Looks like bars on a checkerboard. 3 s encodes produced **91 frames** (expected 90). Not a per-bar amplitude meter; still a windowed waveform. |
+| `classic` | **limited** | `showwaves=mode=p2p` + optional `drawbox` center line | On speech, a thin stroke that shows oscillation vs filled blobs. Not a whole-file ribbon. No real `stroke_width` API. |
+| `mirrored` | **limited** | `showwaves=mode=cline` (`draw=scale`) | Symmetric. Translucent body. For the iuris look, map to **`filled`** (`draw=full`) instead. |
+| `filled` | **full** (baseline) | `showwaves=mode=cline:draw=full` | Operator-confirmed direction. Speech envelopes are thin in quiet, thick in bursts. |
+| `segmented` | **experimental** | Low-width `cline` + nearest scale + optional column gaps | Slim bars were an experiment, not a defined product graphic. Do not default to this. |
 
 `showwaves=n=N` is **not** a safe envelope control: it changes how many samples are consumed per frame and **breaks FPS/duration** (n=16 → 8 frames for 3 s).
 
@@ -26,8 +26,8 @@ Ratings: `full` / `limited` / `experimental` / `unsupported`.
 
 | Format | Rating | Notes |
 |---|---|---|
-| ProRes 4444 MOV | **full** (encode path) | `prores_ks` `-profile:v 4444`. Requested `yuva444p10le`; `ffprobe` reports `yuva444p12le` / `ap4h`. 3 s → 90 frames; 5 s → 150; 30 s → 900. |
-| PNG RGBA sequence | **full** (encode path) | Use `-fps_mode cfr -r 30`. 5 s and 30 s matched frame count. Without `cfr`, earlier smokes showed `dup=1`. |
+| ProRes 4444 MOV | **full** (encode path) | 8 s speech: 240 frames @ 30 fps, 480 @ 60 fps. 10-bit request vs 12-bit probe still open. |
+| PNG RGBA sequence | **full** (encode path) | Use `-fps_mode cfr`. Operator: PNG stills OK. |
 
 Cross-format visual fidelity on real speech is **not** measured yet.
 

@@ -57,7 +57,7 @@ Additional planned commands (`capabilities`, `benchmark`, `clean`, `preset`, `pe
 - Visual presets are separate from performance profiles.
 - Alpha transparency is mandatory.
 - ProRes 4444 and PNG sequence are MVP formats.
-- FPS is part of render identity; output format and performance settings are not.
+- FPS is part of render identity; output format and performance settings are not. Default 30; 60 is a supported option.
 - Chunking and resume must preserve temporal/visual continuity.
 - Equivalent completed jobs are skipped by deterministic render signature.
 - Canonical results are schema-valid JSON.

@@ -22,6 +22,14 @@ Initial registry:
 
 Styles define the primary waveform representation. The style interface must be extensible enough for custom geometry, envelope mapping, and rendering logic.
 
+FFmpeg spike mapping (synthetic + speech cuts; see `docs/notes/ffmpeg-spike/`):
+
+- `classic` — `showwaves=mode=p2p` stroke, optional center line.
+- `mirrored` / `filled` — `showwaves=mode=cline`. `draw=full` is the opaque filled band that matches the intended podcast look; `draw=scale` is translucent and is not the default mapping.
+- `segmented` — **experimental** in FFmpeg. A downscale-then-gap graph can look like discrete bars, but the product use of that look is not defined. Do not use it as the default. FFmpeg should report `experimental` and must not silently substitute another style.
+
+Speech is the primary visual target. Noise is a poor stand-in: it fills the center and hides style/glow differences.
+
 ## Effects
 
 Effects are separate from styles. Initial families:

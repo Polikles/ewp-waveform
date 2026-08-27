@@ -33,6 +33,7 @@ waveform performance ...
 --config PATH
 --renderer NAME
 --format FORMAT       # repeatable
+--fps 30|60
 --recursive
 --force
 --debug

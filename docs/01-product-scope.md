@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`ewp-waveform` generates reusable animated waveform assets from audio, primarily for audio-only podcast episodes that will later be composed into video.
+`ewp-waveform` generates reusable animated waveform assets from audio, primarily for **speech** (audio-only podcast episodes) that will later be composed into video. Music and other non-speech sounds are a supported alternative use, not a separate product.
 
 ```text
 audio -> ewp-waveform -> transparent waveform asset(s) -> DaVinci Resolve

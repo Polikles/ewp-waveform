@@ -18,9 +18,12 @@ No dates are assigned until evidence supports them.
 - [x] timing/drift (CFR frame counts on 3/5/30 s synthetic);
 - [x] resource baseline (30 s CPU sample only);
 - [x] chunk behavior (frame count OK; visual warm-up seam — preroll required);
-- [ ] operator visual QA of local renders;
-- [ ] speech/silence/transient samples;
-- [ ] long-duration (~30/60/180 min) resource and continuity.
+- [x] operator visual QA of noise renders (direction OK; noise too thick; chunk seam confirmed);
+- [x] short speech cuts (s0e00 / s2e9) for style and glow comparison;
+- [x] 30 vs 60 fps encode path on speech (appearance differs; DaVinci playback still operator);
+- [ ] operator visual QA of speech renders;
+- [ ] long-duration (full s2e9 ~50 min, later ~2.5 h) **off this VM**;
+- [ ] music/non-speech sample when available.
 
 ## Phase 2 — FFmpeg MVP
 - [ ] application API;

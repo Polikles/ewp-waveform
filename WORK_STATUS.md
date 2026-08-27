@@ -12,9 +12,9 @@ Development is internal-beta / pre-MVP. There is no chosen release candidate and
 
 FFmpeg research spike in progress (`docs/21-ffmpeg-baseline-plan.md`).
 
-Synthetic CPU evidence is in `docs/notes/ffmpeg-spike/` (`environment.md`, `capability-matrix.md`, `findings.md`). Filled+glow is a usable FFmpeg baseline; particles are unsupported; naive chunk concat has a `showwaves` warm-up seam.
+Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`). Filled+glow is the FFmpeg baseline; 30 and 60 fps are supported and look different; particles unsupported; naive chunk concat needs preroll; `segmented` stays experimental.
 
-Waiting on: operator visual QA of `local-renders/ffmpeg-spike/`; later podcast samples for speech/long-duration/determinism.
+Waiting on: operator visual QA of **speech** renders; DaVinci 30 vs 60 playback; long jobs (s2e9 full, ~2.5 h) **outside this VM**.
 
 ## Deferred pending evidence
 

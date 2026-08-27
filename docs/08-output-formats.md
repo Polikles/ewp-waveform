@@ -11,6 +11,8 @@ Canonical production assets require alpha.
 
 A render may request both with repeated `--format`.
 
+Supported production FPS values are **30** (default) and **60**. FPS is part of visual render identity, not an encoder setting. FFmpeg `showwaves` uses a per-frame sample window of about `1/fps` seconds, so 30 and 60 **look different** at the same timestamp, not merely smoother.
+
 ## Fidelity
 
 Output format is not part of visual identity. The same render identity must preserve geometry/style/timing across encoders within format-appropriate tolerance.
