@@ -30,6 +30,10 @@ FFmpeg spike mapping (synthetic + speech cuts; see `docs/notes/ffmpeg-spike/`):
 
 Speech is the primary visual target. Noise is a poor stand-in: it fills the center and hides style/glow differences.
 
+FFmpeg MVP default mapping: **filled** (`cline` + `draw=full`) + **glow medium** (`gblur` σ=8) at **30 fps**. 60 fps is a supported production identity for fuller detail after preview.
+
+Preset `signal.smoothing` is not yet applied in the spike graph. A visualization-only `lowpass` around 80 Hz reduces busyness; slowing the apparent scroll needs a longer time window and is not a one-line `showwaves` change.
+
 ## Effects
 
 Effects are separate from styles. Initial families:

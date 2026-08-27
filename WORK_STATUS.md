@@ -12,9 +12,13 @@ Development is internal-beta / pre-MVP. There is no chosen release candidate and
 
 FFmpeg research spike in progress (`docs/21-ffmpeg-baseline-plan.md`).
 
-Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`). Filled+glow is the FFmpeg baseline; 30 and 60 fps are supported and look different; particles unsupported; naive chunk concat needs preroll; `segmented` stays experimental.
+Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
-Waiting on: operator visual QA of **speech** renders; DaVinci 30 vs 60 playback; long jobs (s2e9 full, ~2.5 h) **outside this VM**.
+FFmpeg MVP default: **filled + glow medium @ 30 fps**. 60 fps is a supported full-detail identity. Particles unsupported; chunk concat needs preroll; `segmented` experimental.
+
+“Too fast” / busy speech motion is **not** a trivial `showwaves` fix; envelope lowpass ~80 Hz is an optional later tweak. Long jobs run on the operator workstation.
+
+Next engineering phase: FFmpeg MVP application (API + thin CLI + this baseline), still CPU.
 
 ## Deferred pending evidence
 

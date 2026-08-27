@@ -32,12 +32,34 @@ Whole s2e9 (~50 min) and a future ~2.5 h glue file are **out of this VM** (ProRe
 | `szymon_glow_med_60.mov` | filled + medium glow @ 60 |
 | `damian_filled_glow_med_30.mov` | other speaker, same graph |
 | `s2e9_damian_filled_glow_med_30.mov` | s2e9 cut, same graph |
+| `szymon_lp80_glow_med_30.mov` | optional less-busy envelope (`lowpass=80`) |
 
 Stills: `speech/frames/` and `speech/composites/`. Frame counts: 240 @ 30 fps, 480 @ 60 fps for 8.000 s.
 
 ## What changed vs noise
 
 Speech envelopes are **thin in quiet, thick in bursts**. Classic vs filled is obvious. Glow low/medium/high are distinguishable (high halo is clearly larger). Noise had hidden that.
+
+## Operator follow-up (filled + glow medium @ 30)
+
+Accepted as the **reasonable FFmpeg default**. Waveform is a bit busy. **30 fps** is the preview default; **60 fps** is smoother / fuller detail and a separate render identity.
+
+Long episodes stay on the operator workstation. This VM will not process full s2e9 or the ~2.5 h glue file.
+
+## Motion (“too fast”) and busyness
+
+Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.
+
+Tried on the same 8 s Szymon cut:
+
+| Graph | Result |
+|---|---|
+| current default | busy, readable envelope, fast motion |
+| `lowpass=f=80` then filled+glow | less busy, bead-like syllables; **watch** `szymon_lp80_glow_med_30.mov` |
+| `lowpass=f=40` / `20` | too thin / dead |
+| `tmix=frames=8` | smeared ghosts; reject |
+
+Lowpass ~80 Hz is a candidate mapping for preset `signal.smoothing`, not adopted. Slowing the *scroll* needs a longer display window (application buffer or custom renderer).
 
 ## 30 vs 60 fps
 

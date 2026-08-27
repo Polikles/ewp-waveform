@@ -1,6 +1,6 @@
 schema_version = 1
 name = "iuris-default"
-description = "Default EWP visual preset based on the current podcast visual identity."
+description = "Default EWP visual preset. FFmpeg MVP: filled + medium glow at 30 fps."
 
 [canvas]
 width = 1400
@@ -8,7 +8,7 @@ height = 280
 fps = 30
 
 [waveform]
-style = "mirrored"
+style = "filled"
 color = "#C7E6EC"
 amplitude = 0.82
 stroke_width = 3.0

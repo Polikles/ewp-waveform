@@ -14,6 +14,8 @@ The project follows Semantic Versioning. Development is currently an internal be
 - FFmpeg spike note convention under `docs/notes/ffmpeg-spike/`, including an environment and `lavfi` smoke-test record.
 - FFmpeg spike synthetic CPU findings: style/glow capability ratings, chunk warm-up seam, 30 s resource sample.
 - Speech-cut spike follow-up; 30 and 60 documented as supported production FPS (`FR-RENDER-013`).
+- FFmpeg default recorded as filled + medium glow @ 30 fps; preview vs 60 fps full-detail documented.
+- `iuris-default` style set to `filled` to match the accepted FFmpeg look.
 
 ### Changed
 

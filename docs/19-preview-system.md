@@ -6,6 +6,8 @@ Preview uses the real rendering pipeline over a short interval; it is not an unr
 
 Controls should include start time and duration. Grouped tracks use the same source-time interval.
 
+Preview defaults to **30 fps** so operators can judge look before a slower/larger **60 fps** production render. 60 fps remains a canonical option and a different render identity.
+
 Each source still produces its own preview asset.
 
 ## Preview composition

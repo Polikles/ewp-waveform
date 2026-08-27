@@ -58,7 +58,7 @@ Resolve the real plan without final rendering. Report discovery, grouping, warni
 
 ## Preview
 
-Uses the real renderer over a short interval. Expected controls: `--start`, `--duration`, optional future `--template`.
+Uses the real renderer over a short interval. Expected controls: `--start`, `--duration`, optional future `--template`. Preview defaults to 30 fps; `--fps 60` is a different identity for fuller detail.
 
 ## Inspect
 

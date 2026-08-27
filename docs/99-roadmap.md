@@ -60,6 +60,10 @@ No dates are assigned until evidence supports them.
 - [ ] full style/effect implementation;
 - [ ] intermediate pass reuse/cache.
 
+## FFmpeg visual tuning (after MVP baseline)
+- [ ] `showwaves` window / envelope so speech does not read as “too fast” (not trivial in FFmpeg; likely application or custom renderer);
+- [ ] optional visualization lowpass/smoothing vs preset `signal.smoothing` (lowpass ~80 Hz is a candidate for “less busy”).
+
 ## Later
 - [ ] GPU feasibility/RTX benchmark;
 - [ ] low-resource profiles/minimum hardware;
@@ -72,7 +76,8 @@ No dates are assigned until evidence supports them.
 - [ ] WebM/additional formats;
 - [ ] public plugin API;
 - [ ] richer preview templates;
-- [ ] full operator Instructions.
+- [ ] full operator Instructions;
+- [ ] short in-repo example audio + default-preset visualizations for GUI/docs (CC BY-NC-SA excerpts; after renderer testing).
 
 ## Governance
 - [x] source-available license adopted (EWP Waveform Community License 1.0).
