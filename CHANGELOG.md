@@ -10,7 +10,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.
 - Scroll path is translation-only of a frozen envelope (no vertical bounce). Auto-gain so speech fills the canvas.
-- Default production FPS is **60**. Time+scroll uses a denser real RMS hop (`envelope_oversample`, default 4) plus an output-pixel reconstruction filter (`envelope_aa`, default `area` @ 1 px) so sub-pixel spikes do not strobe. `signal.smoothing` stays 0. 30 fps remains supported but is not expected to match 60 fps at this scroll speed.
+- Default production FPS is **60**. Time+scroll uses a denser real RMS hop (`envelope_oversample`, default 4) plus an output-pixel reconstruction filter (`envelope_aa`, default `area` @ 3 px) so 1 px hairs do not strobe. `signal.smoothing` stays 0. 30 fps remains supported but is not expected to match 60 fps at this scroll speed.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.

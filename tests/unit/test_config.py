@@ -15,6 +15,8 @@ def test_builtin_iuris_default_is_time_scroll_mirrored() -> None:
     smoothing = preset.signal.get("smoothing")
     assert smoothing == 0
     assert preset.signal.get("envelope_aa") == "area"
+    support = preset.signal.get("envelope_aa_support")
+    assert support == 3 or support == 3.0
 
 
 def test_builtin_iuris_spectrum_is_frequency_domain() -> None:

@@ -83,6 +83,17 @@ def test_antialias_preserves_flat_interior() -> None:
     assert abs(out[40] - 0.4) < 1e-9
 
 
+def test_wider_aa_kills_one_pixel_hair_keeps_few_pixel_peak() -> None:
+    """A 1 output-px hair (4 dense bins) must not survive support=3; a 4 px lobe should."""
+    oversample = 4
+    hair = [0.0] * 40 + [1.0] * 4 + [0.0] * 40
+    lobe = [0.0] * 32 + [1.0] * 16 + [0.0] * 32
+    a_hair = antialias_envelope(hair, oversample=oversample, kind="area", support_px=3.0)
+    a_lobe = antialias_envelope(lobe, oversample=oversample, kind="area", support_px=3.0)
+    assert max(a_hair) < 0.55
+    assert max(a_lobe) > 0.75
+
+
 def test_window_pads_before_audio_starts() -> None:
     bins = [0.1, 0.2, 0.3]
     got = window_at_time(bins, time_seconds=0.0, sample_rate=4, hop=1, width=4)

@@ -104,8 +104,16 @@ Same 8 s / 60 fps / oversample 4 / smoothing 0:
 | File | Filter |
 |---|---|
 | `*iuris-aa-none_d484fdc73371.mov` | none |
-| `*iuris-aa-area_1252481bb37a.mov` | area, support 1 output px (**default**) |
+| `*iuris-aa-area_1252481bb37a.mov` | area, support 1 output px |
 | `*iuris-aa-lanczos2_d8c292d5723f.mov` | lanczos a=2 |
+
+Operator: 1–2 px kernels still hairy. Lanczos keeps 1 px features (that's the main lobe). Next:
+
+| File | Filter |
+|---|---|
+| `*iuris-aa-area2_05fa28be1df8.mov` | area, 2 px |
+| `*iuris-aa-area3_00ae365bd7ec.mov` | area, 3 px (**default**) |
+| `*iuris-aa-lanczos3_ff44ab484843.mov` | lanczos a=3 |
 
 `signal.envelope_aa` is independent of `signal.smoothing`.
 
