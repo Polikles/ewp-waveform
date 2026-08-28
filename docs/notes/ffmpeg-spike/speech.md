@@ -93,7 +93,17 @@ Lerp removed nearest-neighbour snap, but hop-scale spikes were hair-thin and str
 
 `signal.smoothing` (already 0.15 in `iuris-default`) is now applied as **0.15 seconds** of Gaussian-approx blur (not 15 % of the viewport — that turned the wave into a tube). Visual contract v6. Spectrum path unchanged.
 
-Watch: `*22cbf1d08dc4_v002.mov` (30 fps) and `*4c58bcdbcffa_v002.mov` (60 fps). Ignore the same hashes without `_v002`.
+Watch: `*941113acaca9.mov` (60 fps, oversample 4). Scroll diagnostic Δpx is constant 4.666… at 60 fps.
+
+## Denser envelope + 60 fps default (operator, 2026-08-28)
+
+Smoothed envelope killed stutter but looked too rubbery. Remaining 30 fps judder is ~9.3 px/frame vs ~4.7 at 60 fps — do not fix by quantizing scroll.
+
+- Default canvas FPS is **60**.
+- `envelope_oversample = 4`: hop is `sr * window / (width * 4)` so four **real** RMS bins per output pixel.
+- `smoothing = 0`.
+- Fractional timestamp scroll unchanged. Lerp only between adjacent dense bins.
+- Diagnostic: `iter_scroll_timing` (frame, t, phase, frac, expected Δpx, envelope position) must have constant Δ.
 
 ## Motion (“too fast”) and busyness
 

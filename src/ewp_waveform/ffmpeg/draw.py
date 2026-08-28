@@ -108,13 +108,13 @@ def draw_envelope_frame(
     content_height: int | None = None,
     supersample: int = 1,
     glow_sigma: float = 0.0,
+    envelope_oversample: int = 1,
 ) -> bytes:
-    """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x.
+    """Mirrored columns. ``scroll_phase`` is the left edge in output pixels (timestamp-derived).
 
-    ``scroll_phase`` is the 1x envelope index of draw-column 0 (absolute,
-    timestamp-derived). Magnitude is linearly interpolated at the fractional
-    world index. ``supersample`` is extra horizontal pixels per output column.
-    Peak height is ``peak_half_height(content, glow)`` when ``glow_sigma`` is set.
+    Envelope columns may be denser than output pixels (``envelope_oversample``).
+    Magnitude lerps only between adjacent dense bins. ``supersample`` is raster
+    pixels per output column.
     """
     ss = max(1, int(supersample))
     r, g, b = parse_rgb(color)
@@ -133,7 +133,8 @@ def draw_envelope_frame(
     stroke_ss = stroke * ss
     gap_ss = gap * ss
     period_ss = stroke_ss + gap_ss
-    phase_1x_floor = math.floor(scroll_phase)
+    env_ss = max(1, int(envelope_oversample))
+    phase_env_floor = math.floor(scroll_phase * env_ss)
     phase_ss = scroll_phase * ss
     if columns:
         # Gapless styles: one ss-pixel column each, interpolated envelope.
@@ -153,8 +154,8 @@ def draw_envelope_frame(
             strip_w = float(stroke_ss)
         cap = max(1.0, float(min(center - margin, height - center - 1 - margin)))
         for x in xs:
-            world_1x = scroll_phase + x / ss
-            mag = sample_bin(columns, world_1x - phase_1x_floor)
+            world_px = scroll_phase + x / ss
+            mag = sample_bin(columns, world_px * env_ss - phase_env_floor)
             half = min(float(max_half), float(max_half) * mag)
             if half <= 0.0:
                 continue

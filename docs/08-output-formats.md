@@ -11,7 +11,7 @@ Canonical production assets require alpha.
 
 A render may request both with repeated `--format`.
 
-Supported production FPS values are **30** (default) and **60**. FPS is part of visual render identity, not an encoder setting. FFmpeg `showwaves` uses a per-frame sample window of about `1/fps` seconds, so 30 and 60 **look different** at the same timestamp, not merely smoother.
+Supported production FPS values are **60** (default asset generation) and **30**. FPS is part of visual render identity, not an encoder setting. At the default 5 s / 1400 px scroll, 30 fps moves ~9.3 px/frame and 60 fps ~4.7 px/frame; 30 fps is not required to match 60 fps smoothness at this speed.
 
 ## Fidelity
 

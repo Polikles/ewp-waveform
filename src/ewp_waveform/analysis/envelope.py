@@ -5,14 +5,35 @@ from __future__ import annotations
 import math
 import wave
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
+ENVELOPE_OVERSAMPLE_ALLOWED = frozenset({1, 2, 4, 8})
 
-def hop_samples(sample_rate: int, width: int, window_seconds: float) -> int:
-    if width < 1 or window_seconds <= 0 or sample_rate < 1:
+
+def envelope_oversample_from_signal(signal: dict[str, object]) -> int:
+    raw = signal.get("envelope_oversample", 1)
+    if isinstance(raw, bool):
+        return 1
+    if isinstance(raw, int) and raw in ENVELOPE_OVERSAMPLE_ALLOWED:
+        return raw
+    if isinstance(raw, float) and int(raw) == raw and int(raw) in ENVELOPE_OVERSAMPLE_ALLOWED:
+        return int(raw)
+    return 1
+
+
+def hop_samples(
+    sample_rate: int,
+    width: int,
+    window_seconds: float,
+    oversample: int = 1,
+) -> int:
+    """Hop so ``width * oversample`` real RMS bins cover ``window_seconds``."""
+    if width < 1 or window_seconds <= 0 or sample_rate < 1 or oversample < 1:
         msg = "invalid envelope hop parameters"
         raise ValueError(msg)
-    return max(1, int(sample_rate * window_seconds / width))
+    analysis_width = width * oversample
+    return max(1, int(sample_rate * window_seconds / analysis_width))
 
 
 def rms_bins_from_wav(path: Path, hop: int) -> list[float]:
@@ -90,10 +111,74 @@ def column_offset(frame_index: int, fps: float, window_seconds: float, width: in
 
 
 def column_offset_float(frame_index: int, fps: float, window_seconds: float, width: int) -> float:
+    """Output-pixel columns advanced at this frame. Timestamp-derived; not quantized."""
     if fps <= 0 or window_seconds <= 0 or width < 1:
         msg = "invalid scroll offset parameters"
         raise ValueError(msg)
     return frame_index * width / (window_seconds * fps)
+
+
+def viewport_left_px(frame_index: int, fps: float, window_seconds: float, width: int) -> float:
+    """Left edge of the visible window in output pixels (right edge is 'now')."""
+    return column_offset_float(frame_index, fps, window_seconds, width) + 1.0 - width
+
+
+@dataclass(frozen=True)
+class ScrollTiming:
+    frame_index: int
+    timestamp: float
+    scroll_phase: float
+    fractional_phase: float
+    expected_delta_px: float
+    envelope_position: float
+
+    def as_row(self) -> str:
+        return (
+            f"{self.frame_index:5d}  t={self.timestamp:9.6f}  "
+            f"phase={self.scroll_phase:14.8f}  frac={self.fractional_phase:10.8f}  "
+            f"dpx={self.expected_delta_px:10.8f}  env={self.envelope_position:14.8f}"
+        )
+
+
+def scroll_timing(
+    frame_index: int,
+    *,
+    fps: float,
+    window_seconds: float,
+    width: int,
+    oversample: int = 1,
+) -> ScrollTiming:
+    """Diagnostic row: constant pixel delta implies constant envelope sampling."""
+    vis = viewport_left_px(frame_index, fps, window_seconds, width)
+    expected = width / (window_seconds * fps)
+    return ScrollTiming(
+        frame_index=frame_index,
+        timestamp=frame_index / fps,
+        scroll_phase=vis,
+        fractional_phase=vis - math.floor(vis),
+        expected_delta_px=expected,
+        envelope_position=vis * oversample,
+    )
+
+
+def iter_scroll_timing(
+    n_frames: int,
+    *,
+    fps: float,
+    window_seconds: float,
+    width: int,
+    oversample: int = 1,
+) -> list[ScrollTiming]:
+    return [
+        scroll_timing(
+            i,
+            fps=fps,
+            window_seconds=window_seconds,
+            width=width,
+            oversample=oversample,
+        )
+        for i in range(n_frames)
+    ]
 
 
 def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -> list[float]:

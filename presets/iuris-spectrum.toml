@@ -5,7 +5,7 @@ description = "Choosable default: fixed frequency axis (low left, high right). S
 [canvas]
 width = 1400
 height = 280
-fps = 30
+fps = 60
 
 [waveform]
 style = "mirrored"

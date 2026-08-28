@@ -16,8 +16,8 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
             name="domain:time+scroll",
             level=CapabilityLevel.LIMITED,
             notes=(
-                "Application RMS envelope over window_seconds, mirrored bars, "
-                "FFmpeg encode+glow. Limited vs brand stroke density."
+                "Application RMS envelope over window_seconds with envelope_oversample, "
+                "mirrored columns, FFmpeg encode+glow. Limited vs brand stroke density."
             ),
         ),
         CapabilityItem(

@@ -6,7 +6,7 @@ Preview uses the real rendering pipeline over a short interval; it is not an unr
 
 Controls should include start time and duration. Grouped tracks use the same source-time interval.
 
-Preview defaults to **30 fps** so operators can judge look before a slower/larger **60 fps** production render. 60 fps remains a canonical option and a different render identity.
+Preview uses the preset FPS (default **60**). `--fps 30` is still a supported, different render identity; it will look more stepped at the default scroll speed.
 
 Each source still produces its own preview asset.
 

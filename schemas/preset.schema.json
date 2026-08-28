@@ -97,7 +97,13 @@
         },
         "smoothing": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Optional Gaussian-approx envelope blur in seconds. 0 disables."
+        },
+        "envelope_oversample": {
+          "type": "integer",
+          "enum": [1, 2, 4, 8],
+          "description": "Real RMS bins per output pixel across window_seconds. Not interpolated 1x data."
         },
         "normalization": {
           "type": "object",

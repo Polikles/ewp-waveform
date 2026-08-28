@@ -12,12 +12,13 @@ from typing import Any
 
 from ewp_waveform import __version__
 from ewp_waveform.analysis.envelope import (
-    column_offset_float,
+    envelope_oversample_from_signal,
     hop_samples,
     normalize_bins,
     rms_bins_from_wav,
     scale_amplitude,
     smooth_bins,
+    viewport_left_px,
     window_at_column,
 )
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
@@ -101,14 +102,16 @@ def iter_scroll_frames(
     draw_w = width + 2 * pad
     draw_h = height + 2 * pad
     ss = SCROLL_SUPERSAMPLE
+    oversample = envelope_oversample_from_signal(preset.signal)
+    env_w = draw_w * oversample
     for i in range(n_frames):
-        off = column_offset_float(i, fps, window_seconds, width)
-        vis_start = off + 1.0 - width
+        vis_start = viewport_left_px(i, fps, window_seconds, width)
         draw_start = vis_start - pad
+        draw_start_bins = draw_start * oversample
         raw = window_at_column(
             bins,
-            end_exclusive=math.floor(draw_start) + draw_w + 1,
-            width=draw_w + 1,
+            end_exclusive=math.floor(draw_start_bins) + env_w + 1,
+            width=env_w + 1,
         )
         yield draw_envelope_frame(
             raw,
@@ -123,6 +126,7 @@ def iter_scroll_frames(
             content_height=height,
             supersample=ss,
             glow_sigma=glow,
+            envelope_oversample=oversample,
         )
 
 
@@ -210,10 +214,12 @@ def render_job(
                 shutil.move(str(tmp_mov), str(mov_dest))
                 outputs.append({"path": str(mov_dest), "format": "prores4444"})
         else:
+            oversample = envelope_oversample_from_signal(preset.signal)
             hop = hop_samples(
                 decoded_media.sample_rate,
                 preset.canvas.width,
                 preset.waveform.window_seconds,
+                oversample=oversample,
             )
             bins = rms_bins_from_wav(decoded, hop)
             scale = str(preset.signal.get("scale") or "sqrt")
@@ -360,6 +366,7 @@ def _result_payload(
             "time_mode": preset.waveform.time_mode,
             "color": preset.waveform.color,
             "window_seconds": preset.waveform.window_seconds,
+            "envelope_oversample": envelope_oversample_from_signal(preset.signal),
             "glow": glow,
         },
         "resolved_performance_config": {

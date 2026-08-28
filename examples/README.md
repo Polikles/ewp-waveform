@@ -4,7 +4,7 @@ TOML/JSON here are schema illustrations, not rendered media.
 
 ## Later: default-preset demo assets
 
-After renderer testing, the repository should include **short**, separately licensed speech excerpts plus the waveforms those excerpts produce with **built-in default presets** (at least `iuris-default` at 30 fps).
+After renderer testing, the repository should include **short**, separately licensed speech excerpts plus the waveforms those excerpts produce with **built-in default presets** (at least `iuris-default` at 60 fps).
 
 Purpose: show operators and a future GUI what the defaults actually look like, without requiring a full episode. Include both choosable defaults: scrolling envelope (`iuris-default`) and fixed-axis spectrum (`iuris-spectrum`).
 

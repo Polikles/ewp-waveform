@@ -1,11 +1,14 @@
 import struct
 import wave
+from itertools import pairwise
 from pathlib import Path
 
 from ewp_waveform.analysis.envelope import (
     column_offset,
     column_offset_float,
+    envelope_oversample_from_signal,
     hop_samples,
+    iter_scroll_timing,
     normalize_bins,
     rms_bins_from_wav,
     sample_bin,
@@ -27,6 +30,19 @@ def test_hop_samples_covers_window() -> None:
     assert hop_samples(48000, 1400, 5.0) == max(1, int(48000 * 5.0 / 1400))
 
 
+def test_hop_samples_shrinks_with_envelope_oversample() -> None:
+    one = hop_samples(48000, 1400, 5.0, oversample=1)
+    four = hop_samples(48000, 1400, 5.0, oversample=4)
+    assert four == max(1, int(48000 * 5.0 / (1400 * 4)))
+    assert four < one
+
+
+def test_envelope_oversample_from_signal_allows_powers_of_two() -> None:
+    assert envelope_oversample_from_signal({}) == 1
+    assert envelope_oversample_from_signal({"envelope_oversample": 4}) == 4
+    assert envelope_oversample_from_signal({"envelope_oversample": 3}) == 1
+
+
 def test_window_pads_before_audio_starts() -> None:
     bins = [0.1, 0.2, 0.3]
     got = window_at_time(bins, time_seconds=0.0, sample_rate=4, hop=1, width=4)
@@ -45,6 +61,27 @@ def test_column_offset_is_integer_pixels() -> None:
     assert column_offset(0, 30.0, 5.0, 1400) == 0
     assert column_offset(30, 30.0, 5.0, 1400) == 1400 // 5
     assert column_offset_float(1, 30.0, 5.0, 1400) == 1400 / (5.0 * 30.0)
+
+
+def test_scroll_timing_delta_is_constant() -> None:
+    fps = 60.0
+    window = 5.0
+    width = 1400
+    oversample = 4
+    expected = width / (window * fps)
+    rows = iter_scroll_timing(
+        16, fps=fps, window_seconds=window, width=width, oversample=oversample
+    )
+    header = "frame  timestamp  scroll_phase  frac  expected_dpx  env_pos"
+    table = "\n".join([header, *(row.as_row() for row in rows)])
+    print(table)
+    assert abs(rows[0].expected_delta_px - expected) < 1e-12
+    for prev, cur in pairwise(rows):
+        actual_px = cur.scroll_phase - prev.scroll_phase
+        actual_env = cur.envelope_position - prev.envelope_position
+        assert abs(actual_px - expected) < 1e-9
+        assert abs(actual_env - expected * oversample) < 1e-9
+        assert abs((cur.timestamp - prev.timestamp) - 1.0 / fps) < 1e-12
 
 
 def test_normalize_raises_typical_peaks_without_using_silence() -> None:
