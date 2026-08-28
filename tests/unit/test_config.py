@@ -9,6 +9,7 @@ def test_builtin_iuris_default_is_time_scroll_mirrored() -> None:
     assert preset.waveform.time_mode == "scroll"
     assert preset.canvas.fps == 30
     assert preset.waveform.window_seconds == 5.0
+    assert preset.waveform.amplitude == 0.80
 
 
 def test_builtin_iuris_spectrum_is_frequency_domain() -> None:

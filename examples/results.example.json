@@ -10,7 +10,7 @@
   "renderer": {
     "name": "ffmpeg",
     "version": "example",
-    "visual_contract_version": 2
+    "visual_contract_version": 3
   },
   "project": {"project_id": "s0e00", "track_id": "Szymon"},
   "inputs": [{

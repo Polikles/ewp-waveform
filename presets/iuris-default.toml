@@ -13,7 +13,7 @@ domain = "time"
 time_mode = "scroll"
 window_seconds = 5.0
 color = "#C7E6EC"
-amplitude = 0.95
+amplitude = 0.80
 stroke_width = 3.0
 center_line = true
 

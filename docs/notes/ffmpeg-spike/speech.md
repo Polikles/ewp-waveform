@@ -56,6 +56,18 @@ Speech envelopes are **thin in quiet, thick in bursts**. Classic vs filled is ob
 - Still check (t=6 s, 30 fps `*ed7111fcb7b1.mov`): tallest solid bar inset ~11 px; edge rows have glow alpha only (no solid 255). Previous `*v002` still at t=2 had zero alpha on rows 0–3 (glow truncated).
 - 30 fps at this window is still ~9.3 px/frame (~2 bar periods). That is stepped, not a `tmix` smear (`tmix=frames=8` already rejected). Watch 60 fps `*e0c0b6911bb7.mov` (~4.7 px/frame) for smoother travel.
 
+## Strobing and remaining clip (operator, 2026-08-28)
+
+60 fps was only slightly better. Both fps **strobed**, and peaks still looked cut off.
+
+Cause of the strobe: a 3 px bar + 1 px gap sliding across the pixel grid beats 3 frames (phase 0 / 0.33 / 0.67). Integer-aligned frames look gappy; half-pixel frames look filled-in. That is contrast pumping, not a decode error.
+
+Cause of remaining clip: amplitude **0.95** put typical peaks ~11 px from the frame edge, so `gblur` σ=8 still hit the crop. The 95th-percentile auto-gain plus 0.95 fill stacked.
+
+Changes: amplitude **0.80**; 4× horizontal supersample + `scale=flags=area` before glow; visual contract v3.
+
+Watch: `*f3217e311b57.mov` (30 fps) and `*a4e87708204d.mov` (60 fps). Still check at t=6 s: peak cores ~30 px from the frame edge; row 0 alpha is 0 (glow fully inside). Consecutive 60 fps frames no longer alternate gappy vs filled-in.
+
 ## Motion (“too fast”) and busyness
 
 Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.

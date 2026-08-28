@@ -104,3 +104,36 @@ def test_glow_crop_graph_crops_overscan() -> None:
     assert "gblur=sigma=8" in graph
     assert "crop=1400:280:26:26" in graph
     assert graph.endswith("[out]")
+
+
+def test_glow_crop_graph_downsamples_supersample() -> None:
+    graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=4)
+    assert "scale=1452:332:flags=area" in graph
+    assert "crop=1400:280:26:26" in graph
+
+
+def test_bar_mag_stays_on_envelope_origin_across_phase() -> None:
+    columns = [0.1] * 4 + [1.0] + [0.1] * 11
+    width, height = 16, 40
+    a = _draw(columns, width=width, height=height, scroll_phase=0.0)
+    b = _draw(columns, width=width, height=height, scroll_phase=0.6)
+    top_a, bot_a = _column_opaque_span(a, width, height, 5)
+    top_b, bot_b = _column_opaque_span(b, width, height, 4)
+    assert top_a != -1
+    assert (top_a, bot_a) == (top_b, bot_b)
+
+
+def test_supersample_frame_is_wider() -> None:
+    width, height = 8, 20
+    frame = draw_envelope_frame(
+        [1.0] * width,
+        width=width,
+        height=height,
+        color="#FFFFFF",
+        amplitude=0.8,
+        stroke_width=3.0,
+        style="mirrored",
+        center_line=False,
+        supersample=4,
+    )
+    assert len(frame) == width * 4 * height * 4

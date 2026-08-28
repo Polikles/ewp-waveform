@@ -23,7 +23,7 @@ from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
-from ewp_waveform.ffmpeg.draw import draw_envelope_frame, glow_overscan
+from ewp_waveform.ffmpeg.draw import SCROLL_SUPERSAMPLE, draw_envelope_frame, glow_overscan
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
     encode_rgba_stream,
@@ -100,6 +100,7 @@ def iter_scroll_frames(
     pad = glow_overscan(glow)
     draw_w = width + 2 * pad
     draw_h = height + 2 * pad
+    ss = SCROLL_SUPERSAMPLE
     for i in range(n_frames):
         off = column_offset_float(i, fps, window_seconds, width)
         vis_start = off + 1.0 - width
@@ -122,6 +123,7 @@ def iter_scroll_frames(
             scroll_phase=draw_start,
             vertical_margin=1,
             content_height=height,
+            supersample=ss,
         )
 
 
@@ -242,6 +244,7 @@ def render_job(
                 prores_path=mov_work,
                 ffmpeg_threads=threads,
                 overscan=glow_overscan(glow),
+                supersample=SCROLL_SUPERSAMPLE,
             )
             if mov_work is not None and mov_work.is_file():
                 shutil.move(str(mov_work), str(mov_dest))

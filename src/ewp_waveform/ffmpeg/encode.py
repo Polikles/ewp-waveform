@@ -20,19 +20,30 @@ def glow_sigma(level: str, enabled: bool) -> float:
     return GLOW_SIGMA.get(level, 8.0)
 
 
-def _glow_crop_graph(glow: float, width: int, height: int, overscan: int) -> str:
-    """Blur on a padded canvas, then crop so gblur is not truncated at the frame edge."""
+def _glow_crop_graph(
+    glow: float,
+    width: int,
+    height: int,
+    overscan: int,
+    supersample: int = 1,
+) -> str:
+    """Downsample a supersampled strip, blur on a padded canvas, crop to the output frame."""
+    padded_w = width + 2 * overscan
+    padded_h = height + 2 * overscan
+    prefix = f"scale={padded_w}:{padded_h}:flags=area," if supersample > 1 else ""
     crop = f"crop={width}:{height}:{overscan}:{overscan}" if overscan > 0 else "format=rgba"
     if glow > 0:
         body = (
-            "split=2[base][g];[g]gblur=sigma="
+            f"{prefix}split=2[base][g];[g]gblur=sigma="
             f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,format=rgba"
         )
         if overscan > 0:
             return f"[0:v]{body},{crop}[out]"
         return f"[0:v]{body}[out]"
     if overscan > 0:
-        return f"[0:v]format=rgba,{crop}[out]"
+        return f"[0:v]{prefix}format=rgba,{crop}[out]"
+    if prefix:
+        return f"[0:v]{prefix}format=rgba[out]"
     return "[0:v]format=rgba[out]"
 
 
@@ -47,14 +58,16 @@ def encode_rgba_stream(
     prores_path: Path | None,
     ffmpeg_threads: int = 0,
     overscan: int = 0,
+    supersample: int = 1,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
         raise ValueError(msg)
     ffmpeg = require_tool("ffmpeg")
-    in_w = width + 2 * overscan
+    ss = max(1, int(supersample))
+    in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
-    graph = _glow_crop_graph(glow, width, height, overscan)
+    graph = _glow_crop_graph(glow, width, height, overscan, ss)
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
@@ -97,6 +110,7 @@ def encode_rgba_stream(
                 prores_path=prores_path,
                 ffmpeg_threads=ffmpeg_threads,
                 overscan=overscan,
+                supersample=ss,
             )
             completed = run_argv_stdin(argv, frames)
             if completed.returncode != 0:
@@ -131,10 +145,12 @@ def _dual_output_argv(
     prores_path: Path,
     ffmpeg_threads: int,
     overscan: int = 0,
+    supersample: int = 1,
 ) -> list[str]:
-    core = _glow_crop_graph(glow, width, height, overscan)
+    ss = max(1, int(supersample))
+    core = _glow_crop_graph(glow, width, height, overscan, ss)
     graph = core.replace("[out]", "split=2[png][mov]", 1)
-    in_w = width + 2 * overscan
+    in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
     argv = [
         str(ffmpeg),

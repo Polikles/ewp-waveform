@@ -5,6 +5,9 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+# Horizontal supersample so a 3px bar / 1px gap does not beat against the pixel grid.
+SCROLL_SUPERSAMPLE = 4
+
 
 def parse_rgb(color: str) -> tuple[int, int, int]:
     raw = color.removeprefix("#")
@@ -81,37 +84,44 @@ def draw_envelope_frame(
     scroll_phase: float = 0.0,
     vertical_margin: int = 1,
     content_height: int | None = None,
+    supersample: int = 1,
 ) -> bytes:
     """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x.
 
-    ``scroll_phase`` is the envelope index of draw-column 0 (may be fractional so
-    bars slide with coverage-antialiased edges instead of snapping a whole period).
+    ``scroll_phase`` is the 1x envelope index of draw-column 0. ``supersample``
+    draws that many horizontal pixels per output column so a 3+1 bar lattice
+    does not pump contrast as it slides across the pixel grid.
     """
+    ss = max(1, int(supersample))
     r, g, b = parse_rgb(color)
-    frame = bytearray(width * height * 4)
+    out_w = width * ss
+    frame = bytearray(out_w * height * 4)
     center = height // 2
     inner = content_height or height
     margin = max(0, vertical_margin)
     usable = min(inner // 2, inner - inner // 2 - 1) - margin
     max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
     stroke, gap = bar_metrics(style, stroke_width)
-    period = stroke + gap
-    phase_floor = math.floor(scroll_phase)
-    frac = scroll_phase - phase_floor
+    stroke_ss = stroke * ss
+    gap_ss = gap * ss
+    period_ss = stroke_ss + gap_ss
+    phase_1x_floor = math.floor(scroll_phase)
+    phase_ss = scroll_phase * ss
     if columns:
-        if period <= 1:
-            xs: list[float] = [float(x) for x in range(width)]
+        if period_ss <= 1:
+            xs: list[float] = [float(x) for x in range(out_w)]
         else:
-            rem = scroll_phase % period
-            first = 0.0 if rem == 0.0 else period - rem
+            rem = phase_ss % period_ss
+            first = 0.0 if rem == 0.0 else period_ss - rem
             xs = []
-            x = first - period
-            while x < width:
-                if x + stroke > 0:
+            x = first - period_ss
+            while x < out_w:
+                if x + stroke_ss > 0:
                     xs.append(x)
-                x += period
+                x += period_ss
         for x in xs:
-            idx = round(x + frac)
+            world_1x = scroll_phase + x / ss
+            idx = round(world_1x) - phase_1x_floor
             mag = columns[idx] if 0 <= idx < len(columns) else 0.0
             mag = min(max(mag, 0.0), 1.0)
             half = min(max_half, round(max_half * mag))
@@ -126,11 +136,21 @@ def draw_envelope_frame(
                 y1 = center + half + 1
             y0 = max(0, y0)
             y1 = min(height, y1)
-            _put_span(frame, width=width, x0=x, x1=x + stroke, y0=y0, y1=y1, r=r, g=g, b=b)
+            _put_span(
+                frame,
+                width=out_w,
+                x0=x,
+                x1=x + stroke_ss,
+                y0=y0,
+                y1=y1,
+                r=r,
+                g=g,
+                b=b,
+            )
     if center_line:
         y = min(height - 1, max(0, center))
-        row = y * width * 4
-        for px in range(width):
+        row = y * out_w * 4
+        for px in range(out_w):
             off = row + px * 4
             if frame[off + 3] == 0:
                 frame[off] = r
