@@ -47,7 +47,7 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen, then the window **translates horizontally only** (right edge = now). Auto-normalization fills typical speech to the canvas (preset `amplitude`, default 0.95). Mirrored bars + optional glow. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now); bar grid is locked to envelope index so heights do not jump as bars slide. Auto-gain fills typical speech; a glow margin keeps peaks inside the frame. Not a pixel match to linia lustrzana.
 
 Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling envelope.
 

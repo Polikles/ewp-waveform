@@ -22,7 +22,7 @@ from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
-from ewp_waveform.ffmpeg.draw import draw_envelope_frame
+from ewp_waveform.ffmpeg.draw import draw_envelope_frame, glow_vertical_margin
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
     encode_rgba_stream,
@@ -88,6 +88,7 @@ def iter_scroll_frames(
     preset: VisualPreset,
     fps: float,
     scale: str,
+    glow: float = 0.0,
 ) -> Iterator[bytes]:
     width = preset.canvas.width
     height = preset.canvas.height
@@ -95,8 +96,10 @@ def iter_scroll_frames(
     stroke = preset.waveform.stroke_width or 3.0
     center = bool(preset.waveform.center_line)
     window_seconds = preset.waveform.window_seconds
+    margin = glow_vertical_margin(glow)
     for i in range(n_frames):
         end = column_offset(i, fps, window_seconds, width) + 1
+        start = end - width
         raw = window_at_column(bins, end_exclusive=end, width=width)
         columns = [scale_amplitude(v, scale) for v in raw]
         yield draw_envelope_frame(
@@ -108,6 +111,8 @@ def iter_scroll_frames(
             stroke_width=stroke,
             style=preset.waveform.style,
             center_line=center,
+            scroll_phase=start,
+            vertical_margin=margin,
         )
 
 
@@ -214,6 +219,7 @@ def render_job(
                 preset=preset,
                 fps=job.fps,
                 scale=scale,
+                glow=glow,
             )
             png_work: Path | None = work / "png" if want_png else None
             mov_work: Path | None = work / "out.mov" if want_mov and not skip_mov else None
