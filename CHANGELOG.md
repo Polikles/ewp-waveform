@@ -9,6 +9,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - First identifiable CLI: `waveform doctor|inspect|capabilities|dry-run|preview|render`.
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.
+- Scroll path is translation-only of a frozen envelope (no vertical bounce). Auto-gain so speech fills the canvas.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.

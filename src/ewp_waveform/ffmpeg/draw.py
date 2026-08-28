@@ -28,7 +28,9 @@ def draw_envelope_frame(
     r, g, b = parse_rgb(color)
     frame = bytearray(width * height * 4)
     center = height // 2
-    max_half = max(1, int((height // 2) * min(max(amplitude, 0.0), 1.0)))
+    # Leave 1px for glow; amplitude 1.0 uses the full half-height.
+    usable = max(1, center - 1)
+    max_half = max(1, round(usable * min(max(amplitude, 0.0), 1.0)))
     stroke = max(1, round(stroke_width or 1.0))
     if style == "segmented":
         stroke = max(stroke, 4)

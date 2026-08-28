@@ -53,17 +53,31 @@ def scale_amplitude(value: float, scale: str) -> float:
     return v
 
 
-def window_at_time(
-    bins: Sequence[float],
-    *,
-    time_seconds: float,
-    sample_rate: int,
-    hop: int,
-    width: int,
-) -> list[float]:
-    """Right edge is 'now'; left edge is now minus the window. Pad with zeros."""
-    now_index = int(time_seconds * sample_rate / hop)
-    start = now_index - width + 1
+def normalize_bins(bins: Sequence[float], *, percentile: float = 95.0) -> list[float]:
+    """Scale visualization bins so typical peaks fill 0..1. Does not touch source audio."""
+    active = [v for v in bins if v > 1e-4]
+    if not active:
+        return list(bins)
+    ordered = sorted(active)
+    index = min(len(ordered) - 1, max(0, int(len(ordered) * percentile / 100.0)))
+    peak = ordered[index]
+    if peak <= 0.0:
+        return list(bins)
+    return [min(1.0, v / peak) for v in bins]
+
+
+def column_offset(frame_index: int, fps: float, window_seconds: float, width: int) -> int:
+    """Integer columns advanced at this frame. Scroll is translation-only."""
+    if fps <= 0 or window_seconds <= 0 or width < 1:
+        msg = "invalid scroll offset parameters"
+        raise ValueError(msg)
+    pixels_per_second = width / window_seconds
+    return round(frame_index * pixels_per_second / fps)
+
+
+def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -> list[float]:
+    """Right edge is 'now' (end_exclusive-1). Values are copied, never recomputed."""
+    start = end_exclusive - width
     out: list[float] = []
     for i in range(width):
         idx = start + i
@@ -72,3 +86,16 @@ def window_at_time(
         else:
             out.append(0.0)
     return out
+
+
+def window_at_time(
+    bins: Sequence[float],
+    *,
+    time_seconds: float,
+    sample_rate: int,
+    hop: int,
+    width: int,
+) -> list[float]:
+    """Deprecated indexing helper; prefer column_offset + window_at_column."""
+    now_index = int(time_seconds * sample_rate / hop)
+    return window_at_column(bins, end_exclusive=now_index + 1, width=width)

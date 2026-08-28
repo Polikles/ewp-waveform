@@ -2,7 +2,14 @@ import struct
 import wave
 from pathlib import Path
 
-from ewp_waveform.analysis.envelope import hop_samples, rms_bins_from_wav, window_at_time
+from ewp_waveform.analysis.envelope import (
+    column_offset,
+    hop_samples,
+    normalize_bins,
+    rms_bins_from_wav,
+    window_at_column,
+    window_at_time,
+)
 
 
 def _write_mono_s16(path: Path, samples: list[int], rate: int = 8000) -> None:
@@ -21,6 +28,26 @@ def test_window_pads_before_audio_starts() -> None:
     bins = [0.1, 0.2, 0.3]
     got = window_at_time(bins, time_seconds=0.0, sample_rate=4, hop=1, width=4)
     assert got == [0.0, 0.0, 0.0, 0.1]
+
+
+def test_scroll_is_translation_of_frozen_bins() -> None:
+    bins = [0.1 * i for i in range(20)]
+    width = 8
+    first = window_at_column(bins, end_exclusive=8, width=width)
+    second = window_at_column(bins, end_exclusive=11, width=width)
+    assert second[:5] == first[3:]
+
+
+def test_column_offset_is_integer_pixels() -> None:
+    assert column_offset(0, 30.0, 5.0, 1400) == 0
+    assert column_offset(30, 30.0, 5.0, 1400) == 1400 // 5
+
+
+def test_normalize_raises_typical_peaks_without_using_silence() -> None:
+    bins = [0.0] * 10 + [0.2, 0.2, 0.25]
+    out = normalize_bins(bins, percentile=100)
+    assert out[-1] == 1.0
+    assert out[0] == 0.0
 
 
 def test_rms_silence_is_zero(tmp_path: Path) -> None:

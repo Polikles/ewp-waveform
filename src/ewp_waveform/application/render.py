@@ -11,10 +11,12 @@ from typing import Any
 
 from ewp_waveform import __version__
 from ewp_waveform.analysis.envelope import (
+    column_offset,
     hop_samples,
+    normalize_bins,
     rms_bins_from_wav,
     scale_amplitude,
-    window_at_time,
+    window_at_column,
 )
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
@@ -83,8 +85,6 @@ def iter_scroll_frames(
     bins: list[float],
     *,
     duration: float,
-    sample_rate: int,
-    hop: int,
     preset: VisualPreset,
     fps: float,
     scale: str,
@@ -94,9 +94,10 @@ def iter_scroll_frames(
     n_frames = max(1, round(duration * fps))
     stroke = preset.waveform.stroke_width or 3.0
     center = bool(preset.waveform.center_line)
+    window_seconds = preset.waveform.window_seconds
     for i in range(n_frames):
-        t = i / fps
-        raw = window_at_time(bins, time_seconds=t, sample_rate=sample_rate, hop=hop, width=width)
+        end = column_offset(i, fps, window_seconds, width) + 1
+        raw = window_at_column(bins, end_exclusive=end, width=width)
         columns = [scale_amplitude(v, scale) for v in raw]
         yield draw_envelope_frame(
             columns,
@@ -200,12 +201,16 @@ def render_job(
                 preset.waveform.window_seconds,
             )
             bins = rms_bins_from_wav(decoded, hop)
+            norm = preset.signal.get("normalization")
+            norm_mode = "auto"
+            if isinstance(norm, dict):
+                norm_mode = str(norm.get("mode") or "auto")
+            if norm_mode != "none":
+                bins = normalize_bins(bins)
             scale = str(preset.signal.get("scale") or "sqrt")
             frames = iter_scroll_frames(
                 bins,
                 duration=wav_duration,
-                sample_rate=decoded_media.sample_rate,
-                hop=hop,
                 preset=preset,
                 fps=job.fps,
                 scale=scale,
