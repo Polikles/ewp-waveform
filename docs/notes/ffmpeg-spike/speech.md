@@ -95,6 +95,14 @@ Lerp removed nearest-neighbour snap, but hop-scale spikes were hair-thin and str
 
 Watch: `*941113acaca9.mov` (60 fps, oversample 4). Scroll diagnostic Δpx is constant 4.666… at 60 fps.
 
+## No-glow comparison (operator, 2026-08-28)
+
+Shape of the dense envelope is better, but spikes strobe with medium glow. Comparison (same hop/oversample/60 fps, glow disabled):
+
+`app-render/s0e00/*iuris-default-noglow_54d802329ca0.mov`
+
+Local preset (not in git): `local-renders/ffmpeg-spike/iuris-default-noglow.toml`.
+
 ## Denser envelope + 60 fps default (operator, 2026-08-28)
 
 Smoothed envelope killed stutter but looked too rubbery. Remaining 30 fps judder is ~9.3 px/frame vs ~4.7 at 60 fps — do not fix by quantizing scroll.
