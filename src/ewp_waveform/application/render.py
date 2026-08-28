@@ -106,8 +106,8 @@ def iter_scroll_frames(
         draw_start = vis_start - pad
         raw = window_at_column(
             bins,
-            end_exclusive=math.floor(draw_start) + draw_w,
-            width=draw_w,
+            end_exclusive=math.floor(draw_start) + draw_w + 1,
+            width=draw_w + 1,
         )
         yield draw_envelope_frame(
             raw,

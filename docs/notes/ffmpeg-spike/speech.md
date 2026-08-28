@@ -79,6 +79,14 @@ Clipping remained (hard rectangular ceiling + 3+1 lattice). Operator: vertical s
 
 Watch: `*728223528a30.mov` (30 fps) and `*493363baea48.mov` (60 fps). t=6 s: peak cores ~33 px from the frame edge, row 0 alpha 0. Consecutive 60 fps frames keep similar bar density (no gappy/filled-in pump).
 
+## Envelope lerp (operator, 2026-08-28)
+
+30 fps still jittery, 60 fps better but snap remained. Cause: `round(world_1x)` nearest-neighbour on 1-bin-per-column RMS. Geometry was supersampled; envelope was not.
+
+Fix: `sample_bin()` linear interpolation; gapless path draws one ss-pixel column per interpolated sample; vertical coverage on bar ends. Visual contract v5.
+
+Watch: `*5b43502ac546.mov` (30 fps) and `*40e84d4929f6.mov` (60 fps).
+
 ## Motion (“too fast”) and busyness
 
 Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.

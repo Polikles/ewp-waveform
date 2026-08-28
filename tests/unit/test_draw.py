@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 from ewp_waveform.ffmpeg.draw import (
     bar_metrics,
     draw_envelope_frame,
@@ -82,17 +84,15 @@ def test_peak_bars_stay_inside_frame() -> None:
             assert frame[(y * width + x) * 4 + 3] == 0
 
 
-def test_fractional_phase_keeps_height_and_covers_partial_column() -> None:
+def test_fractional_phase_keeps_height_on_flat_envelope() -> None:
     width, height = 16, 40
     columns = [1.0] * width
     solid = _draw(columns, width=width, height=height, scroll_phase=0.0)
-    # period 3 (stroke 3, gap 0): phase 2.6 puts a bar at x=0.4 covering [0.4, 3.4).
     shifted = _draw(columns, width=width, height=height, scroll_phase=2.6)
     top_a, bot_a = _column_opaque_span(solid, width, height, 2)
     top_b, bot_b = _column_opaque_span(shifted, width, height, 2)
+    assert top_a != -1
     assert (top_a, bot_a) == (top_b, bot_b)
-    alphas = [shifted[(y * width + 0) * 4 + 3] for y in range(height)]
-    assert any(0 < a < 255 for a in alphas)
 
 
 def test_overscan_peaks_do_not_touch_draw_edges() -> None:
@@ -128,15 +128,38 @@ def test_glow_crop_graph_downsamples_supersample() -> None:
     assert "crop=1400:280:26:26" in graph
 
 
-def test_bar_mag_stays_on_envelope_origin_across_phase() -> None:
-    columns = [0.1] * 3 + [1.0] + [0.1] * 12
-    width, height = 16, 40
-    a = _draw(columns, width=width, height=height, scroll_phase=0.0)
-    b = _draw(columns, width=width, height=height, scroll_phase=0.6)
-    top_a, bot_a = _column_opaque_span(a, width, height, 4)
-    top_b, bot_b = _column_opaque_span(b, width, height, 4)
-    assert top_a != -1
-    assert (top_a, bot_a) == (top_b, bot_b)
+def _column_alpha_mass(frame: bytes, width: int, height: int, x: int) -> int:
+    return sum(frame[(y * width + x) * 4 + 3] for y in range(height))
+
+
+def test_adjacent_bin_lerp_is_monotonic_across_half_bin() -> None:
+    """Nearest-neighbor snapped at 0.5; lerp must rise smoothly through that boundary."""
+    columns = [0.2, 0.9] + [0.2] * 14
+    width, height = 16, 80
+    phases = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 0.99]
+    masses = [
+        _column_alpha_mass(
+            _draw(columns, width=width, height=height, scroll_phase=phase),
+            width,
+            height,
+            0,
+        )
+        for phase in phases
+    ]
+    assert masses[0] < masses[-1]
+    for earlier, later in pairwise(masses):
+        assert later >= earlier
+    full = masses[-1] - masses[0]
+    assert masses[3] - masses[2] <= full * 0.35
+    assert masses[4] - masses[3] <= full * 0.35
+
+
+def test_vertical_edge_has_partial_coverage() -> None:
+    width, height = 8, 40
+    frame = _draw([0.5] * width, width=width, height=height, amplitude=1.0)
+    alphas = [frame[(y * width + 2) * 4 + 3] for y in range(height)]
+    assert any(0 < a < 255 for a in alphas)
+    assert any(a == 255 for a in alphas)
 
 
 def test_supersample_frame_is_wider() -> None:

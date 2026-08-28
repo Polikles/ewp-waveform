@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+from ewp_waveform.analysis.envelope import sample_bin
+
 # Horizontal supersample so a 3px bar / 1px gap does not beat against the pixel grid.
 SCROLL_SUPERSAMPLE = 4
 
@@ -58,24 +60,32 @@ def _put_span(
     frame: bytearray,
     *,
     width: int,
+    height: int,
     x0: float,
     x1: float,
-    y0: int,
-    y1: int,
+    y0: float,
+    y1: float,
     r: int,
     g: int,
     b: int,
 ) -> None:
-    """Fill [x0, x1) x [y0, y1) with coverage-based alpha on partial columns."""
+    """Fill [x0, x1) x [y0, y1) with coverage-based alpha on partial columns and rows."""
     px0 = max(0, math.floor(x0))
     px1 = min(width, math.ceil(x1))
+    py0 = max(0, math.floor(y0))
+    py1 = min(height, math.ceil(y1))
     for px in range(px0, px1):
-        cov = min(float(px) + 1.0, x1) - max(float(px), x0)
-        if cov <= 0.0:
+        xcov = min(float(px) + 1.0, x1) - max(float(px), x0)
+        if xcov <= 0.0:
             continue
-        alpha = 255 if cov >= 1.0 - 1e-6 else max(1, min(255, round(255.0 * cov)))
-        for y in range(y0, y1):
-            off = (y * width + px) * 4
+        xcov = min(1.0, xcov)
+        for py in range(py0, py1):
+            ycov = min(float(py) + 1.0, y1) - max(float(py), y0)
+            if ycov <= 0.0:
+                continue
+            cov = xcov * min(1.0, ycov)
+            alpha = 255 if cov >= 1.0 - 1e-6 else max(1, min(255, round(255.0 * cov)))
+            off = (py * width + px) * 4
             if alpha >= 255 or frame[off + 3] < alpha:
                 frame[off] = r
                 frame[off + 1] = g
@@ -101,8 +111,9 @@ def draw_envelope_frame(
 ) -> bytes:
     """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x.
 
-    ``scroll_phase`` is the 1x envelope index of draw-column 0. ``supersample``
-    draws extra horizontal pixels per output column so sliding edges stay stable.
+    ``scroll_phase`` is the 1x envelope index of draw-column 0 (absolute,
+    timestamp-derived). Magnitude is linearly interpolated at the fractional
+    world index. ``supersample`` is extra horizontal pixels per output column.
     Peak height is ``peak_half_height(content, glow)`` when ``glow_sigma`` is set.
     """
     ss = max(1, int(supersample))
@@ -125,8 +136,11 @@ def draw_envelope_frame(
     phase_1x_floor = math.floor(scroll_phase)
     phase_ss = scroll_phase * ss
     if columns:
-        if period_ss <= 1:
+        # Gapless styles: one ss-pixel column each, interpolated envelope.
+        # Gapped styles keep discrete bars, still with fractional bin sampling.
+        if gap_ss == 0 or period_ss <= 1:
             xs: list[float] = [float(x) for x in range(out_w)]
+            strip_w = 1.0
         else:
             rem = phase_ss % period_ss
             first = 0.0 if rem == 0.0 else period_ss - rem
@@ -136,28 +150,23 @@ def draw_envelope_frame(
                 if x + stroke_ss > 0:
                     xs.append(x)
                 x += period_ss
+            strip_w = float(stroke_ss)
+        cap = max(1.0, float(min(center - margin, height - center - 1 - margin)))
         for x in xs:
             world_1x = scroll_phase + x / ss
-            idx = round(world_1x) - phase_1x_floor
-            mag = columns[idx] if 0 <= idx < len(columns) else 0.0
-            mag = min(max(mag, 0.0), 1.0)
-            half = min(max_half, round(max_half * mag))
-            if half <= 0:
+            mag = sample_bin(columns, world_1x - phase_1x_floor)
+            half = min(float(max_half), float(max_half) * mag)
+            if half <= 0.0:
                 continue
-            y0 = center - half
-            y1 = center + half + 1
-            if y0 < 0 or y1 > height:
-                half = min(half, center - margin, height - center - 1 - margin)
-                half = max(0, half)
-                y0 = center - half
-                y1 = center + half + 1
-            y0 = max(0, y0)
-            y1 = min(height, y1)
+            half = min(half, cap)
+            y0 = float(center) - half
+            y1 = float(center) + half + 1.0
             _put_span(
                 frame,
                 width=out_w,
+                height=height,
                 x0=x,
-                x1=x + stroke_ss,
+                x1=x + strip_w,
                 y0=y0,
                 y1=y1,
                 r=r,

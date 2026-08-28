@@ -8,6 +8,7 @@ from ewp_waveform.analysis.envelope import (
     hop_samples,
     normalize_bins,
     rms_bins_from_wav,
+    sample_bin,
     window_at_column,
     window_at_time,
 )
@@ -50,6 +51,15 @@ def test_normalize_raises_typical_peaks_without_using_silence() -> None:
     out = normalize_bins(bins, percentile=100)
     assert out[-1] == 1.0
     assert out[0] == 0.0
+
+
+def test_sample_bin_lerps_adjacent_values() -> None:
+    bins = [0.0, 1.0]
+    assert sample_bin(bins, 0.0) == 0.0
+    assert sample_bin(bins, 1.0) == 1.0
+    assert abs(sample_bin(bins, 0.5) - 0.5) < 1e-9
+    assert sample_bin(bins, -1.0) == 0.0
+    assert sample_bin(bins, 3.0) == 0.0
 
 
 def test_soft_clip_maps_percentile_to_knee_not_a_hard_ceiling() -> None:

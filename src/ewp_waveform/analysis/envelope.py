@@ -109,6 +109,23 @@ def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -
     return out
 
 
+def sample_bin(bins: Sequence[float], index: float) -> float:
+    """Linear interpolation at a fractional envelope index. Out of range is 0."""
+    if not bins:
+        return 0.0
+    i0 = math.floor(index)
+    t = index - i0
+
+    def at(i: int) -> float:
+        if 0 <= i < len(bins):
+            return min(max(float(bins[i]), 0.0), 1.0)
+        return 0.0
+
+    if t <= 1e-12:
+        return at(i0)
+    return at(i0) * (1.0 - t) + at(i0 + 1) * t
+
+
 def window_at_time(
     bins: Sequence[float],
     *,
