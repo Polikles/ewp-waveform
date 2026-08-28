@@ -9,6 +9,7 @@ from ewp_waveform.analysis.envelope import (
     normalize_bins,
     rms_bins_from_wav,
     sample_bin,
+    smooth_bins,
     window_at_column,
     window_at_time,
 )
@@ -51,6 +52,18 @@ def test_normalize_raises_typical_peaks_without_using_silence() -> None:
     out = normalize_bins(bins, percentile=100)
     assert out[-1] == 1.0
     assert out[0] == 0.0
+
+
+def test_smooth_bins_is_identity_when_sigma_zero() -> None:
+    bins = [0.1, 0.8, 0.2]
+    assert smooth_bins(bins, sigma=0.0) == bins
+
+
+def test_smooth_bins_attenuates_a_one_bin_spike() -> None:
+    bins = [0.1] * 40 + [1.0] + [0.1] * 40
+    out = smooth_bins(bins, sigma=6.0)
+    assert max(out) < 0.45
+    assert out[40] < bins[40]
 
 
 def test_sample_bin_lerps_adjacent_values() -> None:

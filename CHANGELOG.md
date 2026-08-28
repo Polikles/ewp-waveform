@@ -10,7 +10,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.
 - Scroll path is translation-only of a frozen envelope (no vertical bounce). Auto-gain so speech fills the canvas.
-- Bar grid locked to envelope index (no height chatter while scrolling). Envelope samples lerp between adjacent RMS bins; bar tops/bottoms use subpixel coverage. Peak height is computed from canvas minus glow spread. Gapless mirrored columns, 4× supersampled, glow overscan+crop. Soft-clip avoids a hard peak ceiling.
+- Bar grid locked to envelope index (no height chatter while scrolling). Time+scroll RMS is smoothed (`signal.smoothing` in seconds, default 0.15 s) so hop-scale spikes are not drawn; spikes belong on the fixed-axis path. Envelope samples lerp between adjacent bins; bar tops/bottoms use subpixel coverage. Peak height is computed from canvas minus glow spread. Gapless mirrored columns, 4× supersampled, glow overscan+crop. Soft-clip avoids a hard peak ceiling.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.

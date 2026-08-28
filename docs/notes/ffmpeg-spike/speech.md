@@ -87,6 +87,14 @@ Fix: `sample_bin()` linear interpolation; gapless path draws one ss-pixel column
 
 Watch: `*5b43502ac546.mov` (30 fps) and `*40e84d4929f6.mov` (60 fps).
 
+## Envelope smoothing (operator, 2026-08-28)
+
+Lerp removed nearest-neighbour snap, but hop-scale spikes were hair-thin and strobed again. Operator: smooth the scrolling envelope; visible bars/spikes belong on the fixed-axis render.
+
+`signal.smoothing` (already 0.15 in `iuris-default`) is now applied as **0.15 seconds** of Gaussian-approx blur (not 15 % of the viewport — that turned the wave into a tube). Visual contract v6. Spectrum path unchanged.
+
+Watch: `*22cbf1d08dc4_v002.mov` (30 fps) and `*4c58bcdbcffa_v002.mov` (60 fps). Ignore the same hashes without `_v002`.
+
 ## Motion (“too fast”) and busyness
 
 Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.

@@ -47,7 +47,7 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now). Envelope magnitude is **linearly interpolated** at the fractional world index (not nearest-neighbour), so adjacent hops do not snap at the 0.5 boundary. Peak half-height is **computed** from canvas height minus `gblur` spread (`~3σ+2`). Soft-clip maps the 95th percentile to a knee. Gapless mirrored columns are 4× supersampled with subpixel coverage on top/bottom edges, then area-downsampled; glow is blurred on an overscan canvas and cropped. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen, then **smoothed** (`signal.smoothing` is Gaussian-approx sigma **in seconds**; default 0.15 s) so hop-scale spikes are not drawn. Thin bars/spikes belong on the **frequency+fixed-axis** path. The window **translates horizontally only** (right edge = now). Envelope magnitude is **linearly interpolated** at the fractional world index. Peak half-height is **computed** from canvas height minus `gblur` spread (`~3σ+2`). Soft-clip maps the 95th percentile to a knee. Gapless mirrored columns are 4× supersampled with subpixel coverage on top/bottom edges, then area-downsampled; glow is blurred on an overscan canvas and cropped. Not a pixel match to linia lustrzana.
 
 At 1400×280, 5 s window, 30 fps the window moves ~9.3 px/frame (~2 bar periods). **60 fps** (~4.7 px/frame) is the smoother production identity. Do not use `tmix` / full-travel motion blur — it ghosts bars (already rejected on speech).
 
@@ -55,7 +55,7 @@ Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling e
 
 FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
 
-Default preset: **`mirrored` + glow medium + 30 fps + `window_seconds=5` + 6 px gapless bars**, color `#C7E6EC`. Amplitude `1.0` means “fill the glow-safe height”.
+Default preset: **`mirrored` + glow medium + 30 fps + `window_seconds=5` + smoothed envelope**, color `#C7E6EC`. Amplitude `1.0` means “fill the glow-safe height”.
 
 ## Effects
 

@@ -109,6 +109,40 @@ def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -
     return out
 
 
+def _box_blur(values: Sequence[float], radius: int) -> list[float]:
+    """Zero-padded box blur of window 2*radius+1."""
+    n = len(values)
+    if n == 0 or radius < 1:
+        return list(values)
+    pref = [0.0] * (n + 1)
+    acc = 0.0
+    for i, value in enumerate(values):
+        acc += float(value)
+        pref[i + 1] = acc
+    width = float(2 * radius + 1)
+    out = [0.0] * n
+    for i in range(n):
+        lo = max(0, i - radius)
+        hi = min(n, i + radius + 1)
+        out[i] = (pref[hi] - pref[lo]) / width
+    return out
+
+
+def smooth_bins(bins: Sequence[float], *, sigma: float) -> list[float]:
+    """Approximate Gaussian blur along the envelope. ``sigma`` is in bins (viewport pixels).
+
+    Time+scroll uses this so hop-scale spikes are not drawn. Bars/spikes belong on
+    the fixed-axis frequency path. ``sigma <= 0`` is a no-op.
+    """
+    if sigma <= 0.0 or len(bins) < 2:
+        return list(bins)
+    radius = max(1, round(sigma))
+    values = list(bins)
+    for _ in range(3):
+        values = _box_blur(values, radius)
+    return values
+
+
 def sample_bin(bins: Sequence[float], index: float) -> float:
     """Linear interpolation at a fractional envelope index. Out of range is 0."""
     if not bins:

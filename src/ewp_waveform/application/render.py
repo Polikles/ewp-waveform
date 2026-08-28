@@ -17,6 +17,7 @@ from ewp_waveform.analysis.envelope import (
     normalize_bins,
     rms_bins_from_wav,
     scale_amplitude,
+    smooth_bins,
     window_at_column,
 )
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
@@ -217,6 +218,13 @@ def render_job(
             bins = rms_bins_from_wav(decoded, hop)
             scale = str(preset.signal.get("scale") or "sqrt")
             bins = [scale_amplitude(v, scale) for v in bins]
+            raw_smooth = preset.signal.get("smoothing", 0.0)
+            smoothing = 0.0
+            if isinstance(raw_smooth, int | float) and not isinstance(raw_smooth, bool):
+                smoothing = float(raw_smooth)
+            if smoothing > 0.0:
+                bins_per_second = preset.canvas.width / preset.waveform.window_seconds
+                bins = smooth_bins(bins, sigma=smoothing * bins_per_second)
             norm = preset.signal.get("normalization")
             norm_mode = "auto"
             soft = True
