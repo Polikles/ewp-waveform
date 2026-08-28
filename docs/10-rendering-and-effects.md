@@ -22,17 +22,18 @@ Initial registry:
 
 Styles define the primary waveform representation. The style interface must be extensible enough for custom geometry, envelope mapping, and rendering logic.
 
-FFmpeg spike mapping (synthetic + speech cuts; see `docs/notes/ffmpeg-spike/`):
+Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as **phrase-length amplitude shapes**, not a 33 ms PCM oscilloscope:
 
-- `classic` — `showwaves=mode=p2p` stroke, optional center line.
-- `mirrored` / `filled` — `showwaves=mode=cline`. `draw=full` is the opaque filled band that matches the intended podcast look; `draw=scale` is translucent and is not the default mapping.
-- `segmented` — **experimental** in FFmpeg. A downscale-then-gap graph can look like discrete bars, but the product use of that look is not defined. Do not use it as the default. FFmpeg should report `experimental` and must not silently substitute another style.
+- `classic` — thin vertical ticks (linia klasyczna), low glow.
+- `mirrored` — vertical mirrored bars (linia lustrzana), medium glow; **default on 1/2/3-speaker templates**.
+- `filled` — smooth ribbon (wstęga wypełniona), higher glow.
+- `segmented` — discrete columns (impuls segmentowy), medium glow.
 
-Speech is the primary visual target. Noise is a poor stand-in: it fills the center and hides style/glow differences.
+FFmpeg `showwaves` at output fps is the wrong window (speech looks too fast). `lowpass=80` is **rejected** (sine beads). `showwavespic` of a short clip matches the **time scale** of the boards but still draws a ribbon, not bars.
 
-FFmpeg MVP default mapping: **filled** (`cline` + `draw=full`) + **glow medium** (`gblur` σ=8) at **30 fps**. 60 fps is a supported production identity for fuller detail after preview.
+FFmpeg MVP may ship a limited envelope/`showwavespic`-style stand-in. Faithful linia lustrzana is application envelope + bars (or the custom renderer). Do not silently substitute another style.
 
-Preset `signal.smoothing` is not yet applied in the spike graph. A visualization-only `lowpass` around 80 Hz reduces busyness; slowing the apparent scroll needs a longer time window and is not a one-line `showwaves` change.
+Default preset: **`mirrored` + glow medium + 30 fps**, color `#C7E6EC`. 60 fps remains a full-detail identity.
 
 ## Effects
 

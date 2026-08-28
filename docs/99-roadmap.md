@@ -61,8 +61,9 @@ No dates are assigned until evidence supports them.
 - [ ] intermediate pass reuse/cache.
 
 ## FFmpeg visual tuning (after MVP baseline)
-- [ ] `showwaves` window / envelope so speech does not read as “too fast” (not trivial in FFmpeg; likely application or custom renderer);
-- [ ] optional visualization lowpass/smoothing vs preset `signal.smoothing` (lowpass ~80 Hz is a candidate for “less busy”).
+- [ ] phrase-length envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
+- [ ] linia lustrzana as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
+- [x] `lowpass=80` rejected as a default.
 
 ## Later
 - [ ] GPU feasibility/RTX benchmark;

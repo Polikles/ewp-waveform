@@ -1,6 +1,6 @@
 schema_version = 1
 name = "iuris-default"
-description = "Default EWP visual preset. FFmpeg MVP: filled + medium glow at 30 fps."
+description = "Default EWP visual preset (Iuris et Logos). Target: mirrored vertical bars + medium glow at 30 fps. FFmpeg cannot draw that geometry faithfully yet."
 
 [canvas]
 width = 1400
@@ -8,7 +8,7 @@ height = 280
 fps = 30
 
 [waveform]
-style = "filled"
+style = "mirrored"
 color = "#C7E6EC"
 amplitude = 0.82
 stroke_width = 3.0

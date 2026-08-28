@@ -14,11 +14,11 @@ FFmpeg research spike in progress (`docs/21-ffmpeg-baseline-plan.md`).
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
-FFmpeg MVP default: **filled + glow medium @ 30 fps**. 60 fps is a supported full-detail identity. Particles unsupported; chunk concat needs preroll; `segmented` experimental.
+Brand reference boards analyzed (`docs/notes/ffmpeg-spike/reference.md`). Target default is **linia lustrzana (mirrored bars) + medium glow @ 30 fps**, not a PCM oscilloscope and not lp80 (rejected).
 
-“Too fast” / busy speech motion is **not** a trivial `showwaves` fix; envelope lowpass ~80 Hz is an optional later tweak. Long jobs run on the operator workstation.
+FFmpeg cannot yet draw that geometry. Closest time-scale stand-in is `showwavespic` / a long envelope window. Faithful bars need an envelope-over-window (application or custom renderer).
 
-Next engineering phase: FFmpeg MVP application (API + thin CLI + this baseline), still CPU.
+Long jobs run on the operator workstation. Next: FFmpeg MVP application with honest capability ratings, still CPU.
 
 ## Deferred pending evidence
 

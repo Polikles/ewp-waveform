@@ -32,7 +32,7 @@ Whole s2e9 (~50 min) and a future ~2.5 h glue file are **out of this VM** (ProRe
 | `szymon_glow_med_60.mov` | filled + medium glow @ 60 |
 | `damian_filled_glow_med_30.mov` | other speaker, same graph |
 | `s2e9_damian_filled_glow_med_30.mov` | s2e9 cut, same graph |
-| `szymon_lp80_glow_med_30.mov` | optional less-busy envelope (`lowpass=80`) |
+| `szymon_lp80_glow_med_30.mov` | **rejected** (`lowpass=80` sine beads) |
 
 Stills: `speech/frames/` and `speech/composites/`. Frame counts: 240 @ 30 fps, 480 @ 60 fps for 8.000 s.
 
@@ -40,11 +40,11 @@ Stills: `speech/frames/` and `speech/composites/`. Frame counts: 240 @ 30 fps, 4
 
 Speech envelopes are **thin in quiet, thick in bursts**. Classic vs filled is obvious. Glow low/medium/high are distinguishable (high halo is clearly larger). Noise had hidden that.
 
-## Operator follow-up (filled + glow medium @ 30)
+## Operator follow-up
 
-Accepted as the **reasonable FFmpeg default**. Waveform is a bit busy. **30 fps** is the preview default; **60 fps** is smoother / fuller detail and a separate render identity.
+`lowpass=80` rejected. Brand boards supersede the earlier “filled + glow medium is the look” decision: that was the least-bad `showwaves` sausage, not linia lustrzana.
 
-Long episodes stay on the operator workstation. This VM will not process full s2e9 or the ~2.5 h glue file.
+**30 fps** remains the preview default; **60 fps** is fuller detail. Long episodes stay on the operator workstation.
 
 ## Motion (“too fast”) and busyness
 
@@ -55,11 +55,11 @@ Tried on the same 8 s Szymon cut:
 | Graph | Result |
 |---|---|
 | current default | busy, readable envelope, fast motion |
-| `lowpass=f=80` then filled+glow | less busy, bead-like syllables; **watch** `szymon_lp80_glow_med_30.mov` |
+| `lowpass=f=80` then filled+glow | **rejected** (sine beads) |
 | `lowpass=f=40` / `20` | too thin / dead |
 | `tmix=frames=8` | smeared ghosts; reject |
 
-Lowpass ~80 Hz is a candidate mapping for preset `signal.smoothing`, not adopted. Slowing the *scroll* needs a longer display window (application buffer or custom renderer).
+`lowpass=80` is **rejected** as a look (operator: sine waves, not the brand). Slowing motion needs a **phrase-length envelope window** (see `reference.md`), not a PCM lowpass.
 
 ## 30 vs 60 fps
 
@@ -69,7 +69,7 @@ DaVinci comparison of the same clip at 30 vs 60 is still an operator test (this 
 
 ## `segmented`
 
-The slim-bar `segmented_gaps` graph was an **experiment**: downscale `cline` then punch vertical gaps so bars sit on transparent background. It was intended as “discrete columns”, not as a default podcast look. There is no current EWP use for that graphic. FFmpeg rating stays **experimental**; do not ship it as the iuris default.
+Board **impuls segmentowy** is discrete rounded columns of a phrase envelope. The slim-gap sausage was the wrong experiment. FFmpeg stays **experimental** for this style.
 
 ## Long jobs
 

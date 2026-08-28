@@ -14,14 +14,14 @@ The project follows Semantic Versioning. Development is currently an internal be
 - FFmpeg spike note convention under `docs/notes/ffmpeg-spike/`, including an environment and `lavfi` smoke-test record.
 - FFmpeg spike synthetic CPU findings: style/glow capability ratings, chunk warm-up seam, 30 s resource sample.
 - Speech-cut spike follow-up; 30 and 60 documented as supported production FPS (`FR-RENDER-013`).
-- FFmpeg default recorded as filled + medium glow @ 30 fps; preview vs 60 fps full-detail documented.
-- `iuris-default` style set to `filled` to match the accepted FFmpeg look.
+- FFmpeg spike analysis of Iuris et Logos reference boards (style names, speaker colors, 1/2/3-speaker layouts).
 
 ### Changed
 
 - Merged engineering workflow and legal contribution rules into `CONTRIBUTING.md`.
 - Status documents now treat the license as adopted and describe internal betas rather than a release candidate.
 - `FR-CLI-005` includes `capabilities`; `FR-CLI-009` covers `preset`, `performance`, `benchmark`, and `clean`.
+- Default look is **mirrored** vertical bars + medium glow @ 30 fps per the brand boards. `lowpass=80` rejected. `iuris-default` style is `mirrored`. FFmpeg cannot draw that geometry faithfully yet.
 
 ### Fixed
 

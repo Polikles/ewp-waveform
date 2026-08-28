@@ -30,6 +30,7 @@ Synthetic `lavfi` probes are allowed in notes as command text and measurements. 
 - `environment.md` — host/toolchain and content-free encoder/filter smoke tests.
 - `capability-matrix.md` — style/effect/output/continuity ratings.
 - `findings.md` — commands, timings, chunk seam, resource table (synthetic noise).
-- `speech.md` — podcast cuts, 30 vs 60 fps, default look, motion/busyness trials.
+- `speech.md` — podcast cuts, 30 vs 60 fps, motion/busyness trials.
+- `reference.md` — Iuris et Logos boards vs FFmpeg; lp80 rejected.
 
 Manual visual media is **not** stored here. On the authoring machine it lives outside the repository under `waveform-rendering/local-renders/ffmpeg-spike/` (`INDEX.md` there lists what to play).

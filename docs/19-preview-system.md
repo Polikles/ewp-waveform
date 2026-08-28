@@ -12,9 +12,13 @@ Each source still produces its own preview asset.
 
 ## Preview composition
 
-A later convenience feature may combine generated preview assets into one non-canonical scene for one/two/three speakers.
+A later convenience feature may combine generated preview assets into one non-canonical scene for one/two/three speakers, matching the Iuris et Logos boards:
 
-Preview template may control background, positions, sizes, spacing, and optional branding placeholders.
+- one speaker: centered wave, pale cyan;
+- two speakers: left/right waves (cyan / blue) plus caption cards;
+- three speakers: guest on top (yellow), two hosts below (cyan / blue).
+
+Preview template may control background (`#2F474F` slate teal), positions, sizes, spacing, logos, and caption placeholders.
 
 Template changes do not affect canonical waveform render identity.
 

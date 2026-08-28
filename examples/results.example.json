@@ -23,7 +23,7 @@
     "channels": 1
   }],
   "preset": {"name": "iuris-default", "source": "builtin"},
-  "resolved_visual_config": {"fps": 30, "style": "filled", "color": "#C7E6EC"},
+  "resolved_visual_config": {"fps": 30, "style": "mirrored", "color": "#C7E6EC"},
   "resolved_performance_config": {"profile": "balanced", "chunk_seconds": 60, "jobs": 2},
   "analysis": {},
   "normalization": {"mode": "auto"},
