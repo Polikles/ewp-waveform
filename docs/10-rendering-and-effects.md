@@ -11,6 +11,22 @@ audio
  -> encoders
 ```
 
+## Visualization domain
+
+Two choosable defaults (part of visual identity):
+
+| Domain | X axis | Motion | Default use |
+|---|---|---|---|
+| `time` + `scroll` | recent envelope window (phrase-length) | shape slides as speech proceeds | podcast episode asset (**current target**) |
+| `time` + `playhead` | whole file envelope | shape static, cursor moves | later viz + GUI scrubber |
+| `frequency` + fixed axis | frequency (low → high) | vertical only; silence is a flat line | second choosable default; particle field |
+
+Styles (`classic` / `mirrored` / `filled` / `segmented`) describe **how amplitude is drawn**. Domain describes **what the horizontal axis means**.
+
+Frequency span: `auto` (from typical energy in the source or project) or explicit `fmin_hz` / `fmax_hz`. Speech should land near the middle of the axis.
+
+FFmpeg `showfreqs` is the same *idea* (fixed X = frequency) but is not the product look yet (energy hugs the left/bottom unless heavily tuned). Custom renderer owns a faithful mirrored spectrum wave and particle collision.
+
 ## Styles
 
 Initial registry:

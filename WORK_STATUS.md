@@ -14,9 +14,14 @@ FFmpeg research spike in progress (`docs/21-ffmpeg-baseline-plan.md`).
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
-Brand reference boards analyzed (`docs/notes/ffmpeg-spike/reference.md`). Target default is **linia lustrzana (mirrored bars) + medium glow @ 30 fps**, not a PCM oscilloscope and not lp80 (rejected).
+Two choosable visual defaults:
 
-FFmpeg cannot yet draw that geometry. Closest time-scale stand-in is `showwavespic` / a long envelope window. Faithful bars need an envelope-over-window (application or custom renderer).
+- **time + scroll** — sliding phrase envelope (linia lustrzana); current podcast target.
+- **frequency + fixed axis** — spectrum-like wave, silence flat, vertical motion only; particle field for MVP2.
+
+Playhead envelope is later (scrubber / optional viz).
+
+FFmpeg cannot yet draw either look faithfully (`showwaves` window wrong; `showfreqs` is the right axis but not the product picture).
 
 Long jobs run on the operator workstation. Next: FFmpeg MVP application with honest capability ratings, still CPU.
 

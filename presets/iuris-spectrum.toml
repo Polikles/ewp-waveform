@@ -1,6 +1,6 @@
 schema_version = 1
-name = "iuris-default"
-description = "Default EWP visual preset (Iuris et Logos). Target: mirrored vertical bars + medium glow at 30 fps. FFmpeg cannot draw that geometry faithfully yet."
+name = "iuris-spectrum"
+description = "Choosable default: fixed frequency axis (low left, high right). Silence is flat; motion is vertical. Particle-collision field for the custom renderer."
 
 [canvas]
 width = 1400
@@ -9,8 +9,7 @@ fps = 30
 
 [waveform]
 style = "mirrored"
-domain = "time"
-time_mode = "scroll"
+domain = "frequency"
 color = "#C7E6EC"
 amplitude = 0.82
 stroke_width = 3.0
@@ -23,6 +22,9 @@ smoothing = 0.15
 [signal.normalization]
 mode = "auto"
 soft_clip = true
+
+[signal.frequency]
+range = "auto"
 
 [effects.glow]
 enabled = true

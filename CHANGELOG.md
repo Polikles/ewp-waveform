@@ -22,6 +22,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Status documents now treat the license as adopted and describe internal betas rather than a release candidate.
 - `FR-CLI-005` includes `capabilities`; `FR-CLI-009` covers `preset`, `performance`, `benchmark`, and `clean`.
 - Default look is **mirrored** vertical bars + medium glow @ 30 fps per the brand boards. `lowpass=80` rejected. `iuris-default` style is `mirrored`. FFmpeg cannot draw that geometry faithfully yet.
+- Visualization domain: time+scroll (current podcast target), time+playhead (later), frequency fixed-axis (second choosable default, `iuris-spectrum`). `FR-STYLE-004`–`006`.
 
 ### Fixed
 

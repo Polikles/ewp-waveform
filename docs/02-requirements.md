@@ -74,13 +74,16 @@
 - **FR-STYLE-001** — Initial style registry: `classic`, `mirrored`, `filled`, `segmented`.
 - **FR-STYLE-002** — Styles are registry-based and extensible.
 - **FR-STYLE-003** — Style interface can support custom geometry/mapping/rendering.
+- **FR-STYLE-004** — Visualization **domain** is part of render identity: `time` (envelope vs time) or `frequency` (fixed frequency axis).
+- **FR-STYLE-005** — Time-domain **mode**: `scroll` is the current animated target (sliding envelope window). `playhead` (full-file envelope + cursor) is deferred for later viz and GUI scrubber.
+- **FR-STYLE-006** — Frequency-domain **fixed-axis**: X is frequency (low left, high right), Y is band amplitude; silence is flat; motion is vertical only. Frequency span is `auto` (from typical source energy) or a project-fixed min/max so speech energy sits near the center. This domain is a first-class choosable default alongside scrolling envelope, and is the intended particle-collision field for the custom renderer (especially music).
 
 - **FR-EFFECT-001** — Effects are conceptually separate from styles.
 - **FR-EFFECT-002** — Glow is an initial effect family.
 - **FR-EFFECT-003** — Particle configuration exists in schema even if FFmpeg support is incomplete.
 - **FR-EFFECT-004** — Multiple effects should be composable.
 - **FR-EFFECT-005** — Particle motion is extensible (e.g. float/fall/rain/rise/radial/reactive).
-- **FR-EFFECT-006** — Particle interaction is extensible (none/waveform-reactive/amplitude-reactive).
+- **FR-EFFECT-006** — Particle interaction is extensible (`none`, waveform-reactive, amplitude-reactive, frequency-axis collision). Collision with the fixed-axis wave is a custom-renderer target (especially music). FFmpeg does not implement particle interaction.
 - **FR-EFFECT-007** — Effects may declare continuity/context requirements.
 
 ### Normalization

@@ -22,7 +22,15 @@
 
 **Renderer** — Backend that executes a canonical job, initially FFmpeg and later a custom renderer.
 
-**Style** — Primary waveform representation (classic/mirrored/filled/segmented).
+**Style** — How amplitude is drawn (classic/mirrored/filled/segmented).
+
+**Visualization domain** — What the horizontal axis means: `time` (envelope vs time) or `frequency` (fixed frequency axis).
+
+**Scroll envelope** — Time-domain mode: a sliding window of recent amplitude; the shape moves as speech proceeds.
+
+**Playhead envelope** — Time-domain mode: whole-file envelope stays still; a cursor moves. Deferred.
+
+**Fixed-axis spectrum** — Frequency-domain mode: left = lower Hz, right = higher Hz; amplitude moves vertically; silence is flat.
 
 **Visual Preset** — TOML configuration defining intended appearance.
 

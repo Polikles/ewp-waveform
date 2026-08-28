@@ -72,6 +72,12 @@
         },
         "center_line": {
           "type": "boolean"
+        },
+        "domain": {
+          "enum": ["time", "frequency"]
+        },
+        "time_mode": {
+          "enum": ["scroll", "playhead"]
         }
       }
     },
@@ -105,6 +111,23 @@
             },
             "soft_clip": {
               "type": "boolean"
+            }
+          }
+        },
+        "frequency": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "range": {
+              "enum": ["auto", "project"]
+            },
+            "fmin_hz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fmax_hz": {
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         }

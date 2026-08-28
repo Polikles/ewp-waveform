@@ -61,9 +61,12 @@ No dates are assigned until evidence supports them.
 - [ ] intermediate pass reuse/cache.
 
 ## FFmpeg visual tuning (after MVP baseline)
-- [ ] phrase-length envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
+- [ ] phrase-length **scroll** envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
 - [ ] linia lustrzana as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
-- [x] `lowpass=80` rejected as a default.
+- [x] `lowpass=80` rejected as a default;
+- [ ] fixed-axis spectrum (`iuris-spectrum`): speech-centered Hz range, vertical-only motion;
+- [ ] playhead envelope (full-file + cursor) for optional viz and GUI scrubber;
+- [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 
 ## Later
 - [ ] GPU feasibility/RTX benchmark;

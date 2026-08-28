@@ -6,7 +6,7 @@
 | FR-IN-* | `04-input-discovery-and-grouping.md` | ffprobe/input integration |
 | FR-GROUP-* | `04-input-discovery-and-grouping.md` | grouping/timeline tests |
 | FR-RENDER-* | `03-architecture.md`, `10-rendering-and-effects.md` | renderer protocol/integration |
-| FR-STYLE-* | `10-rendering-and-effects.md` | capability/regression |
+| FR-STYLE-* | `10-rendering-and-effects.md` | capability/regression; domain/time_mode/frequency in presets |
 | FR-EFFECT-* | `10-rendering-and-effects.md` | effect regression |
 | FR-NORM-* | `11-normalization.md` | analysis/visual benchmarks |
 | FR-OUTPUT-* | `08-output-formats.md` | output/fidelity tests |
