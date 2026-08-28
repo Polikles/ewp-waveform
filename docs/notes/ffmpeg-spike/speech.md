@@ -95,6 +95,20 @@ Lerp removed nearest-neighbour snap, but hop-scale spikes were hair-thin and str
 
 Watch: `*941113acaca9.mov` (60 fps, oversample 4). Scroll diagnostic Δpx is constant 4.666… at 60 fps.
 
+## Envelope reconstruction AA (operator, 2026-08-28)
+
+Dense 4× envelope restored shape but sub-pixel spikes strobed (glow off did not fix it). Scroll timing unchanged.
+
+Same 8 s / 60 fps / oversample 4 / smoothing 0:
+
+| File | Filter |
+|---|---|
+| `*iuris-aa-none_d484fdc73371.mov` | none |
+| `*iuris-aa-area_1252481bb37a.mov` | area, support 1 output px (**default**) |
+| `*iuris-aa-lanczos2_d8c292d5723f.mov` | lanczos a=2 |
+
+`signal.envelope_aa` is independent of `signal.smoothing`.
+
 ## No-glow comparison (operator, 2026-08-28)
 
 Shape of the dense envelope is better, but spikes strobe with medium glow. Comparison (same hop/oversample/60 fps, glow disabled):

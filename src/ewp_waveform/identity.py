@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ewp_waveform.config.models import VisualPreset
 
-VISUAL_CONTRACT_VERSION = 7
+VISUAL_CONTRACT_VERSION = 8
 
 
 def sha256_file(path: Path) -> str:

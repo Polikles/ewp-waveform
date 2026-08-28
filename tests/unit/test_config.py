@@ -13,7 +13,8 @@ def test_builtin_iuris_default_is_time_scroll_mirrored() -> None:
     assert preset.waveform.stroke_width == 6.0
     assert preset.signal.get("envelope_oversample") == 4
     smoothing = preset.signal.get("smoothing")
-    assert smoothing in {0, 0.0}
+    assert smoothing == 0
+    assert preset.signal.get("envelope_aa") == "area"
 
 
 def test_builtin_iuris_spectrum_is_frequency_domain() -> None:

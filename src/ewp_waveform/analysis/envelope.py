@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ENVELOPE_OVERSAMPLE_ALLOWED = frozenset({1, 2, 4, 8})
+ENVELOPE_AA_ALLOWED = frozenset({"none", "area", "lanczos"})
 
 
 def envelope_oversample_from_signal(signal: dict[str, object]) -> int:
@@ -20,6 +21,23 @@ def envelope_oversample_from_signal(signal: dict[str, object]) -> int:
     if isinstance(raw, float) and int(raw) == raw and int(raw) in ENVELOPE_OVERSAMPLE_ALLOWED:
         return int(raw)
     return 1
+
+
+def envelope_aa_from_signal(signal: dict[str, object]) -> tuple[str, float]:
+    """Return (kind, support_in_output_pixels). Independent of ``smoothing``."""
+    raw_kind = signal.get("envelope_aa", "none")
+    kind = str(raw_kind or "none").lower()
+    if kind not in ENVELOPE_AA_ALLOWED:
+        kind = "none"
+    support = 2.0 if kind == "lanczos" else 1.0
+    raw_support = signal.get("envelope_aa_support")
+    if (
+        isinstance(raw_support, int | float)
+        and not isinstance(raw_support, bool)
+        and raw_support > 0
+    ):
+        support = float(raw_support)
+    return kind, support
 
 
 def hop_samples(
@@ -226,6 +244,76 @@ def smooth_bins(bins: Sequence[float], *, sigma: float) -> list[float]:
     for _ in range(3):
         values = _box_blur(values, radius)
     return values
+
+
+def _lanczos_weight(x: float, a: float) -> float:
+    if abs(x) < 1e-12:
+        return 1.0
+    if abs(x) >= a:
+        return 0.0
+    px = math.pi * x
+    return (a * math.sin(px) * math.sin(px / a)) / (px * px)
+
+
+def _normalize_kernel(taps: list[float]) -> list[float]:
+    total = sum(taps)
+    if total <= 0.0:
+        return [1.0]
+    return [tap / total for tap in taps]
+
+
+def reconstruction_kernel(kind: str, *, oversample: int, support_px: float) -> list[float]:
+    """FIR taps in dense-bin steps. ``support_px`` is in output pixels."""
+    support_px = max(support_px, 1.0 / oversample)
+    if kind == "area":
+        half_px = support_px / 2.0
+        radius = max(1, math.ceil(half_px * oversample))
+        taps = []
+        for k in range(-radius, radius + 1):
+            x = abs(k / oversample)
+            taps.append(1.0 if x <= half_px + 1e-12 else 0.0)
+        return _normalize_kernel(taps)
+    if kind == "lanczos":
+        a = max(support_px, 1.0)
+        radius = max(1, math.ceil(a * oversample))
+        taps = [_lanczos_weight(k / oversample, a) for k in range(-radius, radius + 1)]
+        return _normalize_kernel(taps)
+    return [1.0]
+
+
+def _convolve_zero_pad(values: Sequence[float], kernel: Sequence[float]) -> list[float]:
+    n = len(values)
+    if n == 0:
+        return []
+    radius = len(kernel) // 2
+    out = [0.0] * n
+    for i in range(n):
+        acc = 0.0
+        for k, weight in enumerate(kernel):
+            j = i + k - radius
+            if 0 <= j < n:
+                acc += float(values[j]) * weight
+        out[i] = acc
+    return out
+
+
+def antialias_envelope(
+    bins: Sequence[float],
+    *,
+    oversample: int,
+    kind: str,
+    support_px: float,
+) -> list[float]:
+    """Band-limit a dense envelope to output-pixel Nyquist. Not a shape-changing blur.
+
+    ``kind`` is ``none``, ``area`` (box of ``support_px`` output pixels) or ``lanczos``.
+    """
+    if kind == "none" or oversample <= 1 or len(bins) < 2:
+        return list(bins)
+    kernel = reconstruction_kernel(kind, oversample=oversample, support_px=support_px)
+    if len(kernel) <= 1:
+        return list(bins)
+    return _convolve_zero_pad(bins, kernel)
 
 
 def sample_bin(bins: Sequence[float], index: float) -> float:

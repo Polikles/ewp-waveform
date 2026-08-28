@@ -12,6 +12,8 @@ from typing import Any
 
 from ewp_waveform import __version__
 from ewp_waveform.analysis.envelope import (
+    antialias_envelope,
+    envelope_aa_from_signal,
     envelope_oversample_from_signal,
     hop_samples,
     normalize_bins,
@@ -231,6 +233,13 @@ def render_job(
             if smoothing > 0.0:
                 bins_per_second = preset.canvas.width / preset.waveform.window_seconds
                 bins = smooth_bins(bins, sigma=smoothing * bins_per_second)
+            aa_kind, aa_support = envelope_aa_from_signal(preset.signal)
+            bins = antialias_envelope(
+                bins,
+                oversample=oversample,
+                kind=aa_kind,
+                support_px=aa_support,
+            )
             norm = preset.signal.get("normalization")
             norm_mode = "auto"
             soft = True
@@ -367,6 +376,8 @@ def _result_payload(
             "color": preset.waveform.color,
             "window_seconds": preset.waveform.window_seconds,
             "envelope_oversample": envelope_oversample_from_signal(preset.signal),
+            "envelope_aa": envelope_aa_from_signal(preset.signal)[0],
+            "envelope_aa_support": envelope_aa_from_signal(preset.signal)[1],
             "glow": glow,
         },
         "resolved_performance_config": {

@@ -21,6 +21,8 @@ center_line = true
 scale = "sqrt"
 smoothing = 0.0
 envelope_oversample = 4
+envelope_aa = "area"
+envelope_aa_support = 1.0
 
 [signal.normalization]
 mode = "auto"

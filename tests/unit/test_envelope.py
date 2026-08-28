@@ -4,12 +4,15 @@ from itertools import pairwise
 from pathlib import Path
 
 from ewp_waveform.analysis.envelope import (
+    antialias_envelope,
     column_offset,
     column_offset_float,
+    envelope_aa_from_signal,
     envelope_oversample_from_signal,
     hop_samples,
     iter_scroll_timing,
     normalize_bins,
+    reconstruction_kernel,
     rms_bins_from_wav,
     sample_bin,
     smooth_bins,
@@ -41,6 +44,43 @@ def test_envelope_oversample_from_signal_allows_powers_of_two() -> None:
     assert envelope_oversample_from_signal({}) == 1
     assert envelope_oversample_from_signal({"envelope_oversample": 4}) == 4
     assert envelope_oversample_from_signal({"envelope_oversample": 3}) == 1
+
+
+def test_envelope_aa_from_signal_defaults() -> None:
+    assert envelope_aa_from_signal({}) == ("none", 1.0)
+    assert envelope_aa_from_signal({"envelope_aa": "lanczos"})[0] == "lanczos"
+    assert envelope_aa_from_signal({"envelope_aa": "lanczos"})[1] == 2.0
+    assert envelope_aa_from_signal({"envelope_aa": "area", "envelope_aa_support": 1.0}) == (
+        "area",
+        1.0,
+    )
+
+
+def test_reconstruction_kernel_is_normalized() -> None:
+    for kind, support in (("area", 1.0), ("lanczos", 2.0)):
+        kernel = reconstruction_kernel(kind, oversample=4, support_px=support)
+        assert abs(sum(kernel) - 1.0) < 1e-9
+
+
+def test_antialias_none_is_identity() -> None:
+    bins = [0.1, 0.8, 0.2, 0.4]
+    assert antialias_envelope(bins, oversample=4, kind="none", support_px=1.0) == bins
+
+
+def test_antialias_area_kills_subpixel_spike_keeps_wide_peak() -> None:
+    oversample = 4
+    spike = [0.0] * 40 + [1.0] + [0.0] * 40
+    wide = [0.0] * 36 + [1.0] * 8 + [0.0] * 36
+    a_spike = antialias_envelope(spike, oversample=oversample, kind="area", support_px=1.0)
+    a_wide = antialias_envelope(wide, oversample=oversample, kind="area", support_px=1.0)
+    assert max(a_spike) < 0.55
+    assert max(a_wide) > 0.7
+
+
+def test_antialias_preserves_flat_interior() -> None:
+    bins = [0.4] * 80
+    out = antialias_envelope(bins, oversample=4, kind="lanczos", support_px=2.0)
+    assert abs(out[40] - 0.4) < 1e-9
 
 
 def test_window_pads_before_audio_starts() -> None:

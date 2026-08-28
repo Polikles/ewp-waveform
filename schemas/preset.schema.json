@@ -105,6 +105,16 @@
           "enum": [1, 2, 4, 8],
           "description": "Real RMS bins per output pixel across window_seconds. Not interpolated 1x data."
         },
+        "envelope_aa": {
+          "type": "string",
+          "enum": ["none", "area", "lanczos"],
+          "description": "Reconstruction filter on the dense envelope, matched to output pixel width. Independent of smoothing."
+        },
+        "envelope_aa_support": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Filter support in output pixels. Area: box width. Lanczos: a."
+        },
         "normalization": {
           "type": "object",
           "required": [
