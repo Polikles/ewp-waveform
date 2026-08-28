@@ -1,6 +1,6 @@
 schema_version = 1
 name = "iuris-default"
-description = "Default EWP visual preset (Iuris et Logos). Target: mirrored vertical bars + medium glow at 30 fps. FFmpeg cannot draw that geometry faithfully yet."
+description = "Default EWP visual preset (Iuris et Logos). Mirrored scrolling envelope, 5 s window, medium glow, 30 fps. Limited vs brand linia lustrzana."
 
 [canvas]
 width = 1400
@@ -11,6 +11,7 @@ fps = 30
 style = "mirrored"
 domain = "time"
 time_mode = "scroll"
+window_seconds = 5.0
 color = "#C7E6EC"
 amplitude = 0.82
 stroke_width = 3.0

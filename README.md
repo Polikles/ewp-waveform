@@ -41,7 +41,7 @@ waveform inspect "/path/to/input"
 waveform dry-run "/path/to/input" --preset iuris-default
 ```
 
-`render` is not implemented yet (capability error). Planned full surface is in `docs/05-cli-specification.md`.
+`render` / `preview` emit limited scrolling-envelope ProRes (or experimental spectrum). Full CLI surface: `docs/05-cli-specification.md`.
 
 ## Planned CLI
 

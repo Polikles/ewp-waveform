@@ -119,19 +119,116 @@ def dry_run_cmd(
         raise typer.Exit(EXIT_CODE_VALUES[ExitCode.INPUT])
 
 
+def _run_render(
+    input_path: Path,
+    *,
+    recursive: bool,
+    config: Path | None,
+    preset: str | None,
+    performance: str | None,
+    fps: float | None,
+    output_dir: Path | None,
+    formats: list[str] | None,
+    force: bool,
+    start: float | None,
+    duration: float | None,
+    keep_temp: bool,
+) -> None:
+    try:
+        results = app_service.render(
+            input_path,
+            recursive=recursive,
+            config_path=config,
+            preset_name=preset,
+            performance_name=performance,
+            fps_override=fps,
+            output_dir=output_dir,
+            formats=formats or None,
+            force=force,
+            start=start,
+            duration=duration,
+            keep_temp=keep_temp,
+        )
+    except AppError as exc:
+        _fail(exc)
+    failed = 0
+    for payload in results:
+        job_obj = payload.get("job")
+        status = "UNKNOWN"
+        if isinstance(job_obj, dict):
+            status = str(job_obj.get("status", "UNKNOWN"))
+        typer.echo(f"{status}: {payload.get('result_json', '')}")
+        outputs = payload.get("outputs")
+        if isinstance(outputs, list):
+            for item in outputs:
+                if isinstance(item, dict):
+                    typer.echo(f"  {item.get('format')}: {item.get('path')}")
+        if status == "FAILED":
+            failed += 1
+    if failed and failed == len(results):
+        raise typer.Exit(EXIT_CODE_VALUES[ExitCode.RENDER])
+    if failed:
+        raise typer.Exit(EXIT_CODE_VALUES[ExitCode.PARTIAL])
+
+
 @app.command()
 def render(
     input_path: Path = typer.Argument(..., metavar="INPUT"),
+    recursive: bool = typer.Option(False, "--recursive"),
+    config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
+    preset: str | None = typer.Option(None, "--preset"),
+    performance: str | None = typer.Option(None, "--performance"),
+    fps: float | None = typer.Option(None, "--fps"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    format_name: list[str] | None = typer.Option(None, "--format"),
+    force: bool = typer.Option(False, "--force"),
+    keep_temp: bool = typer.Option(False, "--keep-temp"),
 ) -> None:
-    """Render is not product-faithful yet. Use doctor/inspect/dry-run/capabilities."""
-    typer.secho(
-        "E_RENDERER_CAPABILITY: render is not implemented. "
-        "Scrolling envelope and fixed-axis spectrum looks are not brand-faithful in FFmpeg yet. "
-        "See `waveform capabilities`.",
-        fg=typer.colors.RED,
-        err=True,
+    """Render waveform assets (scrolling envelope or experimental spectrum)."""
+    _run_render(
+        input_path,
+        recursive=recursive,
+        config=config,
+        preset=preset,
+        performance=performance,
+        fps=fps,
+        output_dir=output_dir,
+        formats=format_name,
+        force=force,
+        start=None,
+        duration=None,
+        keep_temp=keep_temp,
     )
-    raise typer.Exit(EXIT_CODE_VALUES[ExitCode.CAPABILITY])
+
+
+@app.command()
+def preview(
+    input_path: Path = typer.Argument(..., metavar="INPUT"),
+    start: float = typer.Option(0.0, "--start"),
+    duration: float = typer.Option(8.0, "--duration"),
+    recursive: bool = typer.Option(False, "--recursive"),
+    config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
+    preset: str | None = typer.Option(None, "--preset"),
+    fps: float | None = typer.Option(None, "--fps"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    format_name: list[str] | None = typer.Option(None, "--format"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Render a short interval using the real production path."""
+    _run_render(
+        input_path,
+        recursive=recursive,
+        config=config,
+        preset=preset,
+        performance=None,
+        fps=fps,
+        output_dir=output_dir,
+        formats=format_name,
+        force=force,
+        start=start,
+        duration=duration,
+        keep_temp=False,
+    )
 
 
 def main() -> None:

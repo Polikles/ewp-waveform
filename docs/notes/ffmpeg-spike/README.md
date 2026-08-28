@@ -33,5 +33,6 @@ Synthetic `lavfi` probes are allowed in notes as command text and measurements. 
 - `speech.md` — podcast cuts, 30 vs 60 fps, motion/busyness trials.
 - `reference.md` — Iuris et Logos boards vs FFmpeg; lp80 rejected.
 - `spectrum.md` — fixed-axis frequency default; `showfreqs` is the idea, not the look.
+- Application `waveform preview` now draws scrolling RMS bars (see `docs/10-rendering-and-effects.md`).
 
 Manual visual media is **not** stored here. On the authoring machine it lives outside the repository under `waveform-rendering/local-renders/ffmpeg-spike/` (`INDEX.md` there lists what to play).

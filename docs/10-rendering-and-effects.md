@@ -45,11 +45,13 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 - `filled` — smooth ribbon (wstęga wypełniona), higher glow.
 - `segmented` — discrete columns (impuls segmentowy), medium glow.
 
-FFmpeg `showwaves` at output fps is the wrong window (speech looks too fast). `lowpass=80` is **rejected** (sine beads). `showwavespic` of a short clip matches the **time scale** of the boards but still draws a ribbon, not bars.
+FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP may ship a limited envelope/`showwavespic`-style stand-in. Faithful linia lustrzana is application envelope + bars (or the custom renderer). Do not silently substitute another style.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5) mapped across canvas width (right edge = now), mirrored vertical bars, optional `gblur` glow, ProRes 4444 / PNG. Not a pixel match to linia lustrzana, but the time scale matches the boards.
 
-Default preset: **`mirrored` + glow medium + 30 fps**, color `#C7E6EC`. 60 fps remains a full-detail identity.
+FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
+
+Default preset: **`mirrored` + glow medium + 30 fps + `window_seconds=5`**, color `#C7E6EC`.
 
 ## Effects
 

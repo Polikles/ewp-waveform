@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, cast
 
+from ewp_waveform.application.render import output_root, render_job
 from ewp_waveform.config.load import load_application_config, load_performance, load_preset
 from ewp_waveform.config.models import ApplicationConfig, VisualPreset
 from ewp_waveform.discovery.scan import DiscoveryError, discover_paths
@@ -58,7 +61,7 @@ def _capability_for_preset(preset: VisualPreset) -> tuple[CapabilityLevel, str]:
     if style in {"classic", "mirrored", "filled"}:
         return (
             CapabilityLevel.LIMITED,
-            "Scrolling envelope target; FFmpeg showwaves at output fps is the wrong window.",
+            "Scrolling RMS envelope bars (5 s window). Limited vs brand linia lustrzana.",
         )
     return CapabilityLevel.UNSUPPORTED, f"Unknown style '{style}'."
 
@@ -174,6 +177,84 @@ def dry_run(
         )
     extra.extend(_timeline_diagnostics(durations, fps))
     return app_cfg, preset, jobs, extra
+
+
+def render(
+    input_path: Path,
+    *,
+    recursive: bool = False,
+    config_path: Path | None = None,
+    preset_name: str | None = None,
+    performance_name: str | None = None,
+    fps_override: float | None = None,
+    output_dir: Path | None = None,
+    formats: list[str] | None = None,
+    force: bool = False,
+    start: float | None = None,
+    duration: float | None = None,
+    keep_temp: bool = False,
+) -> list[dict[str, object]]:
+    app_cfg, preset, jobs, diagnostics = dry_run(
+        input_path,
+        recursive=recursive,
+        config_path=config_path,
+        preset_name=preset_name,
+        performance_name=performance_name,
+        fps_override=fps_override,
+    )
+    if any(d.severity == Severity.ERROR for d in diagnostics):
+        raise AppError(ExitCode.INPUT, diagnostics[-1].message, diagnostics[-1])
+    particles = preset.effects.get("particles")
+    if isinstance(particles, dict) and particles.get("enabled"):
+        raise AppError(
+            ExitCode.CAPABILITY,
+            "Particles are unsupported in the FFmpeg MVP.",
+            Diagnostic(
+                code=DiagnosticCode.E_RENDERER_CAPABILITY,
+                severity=Severity.ERROR,
+                message="Particles are unsupported in the FFmpeg MVP.",
+            ),
+        )
+    if preset.waveform.time_mode == "playhead":
+        raise AppError(
+            ExitCode.CAPABILITY,
+            "Playhead envelope is deferred.",
+            Diagnostic(
+                code=DiagnosticCode.E_RENDERER_CAPABILITY,
+                severity=Severity.ERROR,
+                message="Playhead envelope is deferred.",
+            ),
+        )
+    performance = load_performance(performance_name or app_cfg.defaults.performance)
+    fmts = formats or app_cfg.output.formats
+    results: list[dict[str, object]] = []
+    failed = 0
+    for job in jobs:
+        media = probe_media(job.path)
+        root = output_root(job.path, output_dir, app_cfg.output.directory_name)
+        payload = render_job(
+            job,
+            media,
+            preset,
+            performance,
+            output_dir=root,
+            formats=fmts,
+            force=force,
+            start=start,
+            duration=duration,
+            keep_temp=keep_temp,
+        )
+        out_dir = root / job.project_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        result_file = out_dir / f"{job.path.stem}_{preset.name}_results.json"
+        result_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        payload["result_json"] = str(result_file)
+        results.append(payload)
+        job_meta = cast(dict[str, Any], payload.get("job") or {})
+        if job_meta.get("status") == "FAILED":
+            failed += 1
+    _ = failed
+    return results
 
 
 def _timeline_diagnostics(durations: dict[str, list[float]], fps: float) -> list[Diagnostic]:

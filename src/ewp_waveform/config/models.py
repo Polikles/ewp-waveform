@@ -46,6 +46,7 @@ class WaveformSection(BaseModel):
     center_line: bool | None = None
     domain: str = "time"
     time_mode: str | None = None
+    window_seconds: float = 5.0
 
 
 class CanvasSection(BaseModel):

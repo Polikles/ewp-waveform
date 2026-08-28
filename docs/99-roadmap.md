@@ -26,11 +26,11 @@ No dates are assigned until evidence supports them.
 - [ ] music/non-speech sample when available.
 
 ## Phase 2 — FFmpeg MVP
-- [ ] application API;
-- [ ] CLI;
+- [x] application API (doctor/inspect/dry-run/render/preview);
+- [x] CLI (thin Typer; exit codes frozen);
 - [ ] config/preset/performance resolution;
 - [ ] discovery/grouping;
-- [ ] inspect/dry-run/render/preview/doctor/capabilities;
+- [x] inspect/dry-run/render/preview/doctor/capabilities;
 - [ ] normalization baseline;
 - [ ] deterministic signature/SKIP/versioning;
 - [ ] output validation;

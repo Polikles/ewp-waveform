@@ -23,7 +23,9 @@ Playhead envelope is later (scrubber / optional viz).
 
 FFmpeg cannot yet draw either look faithfully (`showwaves` window wrong; `showfreqs` is the right axis but not the product picture).
 
-First identifiable CLI (`waveform` 0.0.0): `doctor`, `inspect`, `capabilities`, `dry-run`. `render` exits 4 until looks are brand-faithful. Exit codes frozen in `docs/09`.
+CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`.
+
+`render`/`preview` write scrolling RMS envelope bars (`iuris-default`, limited) or experimental `showfreqs` (`iuris-spectrum`). Exit codes frozen in `docs/09`.
 
 Long jobs run on the operator workstation.
 

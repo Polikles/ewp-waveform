@@ -16,8 +16,8 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
             name="domain:time+scroll",
             level=CapabilityLevel.LIMITED,
             notes=(
-                "Target: sliding phrase envelope (linia lustrzana). "
-                "showwaves at fps is the wrong window."
+                "Application RMS envelope over window_seconds, mirrored bars, "
+                "FFmpeg encode+glow. Limited vs brand stroke density."
             ),
         ),
         CapabilityItem(
@@ -38,7 +38,7 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
         CapabilityItem(
             name="style:mirrored",
             level=CapabilityLevel.LIMITED,
-            notes="Brand default (linia lustrzana). Needs envelope-over-window bars.",
+            notes="Scrolling RMS bars implemented; not yet pixel-matched to the boards.",
         ),
         CapabilityItem(
             name="style:filled",

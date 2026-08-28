@@ -78,6 +78,10 @@
         },
         "time_mode": {
           "enum": ["scroll", "playhead"]
+        },
+        "window_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       }
     },
