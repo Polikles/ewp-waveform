@@ -46,6 +46,16 @@ Speech envelopes are **thin in quiet, thick in bursts**. Classic vs filled is ob
 
 **30 fps** remains the preview default; **60 fps** is fuller detail. Long episodes stay on the operator workstation.
 
+## Application scroll (operator, 2026-08-28)
+
+`waveform preview` `iuris-default` on `s0e00-Szymon_08-20.wav` (8 s):
+
+- Heights staying put after the bar grid was locked to the envelope is **confirmed**.
+- Remaining defects on `*65340e3ea877_v002.mov`: motion looked **chopped**; some bars **clipped / cut off** at the frame edge (glow `gblur` truncated at the canvas).
+- Fix: draw on a padded canvas (`glow_overscan`, σ=8 → 26 px), `gblur` then `crop` back to 1400×280; place bars at a **fractional** scroll phase with coverage-antialiased edges.
+- Still check (t=6 s, 30 fps `*ed7111fcb7b1.mov`): tallest solid bar inset ~11 px; edge rows have glow alpha only (no solid 255). Previous `*v002` still at t=2 had zero alpha on rows 0–3 (glow truncated).
+- 30 fps at this window is still ~9.3 px/frame (~2 bar periods). That is stepped, not a `tmix` smear (`tmix=frames=8` already rejected). Watch 60 fps `*e0c0b6911bb7.mov` (~4.7 px/frame) for smoother travel.
+
 ## Motion (“too fast”) and busyness
 
 Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.

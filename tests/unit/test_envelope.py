@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ewp_waveform.analysis.envelope import (
     column_offset,
+    column_offset_float,
     hop_samples,
     normalize_bins,
     rms_bins_from_wav,
@@ -41,6 +42,7 @@ def test_scroll_is_translation_of_frozen_bins() -> None:
 def test_column_offset_is_integer_pixels() -> None:
     assert column_offset(0, 30.0, 5.0, 1400) == 0
     assert column_offset(30, 30.0, 5.0, 1400) == 1400 // 5
+    assert column_offset_float(1, 30.0, 5.0, 1400) == 1400 / (5.0 * 30.0)
 
 
 def test_normalize_raises_typical_peaks_without_using_silence() -> None:

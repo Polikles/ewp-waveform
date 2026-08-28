@@ -47,7 +47,9 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now); bar grid is locked to envelope index so heights do not jump as bars slide. Auto-gain fills typical speech; a glow margin keeps peaks inside the frame. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now); bar grid is locked to envelope index so heights do not jump as bars slide. Auto-gain fills typical speech. Bars are placed at a fractional scroll offset (coverage-antialiased edges) so they do not snap to the 4 px grid. Glow is blurred on an overscan canvas and cropped, so peaks are not squared off at the frame edge. Not a pixel match to linia lustrzana.
+
+At 1400×280, 5 s window, 30 fps the window moves ~9.3 px/frame (~2 bar periods). That still looks stepped; **60 fps** (~4.7 px/frame) is the smoother production identity. Do not use `tmix` / full-travel motion blur — it ghosts bars (already rejected on speech).
 
 Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling envelope.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -11,7 +12,7 @@ from typing import Any
 
 from ewp_waveform import __version__
 from ewp_waveform.analysis.envelope import (
-    column_offset,
+    column_offset_float,
     hop_samples,
     normalize_bins,
     rms_bins_from_wav,
@@ -22,7 +23,7 @@ from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
-from ewp_waveform.ffmpeg.draw import draw_envelope_frame, glow_vertical_margin
+from ewp_waveform.ffmpeg.draw import draw_envelope_frame, glow_overscan
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
     encode_rgba_stream,
@@ -96,23 +97,31 @@ def iter_scroll_frames(
     stroke = preset.waveform.stroke_width or 3.0
     center = bool(preset.waveform.center_line)
     window_seconds = preset.waveform.window_seconds
-    margin = glow_vertical_margin(glow)
+    pad = glow_overscan(glow)
+    draw_w = width + 2 * pad
+    draw_h = height + 2 * pad
     for i in range(n_frames):
-        end = column_offset(i, fps, window_seconds, width) + 1
-        start = end - width
-        raw = window_at_column(bins, end_exclusive=end, width=width)
+        off = column_offset_float(i, fps, window_seconds, width)
+        vis_start = off + 1.0 - width
+        draw_start = vis_start - pad
+        raw = window_at_column(
+            bins,
+            end_exclusive=math.floor(draw_start) + draw_w,
+            width=draw_w,
+        )
         columns = [scale_amplitude(v, scale) for v in raw]
         yield draw_envelope_frame(
             columns,
-            width=width,
-            height=height,
+            width=draw_w,
+            height=draw_h,
             color=preset.waveform.color,
             amplitude=preset.waveform.amplitude,
             stroke_width=stroke,
             style=preset.waveform.style,
             center_line=center,
-            scroll_phase=start,
-            vertical_margin=margin,
+            scroll_phase=draw_start,
+            vertical_margin=1,
+            content_height=height,
         )
 
 
@@ -232,6 +241,7 @@ def render_job(
                 png_dir=png_work,
                 prores_path=mov_work,
                 ffmpeg_threads=threads,
+                overscan=glow_overscan(glow),
             )
             if mov_work is not None and mov_work.is_file():
                 shutil.move(str(mov_work), str(mov_dest))

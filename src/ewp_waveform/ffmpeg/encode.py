@@ -20,6 +20,22 @@ def glow_sigma(level: str, enabled: bool) -> float:
     return GLOW_SIGMA.get(level, 8.0)
 
 
+def _glow_crop_graph(glow: float, width: int, height: int, overscan: int) -> str:
+    """Blur on a padded canvas, then crop so gblur is not truncated at the frame edge."""
+    crop = f"crop={width}:{height}:{overscan}:{overscan}" if overscan > 0 else "format=rgba"
+    if glow > 0:
+        body = (
+            "split=2[base][g];[g]gblur=sigma="
+            f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,format=rgba"
+        )
+        if overscan > 0:
+            return f"[0:v]{body},{crop}[out]"
+        return f"[0:v]{body}[out]"
+    if overscan > 0:
+        return f"[0:v]format=rgba,{crop}[out]"
+    return "[0:v]format=rgba[out]"
+
+
 def encode_rgba_stream(
     frames: Iterable[bytes],
     *,
@@ -30,19 +46,15 @@ def encode_rgba_stream(
     png_dir: Path | None,
     prores_path: Path | None,
     ffmpeg_threads: int = 0,
+    overscan: int = 0,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
         raise ValueError(msg)
     ffmpeg = require_tool("ffmpeg")
-    vf = ["format=rgba"]
-    if glow > 0:
-        vf = [
-            "split=2[base][g]",
-            f"[g]gblur=sigma={glow}:steps=3[gb]",
-            "[gb][base]overlay=format=auto:shortest=1,format=rgba",
-        ]
-    filter_complex = ";".join(vf) if glow > 0 else "format=rgba"
+    in_w = width + 2 * overscan
+    in_h = height + 2 * overscan
+    graph = _glow_crop_graph(glow, width, height, overscan)
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
@@ -52,13 +64,15 @@ def encode_rgba_stream(
         "-pix_fmt",
         "rgba",
         "-s",
-        f"{width}x{height}",
+        f"{in_w}x{in_h}",
         "-r",
         str(fps),
         "-i",
         "-",
         "-filter_complex",
-        filter_complex,
+        graph,
+        "-map",
+        "[out]",
         "-fps_mode",
         "cfr",
         "-r",
@@ -82,6 +96,7 @@ def encode_rgba_stream(
                 png_dir=png_dir,
                 prores_path=prores_path,
                 ffmpeg_threads=ffmpeg_threads,
+                overscan=overscan,
             )
             completed = run_argv_stdin(argv, frames)
             if completed.returncode != 0:
@@ -115,14 +130,12 @@ def _dual_output_argv(
     png_dir: Path,
     prores_path: Path,
     ffmpeg_threads: int,
+    overscan: int = 0,
 ) -> list[str]:
-    if glow > 0:
-        graph = (
-            f"[0:v]split=2[base][g];[g]gblur=sigma={glow}:steps=3[gb];"
-            "[gb][base]overlay=format=auto:shortest=1,format=rgba,split=2[png][mov]"
-        )
-    else:
-        graph = "[0:v]format=rgba,split=2[png][mov]"
+    core = _glow_crop_graph(glow, width, height, overscan)
+    graph = core.replace("[out]", "split=2[png][mov]", 1)
+    in_w = width + 2 * overscan
+    in_h = height + 2 * overscan
     argv = [
         str(ffmpeg),
         "-hide_banner",
@@ -132,7 +145,7 @@ def _dual_output_argv(
         "-pix_fmt",
         "rgba",
         "-s",
-        f"{width}x{height}",
+        f"{in_w}x{in_h}",
         "-r",
         str(fps),
         "-i",

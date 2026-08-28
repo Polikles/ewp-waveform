@@ -68,11 +68,14 @@ def normalize_bins(bins: Sequence[float], *, percentile: float = 95.0) -> list[f
 
 def column_offset(frame_index: int, fps: float, window_seconds: float, width: int) -> int:
     """Integer columns advanced at this frame. Scroll is translation-only."""
+    return round(column_offset_float(frame_index, fps, window_seconds, width))
+
+
+def column_offset_float(frame_index: int, fps: float, window_seconds: float, width: int) -> float:
     if fps <= 0 or window_seconds <= 0 or width < 1:
         msg = "invalid scroll offset parameters"
         raise ValueError(msg)
-    pixels_per_second = width / window_seconds
-    return round(frame_index * pixels_per_second / fps)
+    return frame_index * width / (window_seconds * fps)
 
 
 def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -> list[float]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 
@@ -25,10 +26,46 @@ def bar_metrics(style: str, stroke_width: float) -> tuple[int, int]:
 
 
 def glow_vertical_margin(sigma: float) -> int:
-    """Keep bar tips inside the frame so gblur does not clip."""
+    """Inner gutter when drawing without overscan."""
     if sigma <= 0:
         return 1
     return max(2, round(sigma * 2) + 1)
+
+
+def glow_overscan(sigma: float) -> int:
+    """Extra rows/cols so gblur can expand without clipping peaks."""
+    if sigma <= 0:
+        return 0
+    return max(8, round(sigma * 3) + 2)
+
+
+def _put_span(
+    frame: bytearray,
+    *,
+    width: int,
+    x0: float,
+    x1: float,
+    y0: int,
+    y1: int,
+    r: int,
+    g: int,
+    b: int,
+) -> None:
+    """Fill [x0, x1) x [y0, y1) with coverage-based alpha on partial columns."""
+    px0 = max(0, math.floor(x0))
+    px1 = min(width, math.ceil(x1))
+    for px in range(px0, px1):
+        cov = min(float(px) + 1.0, x1) - max(float(px), x0)
+        if cov <= 0.0:
+            continue
+        alpha = 255 if cov >= 1.0 - 1e-6 else max(1, min(255, round(255.0 * cov)))
+        for y in range(y0, y1):
+            off = (y * width + px) * 4
+            if alpha >= 255 or frame[off + 3] < alpha:
+                frame[off] = r
+                frame[off + 1] = g
+                frame[off + 2] = b
+                frame[off + 3] = alpha if alpha >= 255 else max(frame[off + 3], alpha)
 
 
 def draw_envelope_frame(
@@ -41,48 +78,55 @@ def draw_envelope_frame(
     stroke_width: float,
     style: str,
     center_line: bool,
-    scroll_phase: int = 0,
+    scroll_phase: float = 0.0,
     vertical_margin: int = 1,
+    content_height: int | None = None,
 ) -> bytes:
-    """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x."""
+    """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x.
+
+    ``scroll_phase`` is the envelope index of draw-column 0 (may be fractional so
+    bars slide with coverage-antialiased edges instead of snapping a whole period).
+    """
     r, g, b = parse_rgb(color)
     frame = bytearray(width * height * 4)
     center = height // 2
+    inner = content_height or height
     margin = max(0, vertical_margin)
-    usable = min(center, height - center - 1) - margin
+    usable = min(inner // 2, inner - inner // 2 - 1) - margin
     max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
     stroke, gap = bar_metrics(style, stroke_width)
     period = stroke + gap
+    phase_floor = math.floor(scroll_phase)
+    frac = scroll_phase - phase_floor
     if columns:
         if period <= 1:
-            xs = range(width)
+            xs: list[float] = [float(x) for x in range(width)]
         else:
             rem = scroll_phase % period
-            first = 0 if rem == 0 else period - rem
-            xs = range(first, width, period)
+            first = 0.0 if rem == 0.0 else period - rem
+            xs = []
+            x = first - period
+            while x < width:
+                if x + stroke > 0:
+                    xs.append(x)
+                x += period
         for x in xs:
-            mag = columns[x] if x < len(columns) else 0.0
+            idx = round(x + frac)
+            mag = columns[idx] if 0 <= idx < len(columns) else 0.0
             mag = min(max(mag, 0.0), 1.0)
             half = min(max_half, round(max_half * mag))
-            x1 = min(width, x + stroke)
-            if half > 0:
+            if half <= 0:
+                continue
+            y0 = center - half
+            y1 = center + half + 1
+            if y0 < 0 or y1 > height:
+                half = min(half, center - margin, height - center - 1 - margin)
+                half = max(0, half)
                 y0 = center - half
                 y1 = center + half + 1
-                if y0 < 0 or y1 > height:
-                    half = min(half, center - margin, height - center - 1 - margin)
-                    half = max(0, half)
-                    y0 = center - half
-                    y1 = center + half + 1
-                y0 = max(0, y0)
-                y1 = min(height, y1)
-                for y in range(y0, y1):
-                    row = y * width * 4
-                    for px in range(x, x1):
-                        off = row + px * 4
-                        frame[off] = r
-                        frame[off + 1] = g
-                        frame[off + 2] = b
-                        frame[off + 3] = 255
+            y0 = max(0, y0)
+            y1 = min(height, y1)
+            _put_span(frame, width=width, x0=x, x1=x + stroke, y0=y0, y1=y1, r=r, g=g, b=b)
     if center_line:
         y = min(height - 1, max(0, center))
         row = y * width * 4
