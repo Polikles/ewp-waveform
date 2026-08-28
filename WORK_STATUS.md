@@ -10,7 +10,7 @@ Development is internal-beta / pre-MVP. There is no chosen release candidate and
 
 ## Next phase
 
-FFmpeg research spike in progress (`docs/21-ffmpeg-baseline-plan.md`).
+FFmpeg MVP application started. Spike notes remain in `docs/notes/ffmpeg-spike/`.
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
@@ -23,7 +23,9 @@ Playhead envelope is later (scrubber / optional viz).
 
 FFmpeg cannot yet draw either look faithfully (`showwaves` window wrong; `showfreqs` is the right axis but not the product picture).
 
-Long jobs run on the operator workstation. Next: FFmpeg MVP application with honest capability ratings, still CPU.
+First identifiable CLI (`waveform` 0.0.0): `doctor`, `inspect`, `capabilities`, `dry-run`. `render` exits 4 until looks are brand-faithful. Exit codes frozen in `docs/09`.
+
+Long jobs run on the operator workstation.
 
 ## Deferred pending evidence
 

@@ -5,7 +5,7 @@
 ## Status
 
 - Specification baseline: accepted.
-- Implementation status: pre-MVP; the FFmpeg research spike is the next phase.
+- Implementation status: pre-MVP; CLI inspect/doctor/dry-run/capabilities work; render not yet.
 - Release status: internal beta; no release candidate; no public release.
 - Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
 - Python baseline: Python 3.12.
@@ -31,6 +31,17 @@ DaVinci Resolve / external compositor
 ```
 
 Audio editing/mastering, transcription, subtitles, source separation, final scene composition, and publishing are outside scope.
+
+## CLI (0.0.0)
+
+```bash
+waveform doctor
+waveform capabilities
+waveform inspect "/path/to/input"
+waveform dry-run "/path/to/input" --preset iuris-default
+```
+
+`render` is not implemented yet (capability error). Planned full surface is in `docs/05-cli-specification.md`.
 
 ## Planned CLI
 

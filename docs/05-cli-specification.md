@@ -106,11 +106,4 @@ waveform benchmark dry-run manifest.toml
 
 ## Exit codes
 
-Semantic categories are fixed; numeric values must be frozen before the first identifiable internal CLI build:
-
-- success;
-- config/CLI error;
-- input error;
-- capability error;
-- render/output error;
-- partial multi-job failure.
+Frozen for `waveform` 0.0.0: 0 success; 2 config/CLI; 3 input; 4 capability; 5 render/output; 6 partial multi-job failure. See `09-state-errors-and-logging.md`.

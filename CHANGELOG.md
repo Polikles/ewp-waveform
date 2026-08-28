@@ -6,6 +6,8 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- First identifiable CLI: `waveform doctor|inspect|capabilities|dry-run`. `render` refuses with `E_RENDERER_CAPABILITY` until FFmpeg looks are brand-faithful.
+- Frozen exit codes 0/2/3/4/5/6.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.

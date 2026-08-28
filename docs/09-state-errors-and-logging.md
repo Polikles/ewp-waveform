@@ -54,4 +54,13 @@ Expected controls include `-v`, `-vv`, `--quiet`, `--debug`.
 
 ## Exit codes
 
-Numeric mapping remains to be frozen before first identifiable internal CLI release. Semantic categories are normative.
+Frozen for the first identifiable internal CLI (`waveform` 0.0.0):
+
+| Code | Category |
+|---|---|
+| 0 | success |
+| 2 | config/CLI error |
+| 3 | input error |
+| 4 | capability error |
+| 5 | render/output error |
+| 6 | partial multi-job failure |
