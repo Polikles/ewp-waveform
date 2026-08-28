@@ -1,7 +1,9 @@
 from ewp_waveform.ffmpeg.draw import (
+    bar_metrics,
     draw_envelope_frame,
     glow_overscan,
     glow_vertical_margin,
+    peak_half_height,
 )
 from ewp_waveform.ffmpeg.encode import _glow_crop_graph
 
@@ -27,6 +29,8 @@ def _draw(
     content_height: int | None = None,
     center_line: bool = False,
     amplitude: float = 0.95,
+    stroke_width: float = 3.0,
+    glow_sigma: float = 0.0,
 ) -> bytes:
     return draw_envelope_frame(
         columns,
@@ -34,13 +38,26 @@ def _draw(
         height=height,
         color="#C7E6EC",
         amplitude=amplitude,
-        stroke_width=3.0,
+        stroke_width=stroke_width,
         style="mirrored",
         center_line=center_line,
         scroll_phase=scroll_phase,
         vertical_margin=vertical_margin,
         content_height=content_height,
+        glow_sigma=glow_sigma,
     )
+
+
+def test_mirrored_bars_have_no_gap() -> None:
+    stroke, gap = bar_metrics("mirrored", 6.0)
+    assert stroke == 6
+    assert gap == 0
+
+
+def test_peak_half_height_uses_glow_spread() -> None:
+    spread = glow_overscan(8.0)
+    assert peak_half_height(280, 8.0, 1.0) == 280 // 2 - spread
+    assert peak_half_height(280, 0.0, 1.0) == 280 // 2 - 2
 
 
 def test_scroll_phase_translates_bars_without_changing_height() -> None:
@@ -69,8 +86,8 @@ def test_fractional_phase_keeps_height_and_covers_partial_column() -> None:
     width, height = 16, 40
     columns = [1.0] * width
     solid = _draw(columns, width=width, height=height, scroll_phase=0.0)
-    # period 4: phase 3.6 puts a bar at x=0.4 covering [0.4, 3.4).
-    shifted = _draw(columns, width=width, height=height, scroll_phase=3.6)
+    # period 3 (stroke 3, gap 0): phase 2.6 puts a bar at x=0.4 covering [0.4, 3.4).
+    shifted = _draw(columns, width=width, height=height, scroll_phase=2.6)
     top_a, bot_a = _column_opaque_span(solid, width, height, 2)
     top_b, bot_b = _column_opaque_span(shifted, width, height, 2)
     assert (top_a, bot_a) == (top_b, bot_b)
@@ -80,23 +97,22 @@ def test_fractional_phase_keeps_height_and_covers_partial_column() -> None:
 
 def test_overscan_peaks_do_not_touch_draw_edges() -> None:
     pad = glow_overscan(8.0)
-    width, height = 24, 40
+    width, height = 24, 80
     draw_w = width + 2 * pad
     draw_h = height + 2 * pad
     frame = _draw(
         [1.0] * draw_w,
         width=draw_w,
         height=draw_h,
-        vertical_margin=1,
         content_height=height,
         amplitude=1.0,
+        glow_sigma=8.0,
     )
     for y in (0, draw_h - 1):
         for x in range(draw_w):
             assert frame[(y * draw_w + x) * 4 + 3] != 255
-    crop_top = pad
     peak_y, _ = _column_opaque_span(frame, draw_w, draw_h, pad + 4)
-    assert peak_y >= crop_top
+    assert peak_y >= pad + pad
 
 
 def test_glow_crop_graph_crops_overscan() -> None:
@@ -113,11 +129,11 @@ def test_glow_crop_graph_downsamples_supersample() -> None:
 
 
 def test_bar_mag_stays_on_envelope_origin_across_phase() -> None:
-    columns = [0.1] * 4 + [1.0] + [0.1] * 11
+    columns = [0.1] * 3 + [1.0] + [0.1] * 12
     width, height = 16, 40
     a = _draw(columns, width=width, height=height, scroll_phase=0.0)
     b = _draw(columns, width=width, height=height, scroll_phase=0.6)
-    top_a, bot_a = _column_opaque_span(a, width, height, 5)
+    top_a, bot_a = _column_opaque_span(a, width, height, 4)
     top_b, bot_b = _column_opaque_span(b, width, height, 4)
     assert top_a != -1
     assert (top_a, bot_a) == (top_b, bot_b)
@@ -131,7 +147,7 @@ def test_supersample_frame_is_wider() -> None:
         height=height,
         color="#FFFFFF",
         amplitude=0.8,
-        stroke_width=3.0,
+        stroke_width=6.0,
         style="mirrored",
         center_line=False,
         supersample=4,

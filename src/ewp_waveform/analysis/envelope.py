@@ -53,8 +53,23 @@ def scale_amplitude(value: float, scale: str) -> float:
     return v
 
 
-def normalize_bins(bins: Sequence[float], *, percentile: float = 95.0) -> list[float]:
-    """Scale visualization bins so typical peaks fill 0..1. Does not touch source audio."""
+def soft_clip_unit(value: float, *, knee: float = 0.88) -> float:
+    """Compress values above ``knee`` toward 1.0 so peaks are not a hard ceiling."""
+    v = max(0.0, value)
+    if v <= knee:
+        return v
+    t = (v - knee) / max(1e-6, 1.0 - knee)
+    return knee + (1.0 - knee) * math.tanh(t)
+
+
+def normalize_bins(
+    bins: Sequence[float],
+    *,
+    percentile: float = 95.0,
+    soft_clip: bool = False,
+    knee: float = 0.88,
+) -> list[float]:
+    """Scale visualization bins so typical peaks fill the range. Does not touch source audio."""
     active = [v for v in bins if v > 1e-4]
     if not active:
         return list(bins)
@@ -63,7 +78,10 @@ def normalize_bins(bins: Sequence[float], *, percentile: float = 95.0) -> list[f
     peak = ordered[index]
     if peak <= 0.0:
         return list(bins)
-    return [min(1.0, v / peak) for v in bins]
+    if not soft_clip:
+        return [min(1.0, v / peak) for v in bins]
+    scale = knee / peak
+    return [min(1.0, soft_clip_unit(v * scale, knee=knee)) for v in bins]
 
 
 def column_offset(frame_index: int, fps: float, window_seconds: float, width: int) -> int:

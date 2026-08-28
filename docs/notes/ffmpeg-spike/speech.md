@@ -68,6 +68,17 @@ Changes: amplitude **0.80**; 4× horizontal supersample + `scale=flags=area` bef
 
 Watch: `*f3217e311b57.mov` (30 fps) and `*a4e87708204d.mov` (60 fps). Still check at t=6 s: peak cores ~30 px from the frame edge; row 0 alpha is 0 (glow fully inside). Consecutive 60 fps frames no longer alternate gappy vs filled-in.
 
+## Gapless bars + calculated height (operator, 2026-08-28)
+
+Clipping remained (hard rectangular ceiling + 3+1 lattice). Operator: vertical size should be calculated; bars thicker, maybe no visible gap.
+
+- Peak half-height = `canvas/2 − glow_overscan(σ)` (σ=8 → 26 px). Amplitude 1.0 fills that safe region.
+- Soft-clip on (preset already requested it): 95th percentile → knee 0.88, louder samples compress toward 1.
+- Sqrt mapping runs **before** normalize so perceptual scale does not bunch peaks at the ceiling.
+- Mirrored stroke **6 px**, **gap 0**. Visual contract v4.
+
+Watch: `*728223528a30.mov` (30 fps) and `*493363baea48.mov` (60 fps). t=6 s: peak cores ~33 px from the frame edge, row 0 alpha 0. Consecutive 60 fps frames keep similar bar density (no gappy/filled-in pump).
+
 ## Motion (“too fast”) and busyness
 
 Not a trivial FFmpeg fix. `showwaves` draws about `1/fps` seconds of PCM across the width, so at 30 fps you see ~33 ms of raw speech (glottal detail) racing by.

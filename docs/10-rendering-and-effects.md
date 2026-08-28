@@ -47,7 +47,7 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now); bar grid is locked to envelope index so heights do not jump as bars slide. Auto-gain maps typical speech toward the canvas; **amplitude 0.80** (not 0.95) leaves headroom so medium glow is not clipped at the frame edge. Bars are drawn at 4× horizontal resolution and area-downsampled so the 3 px + 1 px lattice does not strobe as it slides across the pixel grid. Glow is blurred on an overscan canvas and cropped. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, RMS envelope with `window_seconds` (default 5). Bins are frozen. The window **translates horizontally only** (right edge = now); bar grid is locked to envelope index so heights do not jump as bars slide. Peak half-height is **computed** from canvas height minus `gblur` spread (`~3σ+2`), not a fixed 0.95/0.80 fill. Soft-clip maps the 95th percentile to a knee so outliers do not form a hard ceiling. Mirrored bars are **6 px, gap 0** (touching) so the old 3+1 lattice cannot strobe. Drawn at 4× horizontal resolution, area-downsampled; glow is blurred on an overscan canvas and cropped. Not a pixel match to linia lustrzana.
 
 At 1400×280, 5 s window, 30 fps the window moves ~9.3 px/frame (~2 bar periods). **60 fps** (~4.7 px/frame) is the smoother production identity. Do not use `tmix` / full-travel motion blur — it ghosts bars (already rejected on speech).
 
@@ -55,7 +55,7 @@ Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling e
 
 FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
 
-Default preset: **`mirrored` + glow medium + 30 fps + `window_seconds=5` + amplitude 0.80**, color `#C7E6EC`.
+Default preset: **`mirrored` + glow medium + 30 fps + `window_seconds=5` + 6 px gapless bars**, color `#C7E6EC`. Amplitude `1.0` means “fill the glow-safe height”.
 
 ## Effects
 

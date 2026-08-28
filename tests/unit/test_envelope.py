@@ -52,6 +52,13 @@ def test_normalize_raises_typical_peaks_without_using_silence() -> None:
     assert out[0] == 0.0
 
 
+def test_soft_clip_maps_percentile_to_knee_not_a_hard_ceiling() -> None:
+    bins = [0.10] * 90 + [0.20] * 9 + [0.22]
+    out = normalize_bins(bins, percentile=95.0, soft_clip=True, knee=0.88)
+    assert max(out[:99]) <= 0.88 + 1e-6
+    assert 0.88 < out[-1] < 1.0
+
+
 def test_rms_silence_is_zero(tmp_path: Path) -> None:
     path = tmp_path / "silence.wav"
     _write_mono_s16(path, [0] * 8000)

@@ -88,13 +88,12 @@ def iter_scroll_frames(
     duration: float,
     preset: VisualPreset,
     fps: float,
-    scale: str,
     glow: float = 0.0,
 ) -> Iterator[bytes]:
     width = preset.canvas.width
     height = preset.canvas.height
     n_frames = max(1, round(duration * fps))
-    stroke = preset.waveform.stroke_width or 3.0
+    stroke = preset.waveform.stroke_width or 6.0
     center = bool(preset.waveform.center_line)
     window_seconds = preset.waveform.window_seconds
     pad = glow_overscan(glow)
@@ -110,9 +109,8 @@ def iter_scroll_frames(
             end_exclusive=math.floor(draw_start) + draw_w,
             width=draw_w,
         )
-        columns = [scale_amplitude(v, scale) for v in raw]
         yield draw_envelope_frame(
-            columns,
+            raw,
             width=draw_w,
             height=draw_h,
             color=preset.waveform.color,
@@ -121,9 +119,9 @@ def iter_scroll_frames(
             style=preset.waveform.style,
             center_line=center,
             scroll_phase=draw_start,
-            vertical_margin=1,
             content_height=height,
             supersample=ss,
+            glow_sigma=glow,
         )
 
 
@@ -217,19 +215,21 @@ def render_job(
                 preset.waveform.window_seconds,
             )
             bins = rms_bins_from_wav(decoded, hop)
+            scale = str(preset.signal.get("scale") or "sqrt")
+            bins = [scale_amplitude(v, scale) for v in bins]
             norm = preset.signal.get("normalization")
             norm_mode = "auto"
+            soft = True
             if isinstance(norm, dict):
                 norm_mode = str(norm.get("mode") or "auto")
+                soft = bool(norm.get("soft_clip", True))
             if norm_mode != "none":
-                bins = normalize_bins(bins)
-            scale = str(preset.signal.get("scale") or "sqrt")
+                bins = normalize_bins(bins, soft_clip=soft)
             frames = iter_scroll_frames(
                 bins,
                 duration=wav_duration,
                 preset=preset,
                 fps=job.fps,
-                scale=scale,
                 glow=glow,
             )
             png_work: Path | None = work / "png" if want_png else None

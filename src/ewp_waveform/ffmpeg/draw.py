@@ -25,7 +25,8 @@ def bar_metrics(style: str, stroke_width: float) -> tuple[int, int]:
         return 1, 0
     if style == "classic":
         return max(1, stroke // 2), 2
-    return stroke, 1
+    # mirrored (linia lustrzana): dense touching bars, no 1 px gap (that gap strobes).
+    return stroke, 0
 
 
 def glow_vertical_margin(sigma: float) -> int:
@@ -40,6 +41,17 @@ def glow_overscan(sigma: float) -> int:
     if sigma <= 0:
         return 0
     return max(8, round(sigma * 3) + 2)
+
+
+def peak_half_height(content_height: int, glow_sigma: float, amplitude: float = 1.0) -> int:
+    """Bar half-height that leaves gblur room inside the output frame.
+
+    Derived from canvas height and glow sigma, not a fixed pixel count.
+    ``amplitude`` is the fill of that glow-safe region (1.0 = use all of it).
+    """
+    spread = glow_overscan(glow_sigma) if glow_sigma > 0 else 2
+    usable = content_height // 2 - spread
+    return max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
 
 
 def _put_span(
@@ -85,12 +97,13 @@ def draw_envelope_frame(
     vertical_margin: int = 1,
     content_height: int | None = None,
     supersample: int = 1,
+    glow_sigma: float = 0.0,
 ) -> bytes:
     """Mirrored vertical bars. Bar grid is locked to envelope index, not screen x.
 
     ``scroll_phase`` is the 1x envelope index of draw-column 0. ``supersample``
-    draws that many horizontal pixels per output column so a 3+1 bar lattice
-    does not pump contrast as it slides across the pixel grid.
+    draws extra horizontal pixels per output column so sliding edges stay stable.
+    Peak height is ``peak_half_height(content, glow)`` when ``glow_sigma`` is set.
     """
     ss = max(1, int(supersample))
     r, g, b = parse_rgb(color)
@@ -98,9 +111,13 @@ def draw_envelope_frame(
     frame = bytearray(out_w * height * 4)
     center = height // 2
     inner = content_height or height
-    margin = max(0, vertical_margin)
-    usable = min(inner // 2, inner - inner // 2 - 1) - margin
-    max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
+    if glow_sigma > 0:
+        max_half = peak_half_height(inner, glow_sigma, amplitude)
+        margin = glow_overscan(glow_sigma)
+    else:
+        margin = max(0, vertical_margin)
+        usable = min(inner // 2, inner - inner // 2 - 1) - margin
+        max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
     stroke, gap = bar_metrics(style, stroke_width)
     stroke_ss = stroke * ss
     gap_ss = gap * ss
