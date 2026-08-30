@@ -20,31 +20,50 @@ def glow_sigma(level: str, enabled: bool) -> float:
     return GLOW_SIGMA.get(level, 8.0)
 
 
+def shutter_box_size(shutter_px: float) -> int:
+    """Odd avgblur sizeX for a shutter length in output pixels. 0 disables."""
+    if shutter_px < 0.75:
+        return 0
+    size = max(1, round(shutter_px))
+    if size % 2 == 0:
+        size += 1
+    return max(3, size)
+
+
 def _glow_crop_graph(
     glow: float,
     width: int,
     height: int,
     overscan: int,
     supersample: int = 1,
+    shutter_px: float = 0.0,
 ) -> str:
-    """Downsample a supersampled strip, blur on a padded canvas, crop to the output frame."""
+    """Area-downsample, optional shutter blur, then glow from that mask, then crop."""
     padded_w = width + 2 * overscan
     padded_h = height + 2 * overscan
-    prefix = f"scale={padded_w}:{padded_h}:flags=area," if supersample > 1 else ""
-    crop = f"crop={width}:{height}:{overscan}:{overscan}" if overscan > 0 else "format=rgba"
+    chain: list[str] = []
+    if supersample > 1:
+        chain.append(f"scale={padded_w}:{padded_h}:flags=area")
+    box = shutter_box_size(shutter_px)
+    if box >= 3:
+        chain.append(f"avgblur=sizeX={box}:sizeY=1")
+    pre = ",".join(chain)
+    crop = f"crop={width}:{height}:{overscan}:{overscan}"
     if glow > 0:
+        head = f"{pre}," if pre else ""
         body = (
-            f"{prefix}split=2[base][g];[g]gblur=sigma="
+            f"{head}split=2[base][g];[g]gblur=sigma="
             f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,format=rgba"
         )
         if overscan > 0:
             return f"[0:v]{body},{crop}[out]"
         return f"[0:v]{body}[out]"
+    rest = ["format=rgba"]
     if overscan > 0:
-        return f"[0:v]{prefix}format=rgba,{crop}[out]"
-    if prefix:
-        return f"[0:v]{prefix}format=rgba[out]"
-    return "[0:v]format=rgba[out]"
+        rest.append(crop)
+    if pre:
+        return f"[0:v]{pre},{','.join(rest)}[out]"
+    return f"[0:v]{','.join(rest)}[out]"
 
 
 def encode_rgba_stream(
@@ -59,6 +78,7 @@ def encode_rgba_stream(
     ffmpeg_threads: int = 0,
     overscan: int = 0,
     supersample: int = 1,
+    shutter_px: float = 0.0,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
@@ -67,7 +87,7 @@ def encode_rgba_stream(
     ss = max(1, int(supersample))
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
-    graph = _glow_crop_graph(glow, width, height, overscan, ss)
+    graph = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px)
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
@@ -111,6 +131,7 @@ def encode_rgba_stream(
                 ffmpeg_threads=ffmpeg_threads,
                 overscan=overscan,
                 supersample=ss,
+                shutter_px=shutter_px,
             )
             completed = run_argv_stdin(argv, frames)
             if completed.returncode != 0:
@@ -146,9 +167,10 @@ def _dual_output_argv(
     ffmpeg_threads: int,
     overscan: int = 0,
     supersample: int = 1,
+    shutter_px: float = 0.0,
 ) -> list[str]:
     ss = max(1, int(supersample))
-    core = _glow_crop_graph(glow, width, height, overscan, ss)
+    core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px)
     graph = core.replace("[out]", "split=2[png][mov]", 1)
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan

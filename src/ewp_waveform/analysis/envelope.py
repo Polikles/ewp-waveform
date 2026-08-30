@@ -45,17 +45,23 @@ def hop_samples(
     width: int,
     window_seconds: float,
     oversample: int = 1,
-) -> int:
-    """Hop so ``width * oversample`` real RMS bins cover ``window_seconds``."""
+) -> float:
+    """Ideal hop in samples. Not truncated; bin edges use absolute positions."""
     if width < 1 or window_seconds <= 0 or sample_rate < 1 or oversample < 1:
         msg = "invalid envelope hop parameters"
         raise ValueError(msg)
-    analysis_width = width * oversample
-    return max(1, int(sample_rate * window_seconds / analysis_width))
+    return float(sample_rate) * window_seconds / float(width * oversample)
 
 
-def rms_bins_from_wav(path: Path, hop: int) -> list[float]:
-    """Return one RMS value per hop of mono s16le WAV."""
+def rms_bins_from_wav(path: Path, hop: float) -> list[float]:
+    """Return one RMS value per hop of mono s16le WAV.
+
+    Bin edges are ``i * hop`` in absolute sample coordinates. A truncated integer
+    hop is not used, so window mapping does not drift.
+    """
+    if hop <= 0.0:
+        msg = "hop must be positive"
+        raise ValueError(msg)
     with wave.open(str(path), "rb") as wav:
         if wav.getnchannels() != 1:
             msg = f"envelope expects mono WAV, got {wav.getnchannels()} channels"
@@ -65,19 +71,40 @@ def rms_bins_from_wav(path: Path, hop: int) -> list[float]:
             raise ValueError(msg)
         total = wav.getnframes()
         bins: list[float] = []
-        remaining = total
-        while remaining > 0:
-            take = min(hop, remaining)
-            raw = wav.readframes(take)
-            remaining -= take
+        file_pos = 0
+        bin_index = 0
+        while True:
+            start = float(bin_index) * hop
+            if start >= total:
+                break
+            end = min(start + hop, float(total))
+            i0 = math.floor(start)
+            i1 = min(total, math.ceil(end))
+            if i1 <= i0:
+                break
+            if i0 > file_pos:
+                wav.readframes(i0 - file_pos)
+                file_pos = i0
+            raw = wav.readframes(i1 - file_pos)
+            file_pos = i1
             count = len(raw) // 2
             if count == 0:
                 break
             acc = 0.0
-            for i in range(0, count * 2, 2):
-                sample = int.from_bytes(raw[i : i + 2], "little", signed=True)
-                acc += float(sample) * float(sample)
-            bins.append(math.sqrt(acc / count) / 32768.0)
+            weight_sum = 0.0
+            for j in range(count):
+                abs_i = i0 + j
+                left = max(float(abs_i), start)
+                right = min(float(abs_i + 1), end)
+                weight = right - left
+                if weight <= 0.0:
+                    continue
+                sample = int.from_bytes(raw[j * 2 : j * 2 + 2], "little", signed=True)
+                acc += weight * float(sample) * float(sample)
+                weight_sum += weight
+            if weight_sum > 0.0:
+                bins.append(math.sqrt(acc / weight_sum) / 32768.0)
+            bin_index += 1
     return bins
 
 

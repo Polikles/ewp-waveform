@@ -23,6 +23,7 @@ smoothing = 0.0
 envelope_oversample = 4
 envelope_aa = "area"
 envelope_aa_support = 3.0
+shutter_degrees = 200
 
 [signal.normalization]
 mode = "auto"

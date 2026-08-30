@@ -7,7 +7,7 @@ from ewp_waveform.ffmpeg.draw import (
     glow_vertical_margin,
     peak_half_height,
 )
-from ewp_waveform.ffmpeg.encode import _glow_crop_graph
+from ewp_waveform.ffmpeg.encode import _glow_crop_graph, shutter_box_size
 
 
 def _column_opaque_span(frame: bytes, width: int, height: int, x: int) -> tuple[int, int]:
@@ -128,6 +128,20 @@ def test_glow_crop_graph_downsamples_supersample() -> None:
     assert "crop=1400:280:26:26" in graph
 
 
+def test_glow_crop_graph_shutter_blur_before_glow() -> None:
+    graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=2.59)
+    scale_at = graph.find("scale=1452:332:flags=area")
+    blur_at = graph.find("avgblur=sizeX=3:sizeY=1")
+    glow_at = graph.find("gblur=sigma=8")
+    assert 0 <= scale_at < blur_at < glow_at
+
+
+def test_shutter_box_size_is_odd() -> None:
+    assert shutter_box_size(0.0) == 0
+    assert shutter_box_size(2.59) == 3
+    assert shutter_box_size(4.67 * 200 / 360) == 3
+
+
 def _column_alpha_mass(frame: bytes, width: int, height: int, x: int) -> int:
     return sum(frame[(y * width + x) * 4 + 3] for y in range(height))
 
@@ -160,6 +174,33 @@ def test_vertical_edge_has_partial_coverage() -> None:
     alphas = [frame[(y * width + 2) * 4 + 3] for y in range(height)]
     assert any(0 < a < 255 for a in alphas)
     assert any(a == 255 for a in alphas)
+
+
+def test_twelve_x_keeps_third_pixel_phases_stable_on_high_frequency() -> None:
+    width, height = 24, 40
+    columns = ([0.25, 0.85] * (width // 2 + 2))[:width]
+
+    def pump(ss: int) -> float:
+        masses = [
+            sum(
+                draw_envelope_frame(
+                    columns,
+                    width=width,
+                    height=height,
+                    color="#FFFFFF",
+                    amplitude=0.8,
+                    stroke_width=6.0,
+                    style="mirrored",
+                    center_line=False,
+                    scroll_phase=phase,
+                    supersample=ss,
+                )[3::4]
+            )
+            for phase in (0.0, 1.0 / 3.0, 2.0 / 3.0)
+        ]
+        return (max(masses) - min(masses)) / max(masses)
+
+    assert pump(12) < 0.05
 
 
 def test_supersample_frame_is_wider() -> None:

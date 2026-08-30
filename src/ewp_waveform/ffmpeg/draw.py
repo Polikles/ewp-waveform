@@ -7,8 +7,8 @@ from collections.abc import Sequence
 
 from ewp_waveform.analysis.envelope import sample_bin
 
-# Horizontal supersample so a 3px bar / 1px gap does not beat against the pixel grid.
-SCROLL_SUPERSAMPLE = 4
+# 12x covers the 1/3-pixel phase cycle at 1400/5s/60fps (~4.67 px/frame).
+SCROLL_SUPERSAMPLE = 12
 
 
 def parse_rgb(color: str) -> tuple[int, int, int]:

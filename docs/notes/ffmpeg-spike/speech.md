@@ -117,6 +117,12 @@ Operator: 1–2 px kernels still hairy. Lanczos keeps 1 px features (that's the 
 
 `signal.envelope_aa` is independent of `signal.smoothing`.
 
+## 12x raster + 200 deg shutter (operator, 2026-08-28)
+
+area@3 still shimmered: 4.67 px/frame 3-phase beat. Raster supersample 12x; shutter 200 deg (`avgblur` before glow). Fractional hop (no truncated integer hop). Scroll Δ still 14/3 px/frame.
+
+Watch: `*iuris-default_07cbef24e059.mov`.
+
 ## No-glow comparison (operator, 2026-08-28)
 
 Shape of the dense envelope is better, but spikes strobe with medium glow. Comparison (same hop/oversample/60 fps, glow disabled):

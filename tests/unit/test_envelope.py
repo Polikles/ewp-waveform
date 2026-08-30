@@ -30,14 +30,14 @@ def _write_mono_s16(path: Path, samples: list[int], rate: int = 8000) -> None:
 
 
 def test_hop_samples_covers_window() -> None:
-    assert hop_samples(48000, 1400, 5.0) == max(1, int(48000 * 5.0 / 1400))
+    assert hop_samples(48000, 1400, 5.0) == 48000 * 5.0 / 1400
 
 
 def test_hop_samples_shrinks_with_envelope_oversample() -> None:
     one = hop_samples(48000, 1400, 5.0, oversample=1)
     four = hop_samples(48000, 1400, 5.0, oversample=4)
-    assert four == max(1, int(48000 * 5.0 / (1400 * 4)))
-    assert four < one
+    assert four * 4 == one
+    assert four == 48000 * 5.0 / (1400 * 4)
 
 
 def test_envelope_oversample_from_signal_allows_powers_of_two() -> None:
@@ -133,6 +133,27 @@ def test_scroll_timing_delta_is_constant() -> None:
         assert abs(actual_px - expected) < 1e-9
         assert abs(actual_env - expected * oversample) < 1e-9
         assert abs((cur.timestamp - prev.timestamp) - 1.0 / fps) < 1e-12
+
+
+def test_scroll_four_point_six_six_phase_cycle() -> None:
+    """1400 px / 5 s / 60 fps = 14/3 px/frame; frac cycles 0, 2/3, 1/3."""
+    expected = 1400.0 / (5.0 * 60.0)
+    assert abs(expected - 14.0 / 3.0) < 1e-12
+    rows = iter_scroll_timing(9, fps=60.0, window_seconds=5.0, width=1400, oversample=4)
+    for prev, cur in pairwise(rows):
+        assert abs((cur.scroll_phase - prev.scroll_phase) - expected) < 1e-12
+    fracs = [row.fractional_phase for row in rows]
+    assert abs(fracs[0] - 0.0) < 1e-9
+    assert abs(fracs[1] - 2.0 / 3.0) < 1e-9
+    assert abs(fracs[2] - 1.0 / 3.0) < 1e-9
+    assert abs(fracs[3] - 0.0) < 1e-9
+
+
+def test_fractional_hop_uses_absolute_bin_edges(tmp_path: Path) -> None:
+    path = tmp_path / "ten.wav"
+    _write_mono_s16(path, [1000] * 10)
+    assert len(rms_bins_from_wav(path, 5.0)) == 2
+    assert len(rms_bins_from_wav(path, 3.5)) == 3
 
 
 def test_normalize_raises_typical_peaks_without_using_silence() -> None:

@@ -115,6 +115,11 @@
           "exclusiveMinimum": 0,
           "description": "Filter support in output pixels. Area: box width. Lanczos: a."
         },
+        "shutter_degrees": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Horizontal motion-blur shutter before glow. 180-220 typical. 0 disables."
+        },
         "normalization": {
           "type": "object",
           "required": [
