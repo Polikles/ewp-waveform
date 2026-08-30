@@ -43,7 +43,7 @@ Templates: speaker 1 light cyan, speaker 2 blue, speaker 3 yellow. Tiny sparkles
 
 ## What FFmpeg can approximate
 
-On the 8 s Szymon cut (`local-renders/ffmpeg-spike/reference-match/`):
+On the 8 s Szymon cut (operator-local `local-renders/ffmpeg-spike/reference-match/`):
 
 | Graph | vs boards |
 |---|---|

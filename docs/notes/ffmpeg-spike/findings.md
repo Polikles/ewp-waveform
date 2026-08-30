@@ -2,7 +2,7 @@
 
 Date: **2026-08-27**. CPU only. FFmpeg **6.1.1-3ubuntu5**.
 
-Visual media for this run lives **outside the repo** (`waveform-rendering/local-renders/ffmpeg-spike/`). This file is the committed testing result.
+Visual media for this run was operator-local (`waveform-rendering/local-renders/ffmpeg-spike/`, not in git). This file is the committed testing result.
 
 ## Method
 
@@ -167,4 +167,4 @@ Long-file and speech measurements wait for samples. Peak RAM stayed ~170 MB on 3
 - ProRes vs PNG visual delta on the same identity
 - Glow color match
 - Segmented extra-frame bug
-- Operator visual sign-off of `local-renders` (this checkpoint)
+- Operator visual sign-off of spike renders (this checkpoint)

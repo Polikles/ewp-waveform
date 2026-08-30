@@ -6,7 +6,7 @@ That is **not** the scrolling envelope. It does not replace linia lustrzana.
 
 ## FFmpeg `showfreqs` (8 s Szymon cut)
 
-Renders: `local-renders/ffmpeg-spike/spectrum/` (not in git).
+Renders were operator-local (`local-renders/ffmpeg-spike/spectrum/`, not in git; directory removed after download).
 
 | Graph | Result |
 |---|---|
@@ -15,6 +15,6 @@ Renders: `local-renders/ffmpeg-spike/spectrum/` (not in git).
 | `ascale=lin` + `volume=12` | Clips to a full-height bar. Unusable. |
 | `aresample=16000` | Slightly more spread; still not the product look. |
 
-Stock `showfreqs` is a **limited** stand-in. Faithful mirrored spectrum with a speech-centered range is application analysis + custom renderer (or a much more carefully specified filter graph later). Do not treat these MOV files as the default look.
+Stock `showfreqs` is a **limited** stand-in (and this FFmpeg build cannot zoom `fmin`/`fmax`). The application now maps an FFT onto a log-Hz span (`auto` or explicit) and draws mirrored bars. Still experimental vs the brand spectrum; particles remain custom-renderer.
 
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).

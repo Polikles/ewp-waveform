@@ -35,4 +35,4 @@ Synthetic `lavfi` probes are allowed in notes as command text and measurements. 
 - `spectrum.md` — fixed-axis frequency default; `showfreqs` is the idea, not the look.
 - Application `waveform preview` now draws scrolling RMS bars (see `docs/10-rendering-and-effects.md`).
 
-Manual visual media is **not** stored here. On the authoring machine it lives outside the repository under `waveform-rendering/local-renders/ffmpeg-spike/` (`INDEX.md` there lists what to play).
+Manual visual media is **not** stored in this repository. Spike MOVs lived operator-local under `waveform-rendering/local-renders/ffmpeg-spike/` and are not kept on the authoring machine.

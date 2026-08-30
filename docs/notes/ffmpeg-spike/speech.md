@@ -4,7 +4,7 @@ Date: **2026-08-27**. Operator QA of noise renders: direction is right; noise ma
 
 Sources (not in git): `waveform-rendering/zz-audio-samples/` (s0e00, s0e01, s2e9). Isolated mono WAV 48 kHz. s2e9 mix/isolates ~50 min.
 
-Cuts (not in git): `local-renders/ffmpeg-spike/cuts/`.
+Cuts were operator-local (`local-renders/ffmpeg-spike/cuts/`, not in git). Sources remain under `waveform-rendering/zz-audio-samples/`.
 
 | Cut | Source | Purpose |
 |---|---|---|
@@ -19,7 +19,7 @@ Whole s2e9 (~50 min) and a future ~2.5 h glue file are **out of this VM** (ProRe
 
 ## Renders to watch
 
-`local-renders/ffmpeg-spike/speech/mov/` (8 s ProRes 4444):
+Operator-local `local-renders/ffmpeg-spike/speech/mov/` (8 s ProRes 4444, since removed):
 
 | File | What |
 |---|---|
@@ -145,7 +145,7 @@ Shape of the dense envelope is better, but spikes strobe with medium glow. Compa
 
 `app-render/s0e00/*iuris-default-noglow_54d802329ca0.mov`
 
-Local preset (not in git): `local-renders/ffmpeg-spike/iuris-default-noglow.toml`.
+Local no-glow preset was operator-local (not in git).
 
 ## Denser envelope + 60 fps default (operator, 2026-08-28)
 
