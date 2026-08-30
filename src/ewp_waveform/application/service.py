@@ -51,7 +51,7 @@ def _capability_for_preset(preset: VisualPreset) -> tuple[CapabilityLevel, str]:
     if domain == "frequency":
         return (
             CapabilityLevel.EXPERIMENTAL,
-            "Fixed-axis spectrum: showfreqs is the right idea, not the product look.",
+            "Fixed-axis spectrum: log-Hz span with vertical motion. Experimental.",
         )
     if preset.waveform.time_mode == "playhead":
         return CapabilityLevel.UNSUPPORTED, "Playhead envelope is deferred."

@@ -27,6 +27,14 @@ from ewp_waveform.analysis.envelope import (
     viewport_left_px,
     window_from_origin,
 )
+from ewp_waveform.analysis.spectrum import (
+    FrequencySpan,
+    blend_columns,
+    ema_alpha,
+    resolve_frequency_span,
+    spectrum_columns,
+    spectrum_peak,
+)
 from ewp_waveform.application.checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
     Checkpoint,
@@ -56,7 +64,6 @@ from ewp_waveform.ffmpeg.draw import SCROLL_SUPERSAMPLE, draw_envelope_frame, gl
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
     encode_rgba_stream,
-    encode_spectrum_showfreqs,
     glow_sigma,
 )
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media, probe_video
@@ -167,6 +174,63 @@ def iter_scroll_frames(
             supersample=ss,
             glow_sigma=glow,
             envelope_oversample=oversample,
+        )
+
+
+def iter_spectrum_frames(
+    path: Path,
+    *,
+    n_frames: int,
+    preset: VisualPreset,
+    fps: float,
+    glow: float,
+    span: FrequencySpan,
+    peak: float | None,
+    scale: str,
+    tau_seconds: float,
+    soft_clip: bool,
+) -> Iterator[bytes]:
+    """Fixed-axis frames: X is log-Hz, motion is vertical only."""
+    width = preset.canvas.width
+    height = preset.canvas.height
+    stroke = preset.waveform.stroke_width or 3.0
+    center = bool(preset.waveform.center_line)
+    pad = glow_overscan(glow)
+    draw_w = width + 2 * pad
+    draw_h = height + 2 * pad
+    alpha = ema_alpha(fps, tau_seconds)
+    previous: list[float] | None = None
+    spatial = 0.0
+    if tau_seconds > 0.0:
+        spatial = max(1.0, width / 200.0)
+    for i in range(n_frames):
+        raw = spectrum_columns(
+            path,
+            frame_index=i,
+            fps=fps,
+            width=draw_w,
+            span=span,
+            scale=scale,
+            smoothing_sigma=spatial,
+        )
+        if peak is not None and peak > 0.0:
+            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        blended = blend_columns(previous, raw, alpha)
+        previous = blended
+        yield draw_envelope_frame(
+            blended,
+            width=draw_w,
+            height=draw_h,
+            color=preset.waveform.color,
+            amplitude=preset.waveform.amplitude,
+            stroke_width=stroke,
+            style=preset.waveform.style,
+            center_line=center,
+            scroll_phase=0.0,
+            content_height=height,
+            supersample=SCROLL_SUPERSAMPLE,
+            glow_sigma=glow,
+            envelope_oversample=1,
         )
 
 
@@ -438,29 +502,85 @@ def render_job(
                 start=clip_start if clip_start > 0 else None,
                 duration=clip_duration if clip_duration > 0 else None,
             )
-            tmp_mov = work / "spectrum.mov"
-            encode_spectrum_showfreqs(
-                decoded if decoded.is_file() else job.path,
-                tmp_mov,
+            span = resolve_frequency_span(decoded, preset.signal)
+            scale = str(preset.signal.get("scale") or "sqrt")
+            raw_smooth = preset.signal.get("smoothing", 0.0)
+            tau = 0.0
+            if isinstance(raw_smooth, int | float) and not isinstance(raw_smooth, bool):
+                tau = max(0.0, float(raw_smooth))
+            norm = preset.signal.get("normalization")
+            norm_mode = "auto"
+            soft = True
+            if isinstance(norm, dict):
+                norm_mode = str(norm.get("mode") or "auto")
+                soft = bool(norm.get("soft_clip", True))
+            peak = None
+            if norm_mode != "none":
+                peak = spectrum_peak(
+                    decoded,
+                    n_frames=expected_frames,
+                    fps=job.fps,
+                    width=preset.canvas.width,
+                    span=span,
+                    scale=scale,
+                    smoothing_sigma=max(1.0, preset.canvas.width / 200.0) if tau > 0 else 0.0,
+                )
+            frames = iter_spectrum_frames(
+                decoded,
+                n_frames=expected_frames,
+                preset=preset,
+                fps=job.fps,
+                glow=glow,
+                span=span,
+                peak=peak,
+                scale=scale,
+                tau_seconds=tau,
+                soft_clip=soft,
+            )
+            png_work: Path | None = work / "png" if producing_png else None
+            mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
+            encode_rgba_stream(
+                frames,
                 width=preset.canvas.width,
                 height=preset.canvas.height,
                 fps=job.fps,
-                color=preset.waveform.color,
                 glow=glow,
+                png_dir=png_work,
+                prores_path=mov_work,
                 ffmpeg_threads=threads,
+                overscan=glow_overscan(glow),
+                supersample=SCROLL_SUPERSAMPLE,
             )
-            if want_mov and not skip_mov:
+            if mov_work is not None:
                 validation = _validate_mov(
-                    tmp_mov,
+                    mov_work,
                     width=preset.canvas.width,
                     height=preset.canvas.height,
                     expected_frames=expected_frames,
                 )
                 if not validation.get("passed"):
                     raise EncodeError("spectrum output failed validation")
-                shutil.move(str(tmp_mov), str(mov_dest))
+                shutil.move(str(mov_work), str(mov_dest))
                 outputs.append({"path": str(mov_dest), "format": "prores4444"})
-            analysis = {"chunk_count": 1, "preroll_seconds": 0.0, "postroll_seconds": 0.0}
+            if png_work is not None and png_work.is_dir():
+                png_report = _validate_png(png_work, expected_frames=expected_frames)
+                if not png_report.get("passed"):
+                    raise EncodeError("png sequence failed validation")
+                if png_dest.exists():
+                    shutil.rmtree(png_dest)
+                shutil.move(str(png_work), str(png_dest))
+                outputs.append({"path": str(png_dest), "format": "png"})
+                if not producing_mov:
+                    validation = png_report
+            analysis = {
+                "chunk_count": 1,
+                "preroll_seconds": 0.0,
+                "postroll_seconds": 0.0,
+                "fmin_hz": span.fmin_hz,
+                "fmax_hz": span.fmax_hz,
+                "frequency_range": span.source,
+            }
+            normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
             settings = _envelope_settings(preset, job.fps, glow)
             chunk_seconds = _chunk_seconds(performance)
@@ -482,7 +602,7 @@ def render_job(
             cp_file = checkpoint_path(work)
             existing = load_checkpoint(cp_file)
             completed_ok: set[int] = set()
-            peak: float | None = None
+            peak = None
             if existing is not None and identity_matches(
                 existing,
                 source_sha256=source_sha,
@@ -579,7 +699,7 @@ def render_job(
                 "soft_clip": settings.soft_clip,
                 "peak": peak,
             }
-            png_work: Path | None = work / "png" if producing_png else None
+            png_work = work / "png" if producing_png else None
             px_per_frame = preset.canvas.width / (preset.waveform.window_seconds * job.fps)
             raw_shutter = preset.signal.get("shutter_degrees", 0)
             shutter_deg = 0.0

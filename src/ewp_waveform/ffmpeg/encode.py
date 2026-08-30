@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from ewp_waveform.ffmpeg.process import require_tool, run_argv, run_argv_stdin
+from ewp_waveform.ffmpeg.process import require_tool, run_argv_stdin
 
 GLOW_SIGMA = {"none": 0.0, "low": 4.0, "medium": 8.0, "high": 16.0}
 
@@ -231,61 +231,3 @@ def _dual_output_argv(
     if ffmpeg_threads > 0:
         argv[1:1] = ["-threads", str(ffmpeg_threads)]
     return argv
-
-
-def encode_spectrum_showfreqs(
-    source: Path,
-    dest: Path,
-    *,
-    width: int,
-    height: int,
-    fps: float,
-    color: str,
-    glow: float,
-    ffmpeg_threads: int = 0,
-) -> None:
-    """Experimental fixed-axis path. Not the product look."""
-    ffmpeg = require_tool("ffmpeg")
-    hex_color = color.removeprefix("#")
-    wave = (
-        f"showfreqs=s={width}x{height // 2}:mode=line:fscale=log:ascale=sqrt:"
-        f"colors=0x{hex_color}:win_size=2048:averaging=1:rate={fps}"
-    )
-    alpha = (
-        "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='max(r(X,Y)\\,max(g(X,Y)\\,b(X,Y)))'"
-    )
-    if glow > 0:
-        glow_graph = (
-            f",split=2[base][g];[g]gblur=sigma={glow}:steps=3[gb];"
-            "[gb][base]overlay=format=auto:shortest=1,format=rgba"
-        )
-    else:
-        glow_graph = ""
-    graph = f"{wave},{alpha},split=2[top][bot];[bot]vflip[bf];[top][bf]vstack{glow_graph}"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    argv = [
-        str(ffmpeg),
-        "-hide_banner",
-        "-y",
-        "-i",
-        str(source),
-        "-filter_complex",
-        graph,
-        "-an",
-        "-fps_mode",
-        "cfr",
-        "-r",
-        str(fps),
-        "-c:v",
-        "prores_ks",
-        "-profile:v",
-        "4444",
-        "-pix_fmt",
-        "yuva444p10le",
-        str(dest),
-    ]
-    if ffmpeg_threads > 0:
-        argv.extend(["-threads", str(ffmpeg_threads)])
-    completed = run_argv(argv)
-    if completed.returncode != 0:
-        raise EncodeError(completed.stderr.strip() or "showfreqs encode failed")

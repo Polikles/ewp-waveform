@@ -9,6 +9,44 @@ from pathlib import Path
 from ewp_waveform.application.service import render
 from ewp_waveform.identity import sha256_file
 
+TINY_SPECTRUM = """
+schema_version = 1
+name = "tiny-spectrum"
+description = "Fast fixture for fixed-axis Hz span."
+
+[canvas]
+width = 80
+height = 32
+fps = 10
+
+[waveform]
+style = "mirrored"
+domain = "frequency"
+time_mode = "scroll"
+window_seconds = 0.2
+color = "#C7E6EC"
+amplitude = 0.82
+stroke_width = 2.0
+center_line = true
+
+[signal]
+scale = "sqrt"
+smoothing = 0.0
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[signal.frequency]
+range = "auto"
+fmin_hz = 200.0
+fmax_hz = 2000.0
+
+[effects.glow]
+enabled = false
+level = "none"
+"""
+
 TINY_PRESET = """
 schema_version = 1
 name = "tiny-scroll"
@@ -361,3 +399,27 @@ def test_stale_checkpoint_is_not_reused(tmp_path: Path) -> None:
     assert "W_JOB_RESUMED" not in _warning_codes(resumed[0])
     dest = _first_output(resumed[0])
     assert (dest / "frame_000001.png").read_bytes() != b"stale"
+
+
+def test_spectrum_render_records_hz_span(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Spec.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(tmp_path / "tiny-spec.toml", TINY_SPECTRUM)
+    results = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["prores4444"],
+        preset_name=str(preset),
+        force=True,
+    )
+    assert _job_status(results[0]) == "SUCCEEDED"
+    analysis = results[0]["analysis"]
+    assert isinstance(analysis, dict)
+    assert analysis["frequency_range"] == "explicit"
+    assert isinstance(analysis["fmin_hz"], int | float)
+    assert isinstance(analysis["fmax_hz"], int | float)
+    assert abs(float(analysis["fmin_hz"]) - 200.0) < 1.0
+    assert abs(float(analysis["fmax_hz"]) - 2000.0) < 1.0
+    mov = _first_output(results[0])
+    assert mov.is_file()
+    assert mov.stat().st_size > 0

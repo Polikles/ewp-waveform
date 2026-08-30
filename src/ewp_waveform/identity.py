@@ -9,6 +9,7 @@ from pathlib import Path
 from ewp_waveform.config.models import VisualPreset
 
 VISUAL_CONTRACT_VERSION = 12
+SPECTRUM_CONTRACT_VERSION = 1
 
 
 def sha256_file(path: Path) -> str:
@@ -47,6 +48,8 @@ def render_signature(
         "renderer": renderer,
         "visual_contract_version": VISUAL_CONTRACT_VERSION,
     }
+    if preset.waveform.domain == "frequency":
+        payload["spectrum_contract_version"] = SPECTRUM_CONTRACT_VERSION
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

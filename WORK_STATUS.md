@@ -21,11 +21,11 @@ Two choosable visual defaults:
 
 Playhead envelope is later (scrubber / optional viz).
 
-FFmpeg cannot yet draw either look faithfully (`showwaves` window wrong; `showfreqs` is the right axis but not the product picture).
+FFmpeg cannot draw linia lustrzana faithfully (`showwaves` window wrong). Fixed-axis spectrum is application FFT + log-Hz span (experimental vs brand).
 
 CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`.
 
-`render`/`preview` write scrolling RMS envelope (`iuris-default`, limited) or experimental `showfreqs` (`iuris-spectrum`). Exit codes frozen in `docs/09`.
+`render`/`preview` write scrolling RMS envelope (`iuris-default`, limited) or experimental fixed-axis spectrum (`iuris-spectrum`, auto/explicit Hz range). Exit codes frozen in `docs/09`.
 
 Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat matches a single-pass preview. Equivalent signatures SKIP complete dests and keep `outputs` populated. Failed scroll jobs keep a deterministic workdir and resume from validated `checkpoint.json` (`W_JOB_RESUMED`). Graceful Ctrl+C cancellation is still best-effort (last complete chunk).
 

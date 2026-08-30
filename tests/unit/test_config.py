@@ -26,6 +26,9 @@ def test_builtin_iuris_spectrum_is_frequency_domain() -> None:
     preset = load_preset("iuris-spectrum")
     assert preset.waveform.domain == "frequency"
     assert preset.waveform.style == "mirrored"
+    freq = preset.signal.get("frequency")
+    assert isinstance(freq, dict)
+    assert freq.get("range") == "auto"
 
 
 def test_default_application_config() -> None:

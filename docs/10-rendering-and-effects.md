@@ -53,7 +53,7 @@ Default production identity is **60 fps**. At 1400×280 / 5 s that is ~4.7 px/fr
 
 Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling envelope.
 
-FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
+FFmpeg MVP **frequency+fixed-axis** path (experimental): application FFT mapped onto a log-Hz axis, then the same mirrored-bar draw/encode path as scroll. `signal.frequency.range = "auto"` fits a span around source energy so typical speech sits near the log-midpoint; explicit `fmin_hz` / `fmax_hz` override. Stock `showfreqs` is no longer the encode path (this FFmpeg build has no `fmin`/`fmax` zoom). Not a pixel match to the brand spectrum.
 
 Default preset **`iuris-default`** (locked to operator pick `*ad0c99b500c0.mov`): mirrored, glow medium, 60 fps, 5 s window, oversample 4, motion sinc LOD, shutter 0, color `#C7E6EC`.
 

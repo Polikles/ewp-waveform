@@ -28,7 +28,10 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
         CapabilityItem(
             name="domain:frequency+fixed-axis",
             level=CapabilityLevel.EXPERIMENTAL,
-            notes="showfreqs is the right axis; stock graphs are not the product look.",
+            notes=(
+                "Application log-Hz span (auto from source energy or explicit "
+                "fmin_hz/fmax_hz) plus mirrored bars. Experimental vs brand look."
+            ),
         ),
         CapabilityItem(
             name="style:classic",

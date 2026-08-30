@@ -57,7 +57,7 @@ The FFmpeg scroll path uses overlap, not `showwaves` concat.
 - Published ProRes segments are copy-concatenated in the FFmpeg adapter. PNG sequences use contiguous `frame_%06d` numbers (`-start_number`).
 - Chunk size remains outside visual identity (ADR-0004). Equivalent continuity does not bump `visual_contract_version`.
 
-Spectrum (`showfreqs`) stays a single encode in this slice.
+Spectrum is a single-pass encode (no chunk concat in this slice). Hz span is visual identity, not a performance setting.
 
 ## Resume
 
