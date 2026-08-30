@@ -36,7 +36,7 @@ No dates are assigned until evidence supports them.
 - [x] output validation;
 - [x] results;
 - [x] chunk/checkpoint/resume;
-- [ ] benchmark runner;
+- [x] benchmark runner;
 - [ ] operator installation/runbook.
 
 ## Benchmark TODO

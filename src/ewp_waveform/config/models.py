@@ -72,3 +72,29 @@ class PerformanceProfile(BaseModel):
     description: str | None = None
     processing: dict[str, object] = Field(default_factory=dict)
     workdirs: dict[str, object] = Field(default_factory=dict)
+
+
+class BenchmarkInput(BaseModel):
+    path: str
+
+
+class BenchmarkVariant(BaseModel):
+    name: str
+    preset: str | None = None
+    preset_file: str | None = None
+    overrides: dict[str, object] = Field(default_factory=dict)
+
+
+class BenchmarkSection(BaseModel):
+    renderers: list[str]
+    formats: list[str]
+    performance_profiles: list[str] = Field(default_factory=lambda: ["balanced"])
+    dry_run_estimates: bool = False
+
+
+class BenchmarkManifest(BaseModel):
+    schema_version: int
+    name: str
+    inputs: list[BenchmarkInput]
+    variants: list[BenchmarkVariant]
+    benchmark: BenchmarkSection

@@ -1,6 +1,10 @@
 # 13 — Benchmarking
 
-Until the benchmark runner exists, FFmpeg spike time/resource measurements are committed as notes under `docs/notes/ffmpeg-spike/`. Those notes are testing results, not performance-profile defaults.
+The runner is `waveform benchmark dry-run|run MANIFEST.toml`. Spike time/resource measurements remain in `docs/notes/ffmpeg-spike/` as labelled evidence, not performance-profile defaults.
+
+Matrix expansion is **inputs × variants × renderers × performance_profiles**. The manifest `formats` list is attached to every cell (one job may request ProRes and PNG together). Unknown renderers are `UNSUPPORTED`. Missing inputs are `BLOCKED`. Variant overrides are applied to an in-memory preset copy named `preset--variant`; canonical preset files are never written (FR-BENCH-010).
+
+Dry-run reports cell count and SKIP/PROCESS/BLOCKED. When `dry_run_estimates = true` and duration is known, disk estimates are a **labelled** extrapolation from the 1400×280 @ 30 fps spike table. Wall-time estimates are omitted until the runner has its own evidence.
 
 ## Two families
 

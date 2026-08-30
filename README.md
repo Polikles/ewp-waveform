@@ -59,7 +59,7 @@ waveform doctor
 
 `INPUT` may be one file or one directory. Directory processing is batch processing. Recursion is opt-in.
 
-`preset`, `performance`, and `clean --workdirs` are implemented. Remaining planned: `benchmark` (`docs/05-cli-specification.md`).
+`preset`, `performance`, `clean --workdirs`, and `benchmark dry-run|run` are implemented. See `docs/05-cli-specification.md`.
 
 ## Core rules
 

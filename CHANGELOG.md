@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- `waveform benchmark dry-run|run` expands a manifest matrix and records wall time / RSS / output size without mutating canonical presets.
 - `waveform preset list|show`, `performance list|show`, richer `dry-run` (signature, dests, SKIP/PROCESS), run-level `run_*_results.json`, and `clean --workdirs`.
 - Fixed-axis spectrum (`iuris-spectrum`) uses an application log-Hz span: `auto` from source energy or explicit `fmin_hz`/`fmax_hz`, drawn with mirrored bars. Scroll signatures are unchanged.
 - Scroll jobs resume from validated workdir checkpoints: reuse completed chunks, reject stale signatures, emit `W_JOB_RESUMED`.

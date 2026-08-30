@@ -30,3 +30,10 @@ def test_performance_list_includes_balanced() -> None:
 def test_performance_show_unknown_is_config_error() -> None:
     result = runner.invoke(app, ["performance", "show", "no-such-profile"])
     assert result.exit_code == 2
+
+
+def test_benchmark_help_lists_dry_run_and_run() -> None:
+    result = runner.invoke(app, ["benchmark", "--help"])
+    assert result.exit_code == 0
+    assert "dry-run" in result.stdout
+    assert "run" in result.stdout

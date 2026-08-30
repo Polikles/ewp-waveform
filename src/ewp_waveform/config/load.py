@@ -5,7 +5,12 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from ewp_waveform.config.models import ApplicationConfig, PerformanceProfile, VisualPreset
+from ewp_waveform.config.models import (
+    ApplicationConfig,
+    BenchmarkManifest,
+    PerformanceProfile,
+    VisualPreset,
+)
 from ewp_waveform.paths import builtin_performance_dir, builtin_presets_dir, project_root
 
 
@@ -55,6 +60,10 @@ def list_presets() -> list[tuple[str, Path]]:
 
 def list_performance_profiles() -> list[tuple[str, Path]]:
     return list_named_toml(builtin_performance_dir())
+
+
+def load_benchmark_manifest(path: Path) -> BenchmarkManifest:
+    return BenchmarkManifest.model_validate(_read_toml(path))
 
 
 def example_config_path() -> Path:

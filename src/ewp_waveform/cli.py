@@ -256,8 +256,10 @@ def preview(
 
 preset_app = typer.Typer(help="List and show visual presets.")
 performance_app = typer.Typer(help="List and show performance profiles.")
+benchmark_app = typer.Typer(help="Expand and run benchmark manifests.")
 app.add_typer(preset_app, name="preset")
 app.add_typer(performance_app, name="performance")
+app.add_typer(benchmark_app, name="benchmark")
 
 
 @preset_app.command("list")
@@ -326,6 +328,66 @@ def clean(
     verb = "would remove" if dry_run else "removed"
     for path in found:
         typer.echo(f"{verb}: {path}")
+
+
+@benchmark_app.command("dry-run")
+def benchmark_dry_run_cmd(
+    manifest: Path = typer.Argument(..., metavar="MANIFEST", exists=True, dir_okay=False),
+    output_dir: Path = typer.Option(Path("benchmark-output"), "--output-dir"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Expand a benchmark matrix without rendering."""
+    try:
+        loaded, cells = app_service.benchmark_dry_run(manifest, output_dir=output_dir, force=force)
+    except AppError as exc:
+        _fail(exc)
+    typer.echo(f"manifest: {loaded.name}  cells: {len(cells)}")
+    estimated = 0.0
+    has_estimate = False
+    for cell in cells:
+        dest = cell.mov_path or cell.png_path or "-"
+        typer.echo(
+            f"  {cell.action:12} {cell.input_path.name}  {cell.variant_name}  "
+            f"{cell.renderer}/{cell.performance_name}  {dest}"
+        )
+        if cell.notes:
+            typer.echo(f"               {cell.notes}")
+        if cell.estimated_output_mb is not None:
+            estimated += cell.estimated_output_mb
+            has_estimate = True
+    if has_estimate:
+        typer.echo(f"estimated_output_mb: {estimated:.1f}  ({_ESTIMATE_NOTE})")
+
+
+_ESTIMATE_NOTE = "labelled spike extrapolation; not a profile default"
+
+
+@benchmark_app.command("run")
+def benchmark_run_cmd(
+    manifest: Path = typer.Argument(..., metavar="MANIFEST", exists=True, dir_okay=False),
+    output_dir: Path = typer.Option(Path("benchmark-output"), "--output-dir"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Render every PROCESS cell in a benchmark manifest."""
+    try:
+        summary = app_service.benchmark_run(manifest, output_dir=output_dir, force=force)
+    except AppError as exc:
+        _fail(exc)
+    counts = summary.get("counts")
+    typer.echo(f"manifest: {summary.get('manifest')}  result: {summary.get('result_json')}")
+    if isinstance(counts, dict):
+        typer.echo(
+            "counts: "
+            f"cells={counts.get('cells')} succeeded={counts.get('succeeded')} "
+            f"skipped={counts.get('skipped')} failed={counts.get('failed')} "
+            f"blocked={counts.get('blocked')}"
+        )
+    failed = int(counts.get("failed") or 0) if isinstance(counts, dict) else 0
+    cells = int(counts.get("cells") or 0) if isinstance(counts, dict) else 0
+    if failed and failed == cells:
+        raise typer.Exit(EXIT_CODE_VALUES[ExitCode.RENDER])
+    if failed:
+        raise typer.Exit(EXIT_CODE_VALUES[ExitCode.PARTIAL])
 
 
 def main() -> None:

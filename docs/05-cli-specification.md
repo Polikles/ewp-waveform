@@ -18,7 +18,7 @@ waveform capabilities
 waveform preset list|show
 waveform performance list|show
 waveform clean --workdirs
-waveform benchmark ...
+waveform benchmark dry-run|run
 ```
 
 `INPUT` is a file or directory; there is no required separate `batch` command.
@@ -107,12 +107,12 @@ MVP: `performance list` and `performance show NAME_OR_PATH`. Validate remains im
 
 ## Benchmark
 
-Planned:
-
 ```text
-waveform benchmark run manifest.toml
-waveform benchmark dry-run manifest.toml
+waveform benchmark dry-run MANIFEST.toml [--output-dir PATH]
+waveform benchmark run MANIFEST.toml [--output-dir PATH] [--force]
 ```
+
+Dry-run expands the Cartesian matrix and reports SKIP/PROCESS/BLOCKED/UNSUPPORTED. Run executes PROCESS cells through the real renderer and writes `{output-dir}/{manifest-name}_benchmark.json` with wall time, max RSS, and output size. Default output directory is `benchmark-output/`.
 
 ## Exit codes
 

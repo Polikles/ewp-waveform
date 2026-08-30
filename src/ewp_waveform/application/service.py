@@ -7,6 +7,16 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import ValidationError
+
+from ewp_waveform.application.benchmark import (
+    BenchmarkCell,
+    load_and_expand,
+)
+from ewp_waveform.application.benchmark import (
+    run_benchmark as run_benchmark_matrix,
+)
+from ewp_waveform.application.capability import capability_for_preset
 from ewp_waveform.application.clean import clean_workdirs, list_workdirs
 from ewp_waveform.application.plan import JobPlan, plan_destinations_for_job
 from ewp_waveform.application.render import output_root, render_job
@@ -18,12 +28,16 @@ from ewp_waveform.config.load import (
     load_performance,
     load_preset,
 )
-from ewp_waveform.config.models import ApplicationConfig, PerformanceProfile, VisualPreset
+from ewp_waveform.config.models import (
+    ApplicationConfig,
+    BenchmarkManifest,
+    PerformanceProfile,
+    VisualPreset,
+)
 from ewp_waveform.discovery.scan import DiscoveryError, discover_paths
 from ewp_waveform.domain.diagnostics import (
     EXIT_CODE_VALUES,
     CapabilityItem,
-    CapabilityLevel,
     Diagnostic,
     DiagnosticCode,
     ExitCode,
@@ -54,26 +68,6 @@ class AppError(Exception):
     @property
     def numeric_exit(self) -> int:
         return EXIT_CODE_VALUES[self.exit_code]
-
-
-def _capability_for_preset(preset: VisualPreset) -> tuple[CapabilityLevel, str]:
-    domain = preset.waveform.domain
-    if domain == "frequency":
-        return (
-            CapabilityLevel.EXPERIMENTAL,
-            "Fixed-axis spectrum: log-Hz span with vertical motion. Experimental.",
-        )
-    if preset.waveform.time_mode == "playhead":
-        return CapabilityLevel.UNSUPPORTED, "Playhead envelope is deferred."
-    style = preset.waveform.style
-    if style == "segmented":
-        return CapabilityLevel.EXPERIMENTAL, "Impuls segmentowy is not implemented faithfully."
-    if style in {"classic", "mirrored", "filled"}:
-        return (
-            CapabilityLevel.LIMITED,
-            "Scrolling RMS envelope bars (5 s window). Limited vs brand linia lustrzana.",
-        )
-    return CapabilityLevel.UNSUPPORTED, f"Unknown style '{style}'."
 
 
 def doctor() -> list[str]:
@@ -143,7 +137,7 @@ def dry_run(
     if not paths:
         raise AppError(ExitCode.INPUT, f"No WAV/MP3 inputs under {input_path}")
 
-    cap_level, cap_notes = _capability_for_preset(preset)
+    cap_level, cap_notes = capability_for_preset(preset)
     fps = fps_override if fps_override is not None else preset.canvas.fps
     domain = VisualizationDomain(preset.waveform.domain)
     time_mode = TimeMode(preset.waveform.time_mode) if preset.waveform.time_mode else None
@@ -361,6 +355,30 @@ def workdirs(*, root: Path | None = None) -> list[Path]:
 
 def clean(*, root: Path | None = None, dry_run: bool = False) -> list[Path]:
     return clean_workdirs(root=root, dry_run=dry_run)
+
+
+def benchmark_dry_run(
+    manifest_path: Path,
+    *,
+    output_dir: Path,
+    force: bool = False,
+) -> tuple[BenchmarkManifest, list[BenchmarkCell]]:
+    try:
+        return load_and_expand(manifest_path, output_dir=output_dir, force=force)
+    except (FileNotFoundError, ValueError, ValidationError) as exc:
+        raise AppError(ExitCode.CONFIG, str(exc)) from exc
+
+
+def benchmark_run(
+    manifest_path: Path,
+    *,
+    output_dir: Path,
+    force: bool = False,
+) -> dict[str, Any]:
+    try:
+        return run_benchmark_matrix(manifest_path, output_dir=output_dir, force=force)
+    except (FileNotFoundError, ValueError, ValidationError) as exc:
+        raise AppError(ExitCode.CONFIG, str(exc)) from exc
 
 
 def _timeline_diagnostics(durations: dict[str, list[float]], fps: float) -> list[Diagnostic]:
