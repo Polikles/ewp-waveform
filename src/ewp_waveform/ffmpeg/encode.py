@@ -86,6 +86,7 @@ def encode_rgba_stream(
     supersample: int = 1,
     shutter_px: float = 0.0,
     shutter_mix: float = 0.25,
+    png_start_number: int = 1,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
@@ -120,9 +121,18 @@ def encode_rgba_stream(
     ]
     if ffmpeg_threads > 0:
         argv.extend(["-threads", str(ffmpeg_threads)])
+    png_start = max(1, png_start_number)
     if png_dir is not None:
         png_dir.mkdir(parents=True, exist_ok=True)
-        argv.extend(["-c:v", "png", str(png_dir / "frame_%06d.png")])
+        argv.extend(
+            [
+                "-start_number",
+                str(png_start),
+                "-c:v",
+                "png",
+                str(png_dir / "frame_%06d.png"),
+            ]
+        )
     if prores_path is not None:
         prores_path.parent.mkdir(parents=True, exist_ok=True)
         if png_dir is not None:
@@ -140,6 +150,7 @@ def encode_rgba_stream(
                 supersample=ss,
                 shutter_px=shutter_px,
                 shutter_mix=shutter_mix,
+                png_start_number=png_start,
             )
             completed = run_argv_stdin(argv, frames)
             if completed.returncode != 0:
@@ -177,6 +188,7 @@ def _dual_output_argv(
     supersample: int = 1,
     shutter_px: float = 0.0,
     shutter_mix: float = 0.25,
+    png_start_number: int = 1,
 ) -> list[str]:
     ss = max(1, int(supersample))
     core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
@@ -201,6 +213,8 @@ def _dual_output_argv(
         graph,
         "-map",
         "[png]",
+        "-start_number",
+        str(max(1, png_start_number)),
         "-c:v",
         "png",
         str(png_dir / "frame_%06d.png"),

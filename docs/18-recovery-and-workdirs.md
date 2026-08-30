@@ -8,11 +8,15 @@ Typical workdir content:
 
 ```text
 checkpoint.json
-chunk/pass state
-temporary frames
+chunk-NNNN.wav
+chunk-NNNN.mov
+concat.txt
+temporary PNG frames
 temporary encodes
 diagnostics
 ```
+
+Envelope chunks live only in the workdir. Final output directories receive the concatenated/published asset plus `*_results.json`. Resume from chunk checkpoints is not implemented yet; a failed multi-chunk job keeps the workdir.
 
 ## Success lifecycle
 

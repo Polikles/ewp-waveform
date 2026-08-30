@@ -6,6 +6,9 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Envelope jobs split into 60 s logical chunks with window+FIR preroll and FFmpeg copy-concat of published segments (ADR-0006).
+- Equivalent-job SKIP: complete dests with a matching signature are skipped, listed in `outputs`, and re-validated; empty leftovers are rerendered.
+- Published MOV/PNG are probed for codec, alpha, size, and frame count before publish.
 - First identifiable CLI: `waveform doctor|inspect|capabilities|dry-run|preview|render`.
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.

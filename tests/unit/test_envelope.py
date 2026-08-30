@@ -6,21 +6,28 @@ from pathlib import Path
 
 from ewp_waveform.analysis.envelope import (
     antialias_envelope,
+    bin_peak,
     column_offset,
     column_offset_float,
     envelope_aa_from_signal,
+    envelope_context_bins,
     envelope_oversample_from_signal,
+    envelope_preroll_seconds,
     hop_samples,
     iter_scroll_timing,
     motion_cutoff_cyc_px,
     motion_lpf_envelope,
+    motion_lpf_kernel,
     normalize_bins,
+    process_envelope_bins,
+    published_bin_slice,
     reconstruction_kernel,
     rms_bins_from_wav,
     sample_bin,
     smooth_bins,
     window_at_column,
     window_at_time,
+    window_from_origin,
 )
 
 
@@ -227,6 +234,69 @@ def test_rms_silence_is_zero(tmp_path: Path) -> None:
     bins = rms_bins_from_wav(path, hop=800)
     assert bins
     assert max(bins) == 0.0
+
+
+def test_window_from_origin_zero_matches_window_at_column() -> None:
+    bins = [0.1 * i for i in range(20)]
+    direct = window_at_column(bins, end_exclusive=11, width=8)
+    shifted = window_from_origin(bins, global_end_exclusive=11, width=8, origin=0.0)
+    assert shifted == direct
+
+
+def test_window_from_origin_shifts_lookup() -> None:
+    bins = [float(i) for i in range(10)]
+    got = window_from_origin(bins, global_end_exclusive=8, width=4, origin=2.0)
+    assert got == [2.0, 3.0, 4.0, 5.0]
+
+
+def test_bin_peak_ignores_silence() -> None:
+    assert bin_peak([0.0] * 10 + [0.2, 0.4], percentile=100) == 0.4
+    assert bin_peak([0.0] * 8) == 0.0
+
+
+def test_normalize_uses_supplied_peak() -> None:
+    out = normalize_bins([0.1, 0.2], percentile=100, peak=0.4)
+    assert abs(out[1] - 0.5) < 1e-12
+
+
+def test_envelope_preroll_includes_window_and_fir_pad() -> None:
+    kernel = motion_lpf_kernel(kind="sinc", oversample=4, cutoff_cyc_px=0.09)
+    context = envelope_context_bins(
+        oversample=4,
+        aa_kind="area",
+        aa_support=1.0,
+        lpf_kind="sinc",
+        lpf_cutoff=0.09,
+    )
+    assert context >= len(kernel) // 2
+    preroll, postroll = envelope_preroll_seconds(
+        window_seconds=5.0,
+        width=1400,
+        oversample=4,
+        context_bins=context,
+        extra_px=26,
+    )
+    assert preroll > 5.0
+    assert postroll > 0.0
+    assert abs(preroll - (5.0 + postroll)) < 1e-12
+
+
+def test_process_envelope_bins_is_identity_for_open_settings() -> None:
+    bins = [0.0, 0.25, 0.5, 0.25, 0.0]
+    out = process_envelope_bins(bins, scale="linear")
+    assert out == bins
+
+
+def test_published_bin_slice_uses_origin() -> None:
+    bins = [float(i) for i in range(20)]
+    got = published_bin_slice(
+        bins,
+        start_seconds=1.0,
+        end_seconds=2.0,
+        origin_seconds=0.5,
+        bins_per_second=4.0,
+    )
+    assert got == [2.0, 3.0, 4.0, 5.0]
 
 
 def test_rms_full_scale_is_near_one(tmp_path: Path) -> None:

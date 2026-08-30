@@ -23,12 +23,12 @@ def decode_mono_wav(
         msg = "refusing to decode onto the source file"
         raise DecodeError(msg)
     ffmpeg = require_tool("ffmpeg")
-    argv = [str(ffmpeg), "-hide_banner", "-y"]
+    # Output-side -ss/-t (after -i) is sample-accurate. Chunk joins need that.
+    argv = [str(ffmpeg), "-hide_banner", "-y", "-i", str(source)]
     if start is not None and start > 0:
-        argv.extend(["-ss", str(start)])
-    argv.extend(["-i", str(source)])
+        argv.extend(["-ss", f"{start:.9f}"])
     if duration is not None and duration > 0:
-        argv.extend(["-t", str(duration)])
+        argv.extend(["-t", f"{duration:.9f}"])
     argv.extend(
         [
             "-ac",

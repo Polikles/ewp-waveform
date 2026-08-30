@@ -73,6 +73,9 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
         CapabilityItem(
             name="continuity:chunk-concat",
             level=CapabilityLevel.LIMITED,
-            notes="Naive concat warms up showwaves; application preroll required.",
+            notes=(
+                "Envelope chunks preroll window+FIR context and concat published "
+                "segments. showwaves concat is not used."
+            ),
         ),
     ]

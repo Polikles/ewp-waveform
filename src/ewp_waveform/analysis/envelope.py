@@ -165,25 +165,34 @@ def soft_clip_unit(value: float, *, knee: float = 0.88) -> float:
     return knee + (1.0 - knee) * math.tanh(t)
 
 
+def bin_peak(bins: Sequence[float], percentile: float = 95.0) -> float:
+    """Percentile of active envelope bins. Silence is ignored. 0 if none."""
+    active = [v for v in bins if v > 1e-4]
+    if not active:
+        return 0.0
+    ordered = sorted(active)
+    index = min(len(ordered) - 1, max(0, int(len(ordered) * percentile / 100.0)))
+    return ordered[index]
+
+
 def normalize_bins(
     bins: Sequence[float],
     *,
     percentile: float = 95.0,
     soft_clip: bool = False,
     knee: float = 0.88,
+    peak: float | None = None,
 ) -> list[float]:
-    """Scale visualization bins so typical peaks fill the range. Does not touch source audio."""
-    active = [v for v in bins if v > 1e-4]
-    if not active:
-        return list(bins)
-    ordered = sorted(active)
-    index = min(len(ordered) - 1, max(0, int(len(ordered) * percentile / 100.0)))
-    peak = ordered[index]
-    if peak <= 0.0:
+    """Scale visualization bins so typical peaks fill the range. Does not touch source audio.
+
+    ``peak`` is the global scale when chunking; if omitted it is measured from ``bins``.
+    """
+    measured = bin_peak(bins, percentile) if peak is None else peak
+    if measured <= 0.0:
         return list(bins)
     if not soft_clip:
-        return [min(1.0, v / peak) for v in bins]
-    scale = knee / peak
+        return [min(1.0, v / measured) for v in bins]
+    scale = knee / measured
     return [min(1.0, soft_clip_unit(v * scale, knee=knee)) for v in bins]
 
 
@@ -263,6 +272,23 @@ def iter_scroll_timing(
     ]
 
 
+def read_bin(bins: Sequence[float], index: float) -> float:
+    """Linear interpolation at a fractional envelope index. Out of range is 0. Not clamped."""
+    if not bins:
+        return 0.0
+    i0 = math.floor(index)
+    t = index - i0
+
+    def at(i: int) -> float:
+        if 0 <= i < len(bins):
+            return float(bins[i])
+        return 0.0
+
+    if t <= 1e-12:
+        return at(i0)
+    return at(i0) * (1.0 - t) + at(i0 + 1) * t
+
+
 def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -> list[float]:
     """Right edge is 'now' (end_exclusive-1). Values are copied, never recomputed."""
     start = end_exclusive - width
@@ -274,6 +300,18 @@ def window_at_column(bins: Sequence[float], *, end_exclusive: int, width: int) -
         else:
             out.append(0.0)
     return out
+
+
+def window_from_origin(
+    bins: Sequence[float],
+    *,
+    global_end_exclusive: int,
+    width: int,
+    origin: float,
+) -> list[float]:
+    """Window ending at a global bin index when ``bins[0]`` sits at ``origin``."""
+    start = float(global_end_exclusive - width) - origin
+    return [read_bin(bins, start + i) for i in range(width)]
 
 
 def _box_blur(values: Sequence[float], radius: int) -> list[float]:
@@ -422,21 +460,89 @@ def motion_lpf_envelope(
     return _convolve_zero_pad(bins, kernel)
 
 
+def envelope_context_bins(
+    *,
+    oversample: int,
+    aa_kind: str,
+    aa_support: float,
+    lpf_kind: str,
+    lpf_cutoff: float,
+    smoothing_sigma: float = 0.0,
+) -> int:
+    """Half-width of causal/anti-causal FIR context on the dense envelope, in bins."""
+    radius = 0
+    if aa_kind != "none" and oversample > 1:
+        kernel = reconstruction_kernel(aa_kind, oversample=oversample, support_px=aa_support)
+        radius = max(radius, len(kernel) // 2)
+    if lpf_kind != "none" and lpf_cutoff > 0.0:
+        kernel = motion_lpf_kernel(kind=lpf_kind, oversample=oversample, cutoff_cyc_px=lpf_cutoff)
+        radius = max(radius, len(kernel) // 2)
+    if smoothing_sigma > 0.0:
+        radius += max(1, round(smoothing_sigma)) * 3
+    return radius
+
+
+def envelope_preroll_seconds(
+    *,
+    window_seconds: float,
+    width: int,
+    oversample: int,
+    context_bins: int,
+    extra_px: int = 0,
+) -> tuple[float, float]:
+    """Return ``(preroll, postroll)`` so the first/last published frame has FIR context.
+
+    Preroll also covers the visible scroll window (right edge is 'now').
+    """
+    if width < 1 or window_seconds <= 0.0 or oversample < 1:
+        return max(window_seconds, 0.0), 0.0
+    bins_per_second = float(width * oversample) / window_seconds
+    pad = float(max(0, context_bins) + max(0, extra_px) * oversample) / bins_per_second
+    return window_seconds + pad, pad
+
+
+def process_envelope_bins(
+    bins: Sequence[float],
+    *,
+    scale: str,
+    smoothing_sigma: float = 0.0,
+    oversample: int = 1,
+    aa_kind: str = "none",
+    aa_support: float = 1.0,
+    lpf_kind: str = "none",
+    lpf_cutoff: float = 0.0,
+) -> list[float]:
+    """Scale, smooth, reconstruct, motion-LPF. Normalization is a separate global step."""
+    out = [scale_amplitude(v, scale) for v in bins]
+    if smoothing_sigma > 0.0:
+        out = smooth_bins(out, sigma=smoothing_sigma)
+    out = antialias_envelope(out, oversample=oversample, kind=aa_kind, support_px=aa_support)
+    return motion_lpf_envelope(out, oversample=oversample, cutoff_cyc_px=lpf_cutoff, kind=lpf_kind)
+
+
+def published_bin_slice(
+    bins: Sequence[float],
+    *,
+    start_seconds: float,
+    end_seconds: float,
+    origin_seconds: float,
+    bins_per_second: float,
+) -> list[float]:
+    """Bins whose time falls in ``[start_seconds, end_seconds)`` on the clip timeline."""
+    if bins_per_second <= 0.0 or not bins:
+        return []
+    lo = (start_seconds - origin_seconds) * bins_per_second
+    hi = (end_seconds - origin_seconds) * bins_per_second
+    i0 = max(0, math.floor(lo))
+    i1 = min(len(bins), math.ceil(hi))
+    if i1 <= i0:
+        return []
+    return list(bins[i0:i1])
+
+
 def sample_bin(bins: Sequence[float], index: float) -> float:
     """Linear interpolation at a fractional envelope index. Out of range is 0."""
-    if not bins:
-        return 0.0
-    i0 = math.floor(index)
-    t = index - i0
-
-    def at(i: int) -> float:
-        if 0 <= i < len(bins):
-            return min(max(float(bins[i]), 0.0), 1.0)
-        return 0.0
-
-    if t <= 1e-12:
-        return at(i0)
-    return at(i0) * (1.0 - t) + at(i0 + 1) * t
+    return min(max(read_bin(bins, index), 0.0), 1.0)
 
 
 def window_at_time(

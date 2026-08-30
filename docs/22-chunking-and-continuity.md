@@ -46,6 +46,19 @@ processing:
 
 Each canonical output frame is published exactly once. The 15 s context is illustrative, not a default.
 
+## Envelope MVP (overlap + concat)
+
+The FFmpeg scroll path uses overlap, not `showwaves` concat.
+
+- Logical chunks default to **60 seconds** (`performance.processing.chunk_seconds`), partitioned on **canonical frames** so concat neither drops nor duplicates a frame.
+- Each chunk decodes a processing window: **preroll** = `window_seconds` + FIR/glow pad, **postroll** = FIR/glow pad. The first chunk clamps preroll to t=0 (same zero-pad as an unchunked job).
+- Viewport timing is global. `bins[0]` of a mid-file decode is placed with a bin origin so frame *i* samples the same envelope index as a single-pass render.
+- Auto-normalization uses a **global** 95th-percentile peak collected from published regions only. Per-chunk auto-gain is forbidden (it would change bar height at joins).
+- Published ProRes segments are copy-concatenated in the FFmpeg adapter. PNG sequences use contiguous `frame_%06d` numbers (`-start_number`).
+- Chunk size remains outside visual identity (ADR-0004). Equivalent continuity does not bump `visual_contract_version`.
+
+Spectrum (`showfreqs`) stays a single encode in this slice. Resume/checkpoints remain a later recovery slice.
+
 ## Stateful
 
 ```text

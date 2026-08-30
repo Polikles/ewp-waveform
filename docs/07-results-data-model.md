@@ -22,6 +22,10 @@ resume_history
 timestamps
 ```
 
+## SKIPPED jobs
+
+Equivalent completed jobs (same source hash and render signature, complete dest) are `SKIPPED`. The result still lists the existing output paths. `validation.passed` is true when those outputs still probe as complete. Empty leftovers are not skipped; the job re-renders in place.
+
 ## Identity
 
 Store:

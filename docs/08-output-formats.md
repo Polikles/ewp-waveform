@@ -30,4 +30,6 @@ Successful output validates:
 - alpha;
 - expected codec/profile where relevant.
 
+The application probes the workdir MOV (ProRes + `yuva`) or PNG sequence before publish. Failed validation does not replace a previous good dest. SKIPPED jobs re-probe the existing dest and keep `validation.passed` aligned with that check.
+
 Byte-identical ProRes/PNG is not required.
