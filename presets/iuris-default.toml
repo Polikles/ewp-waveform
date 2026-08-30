@@ -1,6 +1,6 @@
 schema_version = 1
 name = "iuris-default"
-description = "Default EWP visual preset (Iuris et Logos). Mirrored scrolling envelope, 5 s window, medium glow, 60 fps. Limited vs brand linia lustrzana."
+description = "Adopted scroll default (operator, *ad0c99b500c0.mov): 60 fps, 5 s window, envelope_oversample 4, motion sinc LOD, shutter 0, medium glow. Limited vs brand linia lustrzana."
 
 [canvas]
 width = 1400

@@ -25,7 +25,9 @@ FFmpeg cannot yet draw either look faithfully (`showwaves` window wrong; `showfr
 
 CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`.
 
-`render`/`preview` write scrolling RMS envelope bars (`iuris-default`, limited) or experimental `showfreqs` (`iuris-spectrum`). Exit codes frozen in `docs/09`.
+`render`/`preview` write scrolling RMS envelope (`iuris-default`, limited) or experimental `showfreqs` (`iuris-spectrum`). Exit codes frozen in `docs/09`.
+
+Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to linia lustrzana.
 
 Long jobs run on the operator workstation.
 

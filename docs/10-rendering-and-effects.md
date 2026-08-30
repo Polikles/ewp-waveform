@@ -55,7 +55,7 @@ Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling e
 
 FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
 
-Default preset: **`mirrored` + glow medium + 60 fps + 5 s window + oversample 4 + motion sinc LOD**, color `#C7E6EC`.
+Default preset **`iuris-default`** (locked to operator pick `*ad0c99b500c0.mov`): mirrored, glow medium, 60 fps, 5 s window, oversample 4, motion sinc LOD, shutter 0, color `#C7E6EC`.
 
 ## Effects
 

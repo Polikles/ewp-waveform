@@ -112,7 +112,7 @@ Operator: 1–2 px kernels still hairy. Lanczos keeps 1 px features (that's the 
 | File | Filter |
 |---|---|
 | `*iuris-aa-area2_05fa28be1df8.mov` | area, 2 px |
-| `*iuris-aa-area3_00ae365bd7ec.mov` | area, 3 px (**default**) |
+| `*iuris-aa-area3_00ae365bd7ec.mov` | area, 3 px |
 | `*iuris-aa-lanczos3_ff44ab484843.mov` | lanczos a=3 |
 
 `signal.envelope_aa` is independent of `signal.smoothing`.
@@ -130,14 +130,14 @@ Watch: `*iuris-default_07cbef24e059.mov`.
 | | shutter | AA support | file |
 |---|---|---|---|
 | A | 0° | 1.5 | `*iuris-abc-a_a8cea6f69661.mov` |
-| B | 60° | 1.0 | `*iuris-abc-b_81f708930774.mov` (**default**) |
+| B | 60° | 1.0 | `*iuris-abc-b_81f708930774.mov` |
 | C | 90° | 1.0 | `*iuris-abc-c_ff8080a0283d.mov` |
 
 ## Motion-Nyquist envelope LOD (operator, 2026-08-28)
 
 Remaining strobe is 1–4 px needles above temporal Nyquist (0.107 cyc/px at 280 px/s / 60 fps). Sinc LPF on amplitude-vs-X at 0.85× that (~0.091 cyc/px). Raster stays 12× and crisp; shutter 0 for this eval.
 
-Watch: `*iuris-default_ad0c99b500c0.mov`.
+**Adopted as `iuris-default` for now:** `*iuris-default_ad0c99b500c0.mov`.
 
 ## No-glow comparison (operator, 2026-08-28)
 

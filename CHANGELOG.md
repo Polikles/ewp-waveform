@@ -10,7 +10,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.
 - Scroll path is translation-only of a frozen envelope (no vertical bounce). Auto-gain so speech fills the canvas.
-- Default production FPS is **60**. Dense envelope is band-limited to the temporal Nyquist of the scroll (`envelope_motion_lpf=sinc`, ~0.09 cyc/px at default speed) so 1–4 px needles are not emitted as geometry. 12× crisp raster; shutter is 0 for this evaluation. `signal.smoothing` stays 0.
+- Operator-adopted scroll default is `iuris-default` as rendered in `*ad0c99b500c0.mov`: 60 fps, dense RMS (oversample 4), temporal-Nyquist sinc LOD (~0.09 cyc/px), shutter 0, 12× raster, medium glow.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.
