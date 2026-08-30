@@ -1,4 +1,10 @@
-from ewp_waveform.config.load import load_application_config, load_performance, load_preset
+from ewp_waveform.config.load import (
+    list_performance_profiles,
+    list_presets,
+    load_application_config,
+    load_performance,
+    load_preset,
+)
 
 
 def test_builtin_iuris_default_is_time_scroll_mirrored() -> None:
@@ -41,3 +47,16 @@ def test_default_application_config() -> None:
 def test_balanced_performance_loads() -> None:
     profile = load_performance("balanced")
     assert profile.name == "balanced"
+
+
+def test_list_presets_includes_builtins() -> None:
+    names = {name for name, _path in list_presets()}
+    assert "iuris-default" in names
+    assert "iuris-spectrum" in names
+    assert "minimal" in names
+
+
+def test_list_performance_includes_builtins() -> None:
+    names = {name for name, _path in list_performance_profiles()}
+    assert "balanced" in names
+    assert "maximum" in names

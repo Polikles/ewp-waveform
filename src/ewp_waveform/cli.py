@@ -11,7 +11,9 @@ import typer
 from ewp_waveform import __version__
 from ewp_waveform.application import service as app_service
 from ewp_waveform.application.service import AppError
+from ewp_waveform.config.load import load_performance, load_preset
 from ewp_waveform.domain.diagnostics import EXIT_CODE_VALUES, ExitCode
+from ewp_waveform.identity import short_signature
 
 app = typer.Typer(
     add_completion=False,
@@ -88,28 +90,44 @@ def dry_run_cmd(
     preset: str | None = typer.Option(None, "--preset"),
     performance: str | None = typer.Option(None, "--performance"),
     fps: float | None = typer.Option(None, "--fps"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    format_name: list[str] | None = typer.Option(None, "--format"),
+    force: bool = typer.Option(False, "--force"),
 ) -> None:
-    """Resolve discovery, grouping, and effective config without rendering."""
+    """Resolve discovery, grouping, signatures, dests, and SKIP/PROCESS without rendering."""
     try:
-        _cfg, visual, jobs, diagnostics = app_service.dry_run(
+        _cfg, visual, perf, plans, diagnostics = app_service.plan_jobs(
             input_path,
             recursive=recursive,
             config_path=config,
             preset_name=preset,
             performance_name=performance,
             fps_override=fps,
+            output_dir=output_dir,
+            formats=format_name,
+            force=force,
         )
     except AppError as exc:
         _fail(exc)
     typer.echo(
         f"preset: {visual.name}  style: {visual.waveform.style}  domain: {visual.waveform.domain}"
     )
-    typer.echo(f"jobs: {len(jobs)}")
-    for job in jobs:
+    typer.echo(
+        f"performance: {perf.name}  chunk_seconds: {perf.processing.get('chunk_seconds', 60)}"
+    )
+    typer.echo(f"jobs: {len(plans)}")
+    for planned in plans:
+        job = planned.job
+        sig = planned.render_signature
+        short = short_signature(sig) if sig else "-"
         typer.echo(
-            f"  {job.path.name} -> {job.project_id}/{job.track_id}  "
-            f"{job.status.value}  capability={job.capability.value}"
+            f"  {planned.action:8} {job.path.name} -> {job.project_id}/{job.track_id}  "
+            f"sig={short}  capability={job.capability.value}"
         )
+        if planned.mov_path is not None:
+            typer.echo(f"    mov: {planned.mov_path}")
+        if planned.png_path is not None:
+            typer.echo(f"    png: {planned.png_path}")
         if job.capability_notes:
             typer.echo(f"    {job.capability_notes}")
     for diag in diagnostics:
@@ -152,6 +170,7 @@ def _run_render(
     except AppError as exc:
         _fail(exc)
     failed = 0
+    run_json = None
     for payload in results:
         job_obj = payload.get("job")
         status = "UNKNOWN"
@@ -163,8 +182,12 @@ def _run_render(
             for item in outputs:
                 if isinstance(item, dict):
                     typer.echo(f"  {item.get('format')}: {item.get('path')}")
+        if run_json is None:
+            run_json = payload.get("run_json")
         if status == "FAILED":
             failed += 1
+    if run_json:
+        typer.echo(f"run: {run_json}")
     if failed and failed == len(results):
         raise typer.Exit(EXIT_CODE_VALUES[ExitCode.RENDER])
     if failed:
@@ -229,6 +252,80 @@ def preview(
         duration=duration,
         keep_temp=False,
     )
+
+
+preset_app = typer.Typer(help="List and show visual presets.")
+performance_app = typer.Typer(help="List and show performance profiles.")
+app.add_typer(preset_app, name="preset")
+app.add_typer(performance_app, name="performance")
+
+
+@preset_app.command("list")
+def preset_list() -> None:
+    """List builtin visual presets."""
+    for name, path in app_service.catalog_presets():
+        typer.echo(f"{name}\tbuiltin\t{path}")
+
+
+@preset_app.command("show")
+def preset_show(name: str = typer.Argument(..., metavar="NAME_OR_PATH")) -> None:
+    """Show a visual preset (builtin name or .toml path)."""
+    try:
+        preset = load_preset(name)
+    except FileNotFoundError as exc:
+        _fail(AppError(ExitCode.CONFIG, str(exc)))
+    except ValueError as exc:
+        _fail(AppError(ExitCode.CONFIG, str(exc)))
+    typer.echo(f"name: {preset.name}")
+    typer.echo(f"style: {preset.waveform.style}  domain: {preset.waveform.domain}")
+    typer.echo(f"time_mode: {preset.waveform.time_mode}  fps: {preset.canvas.fps}")
+    typer.echo(f"canvas: {preset.canvas.width}x{preset.canvas.height}")
+    if preset.description:
+        typer.echo(f"description: {preset.description}")
+
+
+@performance_app.command("list")
+def performance_list() -> None:
+    """List builtin performance profiles."""
+    for name, path in app_service.catalog_performance():
+        typer.echo(f"{name}\tbuiltin\t{path}")
+
+
+@performance_app.command("show")
+def performance_show(name: str = typer.Argument(..., metavar="NAME_OR_PATH")) -> None:
+    """Show a performance profile (builtin name or .toml path)."""
+    try:
+        profile = load_performance(name)
+    except FileNotFoundError as exc:
+        _fail(AppError(ExitCode.CONFIG, str(exc)))
+    except ValueError as exc:
+        _fail(AppError(ExitCode.CONFIG, str(exc)))
+    typer.echo(f"name: {profile.name}")
+    typer.echo(f"processing: {profile.processing}")
+    typer.echo(f"workdirs: {profile.workdirs}")
+    if profile.description:
+        typer.echo(f"description: {profile.description}")
+
+
+@app.command()
+def clean(
+    workdirs: bool = typer.Option(False, "--workdirs", help="Remove abandoned ewp-* workdirs."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="List matching workdirs without deleting."
+    ),
+    root: Path | None = typer.Option(None, "--root", help="Workdir parent (default: system temp)."),
+) -> None:
+    """Remove intermediate workdirs. Never touches published outputs."""
+    if not workdirs:
+        typer.echo("specify --workdirs", err=True)
+        raise typer.Exit(EXIT_CODE_VALUES[ExitCode.CONFIG])
+    found = app_service.clean(root=root, dry_run=dry_run)
+    if not found:
+        typer.echo("clean: no workdirs")
+        return
+    verb = "would remove" if dry_run else "removed"
+    for path in found:
+        typer.echo(f"{verb}: {path}")
 
 
 def main() -> None:

@@ -7,9 +7,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, cast
 
+from ewp_waveform.application.clean import clean_workdirs, list_workdirs
+from ewp_waveform.application.plan import JobPlan, plan_destinations_for_job
 from ewp_waveform.application.render import output_root, render_job
-from ewp_waveform.config.load import load_application_config, load_performance, load_preset
-from ewp_waveform.config.models import ApplicationConfig, VisualPreset
+from ewp_waveform.application.results import build_run_summary, utc_now, write_run_summary
+from ewp_waveform.config.load import (
+    list_performance_profiles,
+    list_presets,
+    load_application_config,
+    load_performance,
+    load_preset,
+)
+from ewp_waveform.config.models import ApplicationConfig, PerformanceProfile, VisualPreset
 from ewp_waveform.discovery.scan import DiscoveryError, discover_paths
 from ewp_waveform.domain.diagnostics import (
     EXIT_CODE_VALUES,
@@ -31,6 +40,7 @@ from ewp_waveform.ffmpeg.capabilities import ffmpeg_capabilities
 from ewp_waveform.ffmpeg.doctor import check_environment
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
 from ewp_waveform.ffmpeg.process import ToolNotFoundError
+from ewp_waveform.identity import sha256_file
 
 
 class AppError(Exception):
@@ -179,6 +189,70 @@ def dry_run(
     return app_cfg, preset, jobs, extra
 
 
+def plan_jobs(
+    input_path: Path,
+    *,
+    recursive: bool = False,
+    config_path: Path | None = None,
+    preset_name: str | None = None,
+    performance_name: str | None = None,
+    fps_override: float | None = None,
+    output_dir: Path | None = None,
+    formats: list[str] | None = None,
+    force: bool = False,
+) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
+    app_cfg, preset, jobs, diagnostics = dry_run(
+        input_path,
+        recursive=recursive,
+        config_path=config_path,
+        preset_name=preset_name,
+        performance_name=performance_name,
+        fps_override=fps_override,
+    )
+    performance = load_performance(performance_name or app_cfg.defaults.performance)
+    fmts = formats or app_cfg.output.formats
+    plans: list[JobPlan] = []
+    for job in jobs:
+        media: SourceMedia | None
+        try:
+            media = probe_media(job.path)
+            source_sha = sha256_file(job.path)
+        except (ToolNotFoundError, ProbeError, OSError):
+            plans.append(
+                JobPlan(
+                    job=job,
+                    media=None,
+                    source_sha256=None,
+                    render_signature=None,
+                    mov_path=None,
+                    png_path=None,
+                    action="BLOCKED",
+                )
+            )
+            continue
+        root = output_root(job.path, output_dir, app_cfg.output.directory_name)
+        planned = plan_destinations_for_job(
+            job,
+            preset,
+            source_sha256=source_sha,
+            output_dir=root,
+            formats=fmts,
+            force=force,
+        )
+        plans.append(
+            JobPlan(
+                job=planned.job,
+                media=media,
+                source_sha256=planned.source_sha256,
+                render_signature=planned.render_signature,
+                mov_path=planned.mov_path,
+                png_path=planned.png_path,
+                action=planned.action,
+            )
+        )
+    return app_cfg, preset, performance, plans, diagnostics
+
+
 def render(
     input_path: Path,
     *,
@@ -230,6 +304,8 @@ def render(
     fmts = formats or app_cfg.output.formats
     results: list[dict[str, object]] = []
     failed = 0
+    started = utc_now()
+    summary_root: Path | None = None
     for job in jobs:
         media = probe_media(job.path)
         root = output_root(job.path, output_dir, app_cfg.output.directory_name)
@@ -252,11 +328,39 @@ def render(
         result_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         payload["result_json"] = str(result_file)
         results.append(payload)
+        if summary_root is None:
+            summary_root = root
         job_meta = cast(dict[str, Any], payload.get("job") or {})
         if job_meta.get("status") == "FAILED":
             failed += 1
+    if results and summary_root is not None:
+        summary = build_run_summary(
+            [cast(dict[str, Any], item) for item in results],
+            started_at=started,
+            completed_at=utc_now(),
+        )
+        run_id = str(summary["run_id"])
+        summary_path = write_run_summary(summary, summary_root / f"run_{run_id}_results.json")
+        for payload in results:
+            payload["run_json"] = str(summary_path)
     _ = failed
     return results
+
+
+def catalog_presets() -> list[tuple[str, Path]]:
+    return list_presets()
+
+
+def catalog_performance() -> list[tuple[str, Path]]:
+    return list_performance_profiles()
+
+
+def workdirs(*, root: Path | None = None) -> list[Path]:
+    return list_workdirs(root)
+
+
+def clean(*, root: Path | None = None, dry_run: bool = False) -> list[Path]:
+    return clean_workdirs(root=root, dry_run=dry_run)
 
 
 def _timeline_diagnostics(durations: dict[str, list[float]], fps: float) -> list[Diagnostic]:

@@ -8,5 +8,6 @@ Initial machine-readable contracts:
 - `preview-template.schema.json`
 - `benchmark.schema.json`
 - `results.schema.json`
+- `run.schema.json`
 
 These are conservative specification scaffolds. Required public fields must be explicitly versioned when changed.

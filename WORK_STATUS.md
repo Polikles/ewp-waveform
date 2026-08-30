@@ -23,7 +23,7 @@ Playhead envelope is later (scrubber / optional viz).
 
 FFmpeg cannot draw linia lustrzana faithfully (`showwaves` window wrong). Fixed-axis spectrum is application FFT + log-Hz span (experimental vs brand).
 
-CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`.
+CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`, `preset list|show`, `performance list|show`, `clean --workdirs`.
 
 `render`/`preview` write scrolling RMS envelope (`iuris-default`, limited) or experimental fixed-axis spectrum (`iuris-spectrum`, auto/explicit Hz range). Exit codes frozen in `docs/09`.
 

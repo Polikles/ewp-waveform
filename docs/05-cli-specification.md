@@ -15,11 +15,10 @@ waveform inspect INPUT
 waveform dry-run INPUT
 waveform doctor
 waveform capabilities
+waveform preset list|show
+waveform performance list|show
+waveform clean --workdirs
 waveform benchmark ...
-waveform clean ...
-
-waveform preset ...
-waveform performance ...
 ```
 
 `INPUT` is a file or directory; there is no required separate `batch` command.
@@ -54,7 +53,7 @@ waveform render ./audio --performance maximum
 
 ## Dry-run
 
-Resolve the real plan without final rendering. Report discovery, grouping, warnings, timeline checks, effective config, normalization plan, signatures, formats, paths, SKIP/PROCESS state, concurrency, and workdir policy.
+Resolve the real plan without final rendering. Report discovery, grouping, warnings, timeline checks, effective preset/performance, signatures, dest paths, and SKIP/PROCESS. Concurrency/workdir policy remain listed as performance metadata (`chunk_seconds`, jobs, workdirs).
 
 ## Preview
 
@@ -74,10 +73,17 @@ Reports renderer/style/effect/output/continuity support.
 
 ## Presets
 
-Planned:
+MVP:
 
 ```text
-preset list/show/create/save/copy/import/export/validate/reset
+waveform preset list
+waveform preset show NAME_OR_PATH
+```
+
+Later:
+
+```text
+preset create/save/copy/import/export/validate/reset
 ```
 
 Source-qualified references should support:
@@ -93,7 +99,11 @@ Use `--overwrite` for preset replacement. Reserve `--force` for render versionin
 
 ## Performance profiles
 
-At minimum: list/show/validate.
+MVP: `performance list` and `performance show NAME_OR_PATH`. Validate remains implicit on load.
+
+## Clean
+
+`waveform clean --workdirs` removes `ewp-*` directories under the default temp work root (or `--root`). `--dry-run` lists them. Published outputs are never touched.
 
 ## Benchmark
 

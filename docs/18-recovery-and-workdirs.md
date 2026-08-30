@@ -63,4 +63,4 @@ Repeated interrupt may terminate immediately.
 
 ## Cleanup
 
-Future `waveform clean` removes abandoned workdirs under explicit criteria without touching completed final output.
+`waveform clean --workdirs` removes `ewp-*` directories under the process temp work root (or `--root`). `--dry-run` lists matches. It never deletes published MOV/PNG or `*_results.json`.

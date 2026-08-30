@@ -45,5 +45,17 @@ def load_performance(name_or_path: str) -> PerformanceProfile:
     return PerformanceProfile.model_validate(_read_toml(path))
 
 
+def list_named_toml(builtin_dir: Path) -> list[tuple[str, Path]]:
+    return sorted((path.stem, path) for path in builtin_dir.glob("*.toml"))
+
+
+def list_presets() -> list[tuple[str, Path]]:
+    return list_named_toml(builtin_presets_dir())
+
+
+def list_performance_profiles() -> list[tuple[str, Path]]:
+    return list_named_toml(builtin_performance_dir())
+
+
 def example_config_path() -> Path:
     return project_root() / "examples" / "config.example.toml"

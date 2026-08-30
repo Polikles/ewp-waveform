@@ -5,7 +5,7 @@
 ## Status
 
 - Specification baseline: accepted.
-- Implementation status: pre-MVP; CLI inspect/doctor/dry-run/capabilities work; render not yet.
+- Implementation status: pre-MVP; CLI inspect/doctor/dry-run/capabilities/render/preview/preset/performance/clean work.
 - Release status: internal beta; no release candidate; no public release.
 - Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
 - Python baseline: Python 3.12.
@@ -39,6 +39,8 @@ waveform doctor
 waveform capabilities
 waveform inspect "/path/to/input"
 waveform dry-run "/path/to/input" --preset iuris-default
+waveform preset list
+waveform performance show balanced
 ```
 
 `render` / `preview` emit limited scrolling-envelope ProRes (or experimental spectrum). Full CLI surface: `docs/05-cli-specification.md`.
@@ -57,7 +59,7 @@ waveform doctor
 
 `INPUT` may be one file or one directory. Directory processing is batch processing. Recursion is opt-in.
 
-Additional planned commands (`capabilities`, `benchmark`, `clean`, `preset`, `performance`) are specified in `docs/05-cli-specification.md`.
+`preset`, `performance`, and `clean --workdirs` are implemented. Remaining planned: `benchmark` (`docs/05-cli-specification.md`).
 
 ## Core rules
 
@@ -68,7 +70,7 @@ Additional planned commands (`capabilities`, `benchmark`, `clean`, `preset`, `pe
 - Visual presets are separate from performance profiles.
 - Alpha transparency is mandatory.
 - ProRes 4444 and PNG sequence are MVP formats.
-- FPS is part of render identity; output format and performance settings are not. Default 30; 60 is a supported option.
+- FPS is part of render identity; output format and performance settings are not. Default **60**; 30 is supported.
 - Chunking and resume must preserve temporal/visual continuity.
 - Equivalent completed jobs are skipped by deterministic render signature.
 - Canonical results are schema-valid JSON.

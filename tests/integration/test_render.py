@@ -6,7 +6,8 @@ import subprocess
 import wave
 from pathlib import Path
 
-from ewp_waveform.application.service import render
+from ewp_waveform.application.results import result_payload_errors
+from ewp_waveform.application.service import plan_jobs, render
 from ewp_waveform.identity import sha256_file
 
 TINY_SPECTRUM = """
@@ -423,3 +424,34 @@ def test_spectrum_render_records_hz_span(tmp_path: Path) -> None:
     mov = _first_output(results[0])
     assert mov.is_file()
     assert mov.stat().st_size > 0
+
+
+def test_dry_run_reports_skip_after_successful_render(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Plan.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    out = tmp_path / "out"
+    first = render(
+        src,
+        output_dir=out,
+        formats=["prores4444"],
+        preset_name=str(preset),
+        force=False,
+    )
+    assert _job_status(first[0]) == "SUCCEEDED"
+    errors = result_payload_errors({k: v for k, v in first[0].items() if k != "result_json"})
+    assert errors == []
+    run_json = first[0].get("run_json")
+    assert isinstance(run_json, str)
+    assert Path(run_json).is_file()
+    _cfg, _preset, _perf, plans, _diags = plan_jobs(
+        src,
+        output_dir=out,
+        formats=["prores4444"],
+        preset_name=str(preset),
+        force=False,
+    )
+    assert len(plans) == 1
+    assert plans[0].action == "SKIP"
+    assert plans[0].mov_path is not None
+    assert plans[0].mov_path.is_file()

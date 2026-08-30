@@ -51,9 +51,9 @@ Still store:
 
 ## Run-level result
 
-Multi-job invocation should create a run summary with run ID, command, timestamps, job references/counts, warnings, and aggregate performance.
+Each `render` invocation writes a run summary next to the output root as `run_<id>_results.json` (schema `schemas/run.schema.json`). It stores run ID, job references, SUCCEEDED/SKIPPED/FAILED counts, and timestamps.
 
-Run ID is operational, not visual identity.
+Run ID is operational, not visual identity. Per-job payloads include `run_json` pointing at that file.
 
 ## Versioning
 

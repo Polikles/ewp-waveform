@@ -28,13 +28,13 @@ No dates are assigned until evidence supports them.
 ## Phase 2 — FFmpeg MVP
 - [x] application API (doctor/inspect/dry-run/render/preview);
 - [x] CLI (thin Typer; exit codes frozen);
-- [ ] config/preset/performance resolution;
-- [ ] discovery/grouping;
+- [x] config/preset/performance resolution;
+- [x] discovery/grouping;
 - [x] inspect/dry-run/render/preview/doctor/capabilities;
-- [ ] normalization baseline;
-- [ ] deterministic signature/SKIP/versioning;
-- [ ] output validation;
-- [ ] results;
+- [x] normalization baseline;
+- [x] deterministic signature/SKIP/versioning;
+- [x] output validation;
+- [x] results;
 - [x] chunk/checkpoint/resume;
 - [ ] benchmark runner;
 - [ ] operator installation/runbook.

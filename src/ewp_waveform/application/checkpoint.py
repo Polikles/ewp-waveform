@@ -68,13 +68,17 @@ def workdir_key(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
+DEFAULT_WORK_PARENT = "ewp-waveform-work"
+
+
+def default_work_root() -> Path:
+    return Path(tempfile.gettempdir()) / DEFAULT_WORK_PARENT
+
+
 def resolve_workdir(performance: PerformanceProfile, key: str) -> Path:
     """Deterministic workdir so a later run can find kept failure state."""
     raw_root = performance.workdirs.get("root")
-    if isinstance(raw_root, str) and raw_root.strip():
-        base = Path(raw_root)
-    else:
-        base = Path(tempfile.gettempdir()) / "ewp-waveform-work"
+    base = Path(raw_root) if isinstance(raw_root, str) and raw_root.strip() else default_work_root()
     return base / f"ewp-{short_signature(key) if len(key) > 12 else key}"
 
 

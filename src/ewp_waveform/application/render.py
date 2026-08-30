@@ -127,6 +127,26 @@ def publish_path(
     return dest, True
 
 
+def planned_destinations(
+    job: PlannedJob,
+    preset: VisualPreset,
+    *,
+    source_sha256: str,
+    output_dir: Path,
+    formats: Sequence[str],
+) -> tuple[str, Path | None, Path | None]:
+    """Return render signature and canonical dest paths (mov, png dir)."""
+    sig = render_signature(source_sha256=source_sha256, preset=preset, fps=job.fps)
+    short = short_signature(sig)
+    project_dir = output_dir / job.project_id
+    stem = f"{job.path.stem}_{preset.name}_{short}"
+    want_png = "png" in formats
+    want_mov = "prores4444" in formats or not formats
+    mov = project_dir / f"{stem}.mov" if want_mov else None
+    png = project_dir / f"{stem}_png" if want_png else None
+    return sig, mov, png
+
+
 def iter_scroll_frames(
     bins: list[float],
     *,
@@ -401,20 +421,22 @@ def render_job(
     started = _utcnow()
     source_sha = sha256_file(job.path)
     after_hash = source_sha
-    sig = render_signature(source_sha256=source_sha, preset=preset, fps=job.fps)
-    short = short_signature(sig)
+    sig, mov_dest, png_dest = planned_destinations(
+        job,
+        preset,
+        source_sha256=source_sha,
+        output_dir=output_dir,
+        formats=formats,
+    )
     project_dir = output_dir / job.project_id
     project_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{job.path.stem}_{preset.name}_{short}"
-    want_png = "png" in formats
-    want_mov = "prores4444" in formats or not formats
-    mov_dest = project_dir / f"{stem}.mov"
-    png_dest = project_dir / f"{stem}_png"
+    want_png = png_dest is not None
+    want_mov = mov_dest is not None
     skip_mov = False
     skip_png = False
-    if want_mov:
+    if mov_dest is not None:
         mov_dest, skip_mov = publish_path(mov_dest, force=force)
-    if want_png:
+    if png_dest is not None:
         png_dest, skip_png = publish_path(png_dest, force=force)
 
     clip_start, clip_duration = _clip_bounds(media, start, duration)
@@ -422,6 +444,7 @@ def render_job(
     skip_outputs: list[dict[str, Any]] = []
     skip_validation: dict[str, Any] = {"passed": True}
     if want_mov and skip_mov:
+        assert mov_dest is not None
         try:
             skip_validation = _validate_mov(
                 mov_dest,
@@ -436,6 +459,7 @@ def render_job(
         else:
             skip_outputs.append({"path": str(mov_dest), "format": "prores4444"})
     if want_png and skip_png:
+        assert png_dest is not None
         png_report = _validate_png(png_dest, expected_frames=expected_frames)
         if not png_report.get("passed"):
             skip_png = False
@@ -560,16 +584,18 @@ def render_job(
                 )
                 if not validation.get("passed"):
                     raise EncodeError("spectrum output failed validation")
-                shutil.move(str(mov_work), str(mov_dest))
-                outputs.append({"path": str(mov_dest), "format": "prores4444"})
+                if mov_dest is not None:
+                    shutil.move(str(mov_work), str(mov_dest))
+                    outputs.append({"path": str(mov_dest), "format": "prores4444"})
             if png_work is not None and png_work.is_dir():
                 png_report = _validate_png(png_work, expected_frames=expected_frames)
                 if not png_report.get("passed"):
                     raise EncodeError("png sequence failed validation")
-                if png_dest.exists():
+                if png_dest is not None and png_dest.exists():
                     shutil.rmtree(png_dest)
-                shutil.move(str(png_work), str(png_dest))
-                outputs.append({"path": str(png_dest), "format": "png"})
+                if png_dest is not None:
+                    shutil.move(str(png_work), str(png_dest))
+                    outputs.append({"path": str(png_dest), "format": "png"})
                 if not producing_mov:
                     validation = png_report
             analysis = {
@@ -815,16 +841,18 @@ def render_job(
                 )
                 if not validation.get("passed"):
                     raise EncodeError("scroll output failed validation")
-                shutil.move(str(tmp_mov), str(mov_dest))
-                outputs.append({"path": str(mov_dest), "format": "prores4444"})
+                if mov_dest is not None:
+                    shutil.move(str(tmp_mov), str(mov_dest))
+                    outputs.append({"path": str(mov_dest), "format": "prores4444"})
             if png_work is not None and png_work.is_dir():
                 png_report = _validate_png(png_work, expected_frames=expected_frames)
                 if not png_report.get("passed"):
                     raise EncodeError("png sequence failed validation")
-                if png_dest.exists():
+                if png_dest is not None and png_dest.exists():
                     shutil.rmtree(png_dest)
-                shutil.move(str(png_work), str(png_dest))
-                outputs.append({"path": str(png_dest), "format": "png"})
+                if png_dest is not None:
+                    shutil.move(str(png_work), str(png_dest))
+                    outputs.append({"path": str(png_dest), "format": "png"})
                 if not producing_mov:
                     validation = png_report
                 else:
@@ -1006,6 +1034,7 @@ def _result_payload(
         "warnings": [w.model_dump(mode="json") for w in warnings],
         "outputs": outputs,
         "validation": report,
+        "performance": {},
         "resume_history": resume_history or [],
         "timestamps": {"started_at": started, "completed_at": _utcnow()},
         "execution": {
