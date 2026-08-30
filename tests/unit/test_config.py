@@ -16,9 +16,9 @@ def test_builtin_iuris_default_is_time_scroll_mirrored() -> None:
     assert smoothing == 0
     assert preset.signal.get("envelope_aa") == "area"
     support = preset.signal.get("envelope_aa_support")
-    assert support == 3 or support == 3.0
+    assert support == 1 or support == 1.0
     shutter = preset.signal.get("shutter_degrees")
-    assert shutter == 200 or shutter == 200.0
+    assert shutter == 60 or shutter == 60.0
 
 
 def test_builtin_iuris_spectrum_is_frequency_domain() -> None:

@@ -10,7 +10,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Frozen exit codes 0/2/3/4/5/6.
 - Scrolling RMS envelope renderer (5 s window, mirrored bars, glow) and experimental `showfreqs` spectrum path.
 - Scroll path is translation-only of a frozen envelope (no vertical bounce). Auto-gain so speech fills the canvas.
-- Default production FPS is **60**. Raster supersample is **12×**; a **200° shutter** motion-blurs horizontally before glow. Envelope hop uses fractional absolute sample edges (no truncated hop). Reconstruction AA remains `area` @ 3 px. `signal.smoothing` stays 0.
+- Default production FPS is **60**. Raster supersample is **12×**. Temporal mix is a **60° / 25%** hybrid (not a full shutter replacement); glow sits under the sharp base. Envelope AA is `area` @ 1 px. Hop uses fractional sample edges. `signal.smoothing` stays 0.
 - Initial specification baseline.
 - Core documentation and ADR set.
 - Draft schemas and TOML examples, including an application config schema.

@@ -123,6 +123,16 @@ area@3 still shimmered: 4.67 px/frame 3-phase beat. Raster supersample 12x; shut
 
 Watch: `*iuris-default_07cbef24e059.mov`.
 
+## Crisp hybrid shutter (operator, 2026-08-28)
+
+200° shutter made the base look out of focus. New graph: 12x raster, area-downsample, then `0.75*sharp + 0.25*light_horizontal_gblur`; glow from that mask, overlay **under** the sharp-ish base. Envelope AA back to 1.0 px. Default shutter 60°.
+
+| | shutter | AA support | file |
+|---|---|---|---|
+| A | 0° | 1.5 | `*iuris-abc-a_a8cea6f69661.mov` |
+| B | 60° | 1.0 | `*iuris-abc-b_81f708930774.mov` (**default**) |
+| C | 90° | 1.0 | `*iuris-abc-c_ff8080a0283d.mov` |
+
 ## No-glow comparison (operator, 2026-08-28)
 
 Shape of the dense envelope is better, but spikes strobe with medium glow. Comparison (same hop/oversample/60 fps, glow disabled):

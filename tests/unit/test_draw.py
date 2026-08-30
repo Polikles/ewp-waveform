@@ -7,7 +7,7 @@ from ewp_waveform.ffmpeg.draw import (
     glow_vertical_margin,
     peak_half_height,
 )
-from ewp_waveform.ffmpeg.encode import _glow_crop_graph, shutter_box_size
+from ewp_waveform.ffmpeg.encode import _glow_crop_graph, shutter_sigma
 
 
 def _column_opaque_span(frame: bytes, width: int, height: int, x: int) -> tuple[int, int]:
@@ -128,18 +128,22 @@ def test_glow_crop_graph_downsamples_supersample() -> None:
     assert "crop=1400:280:26:26" in graph
 
 
-def test_glow_crop_graph_shutter_blur_before_glow() -> None:
-    graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=2.59)
-    scale_at = graph.find("scale=1452:332:flags=area")
-    blur_at = graph.find("avgblur=sizeX=3:sizeY=1")
-    glow_at = graph.find("gblur=sigma=8")
-    assert 0 <= scale_at < blur_at < glow_at
+def test_glow_crop_graph_hybrid_shutter_under_sharp_base() -> None:
+    graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=0.78, shutter_mix=0.25)
+    assert "blend=all_expr='A*0.7500+B*0.2500'" in graph
+    assert graph.find("scale=1452:332:flags=area") < graph.find("blend=")
+    assert graph.find("blend=") < graph.find("gblur=sigma=8")
+    assert "[gb][base]overlay" in graph
 
 
-def test_shutter_box_size_is_odd() -> None:
-    assert shutter_box_size(0.0) == 0
-    assert shutter_box_size(2.59) == 3
-    assert shutter_box_size(4.67 * 200 / 360) == 3
+def test_glow_crop_graph_no_shutter_skips_blend() -> None:
+    graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=0.0)
+    assert "blend=" not in graph
+
+
+def test_shutter_sigma_matches_short_shutter() -> None:
+    assert shutter_sigma(0.0) == 0.0
+    assert abs(shutter_sigma(0.78) - 0.78 / 2.355) < 1e-9
 
 
 def _column_alpha_mass(frame: bytes, width: int, height: int, x: int) -> int:

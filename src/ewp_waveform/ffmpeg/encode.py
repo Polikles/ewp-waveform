@@ -20,14 +20,11 @@ def glow_sigma(level: str, enabled: bool) -> float:
     return GLOW_SIGMA.get(level, 8.0)
 
 
-def shutter_box_size(shutter_px: float) -> int:
-    """Odd avgblur sizeX for a shutter length in output pixels. 0 disables."""
-    if shutter_px < 0.75:
-        return 0
-    size = max(1, round(shutter_px))
-    if size % 2 == 0:
-        size += 1
-    return max(3, size)
+def shutter_sigma(shutter_px: float) -> float:
+    """Horizontal gblur sigma for a shutter length in output pixels. 0 disables."""
+    if shutter_px < 0.35:
+        return 0.0
+    return shutter_px / 2.355
 
 
 def _glow_crop_graph(
@@ -37,33 +34,42 @@ def _glow_crop_graph(
     overscan: int,
     supersample: int = 1,
     shutter_px: float = 0.0,
+    shutter_mix: float = 0.25,
 ) -> str:
-    """Area-downsample, optional shutter blur, then glow from that mask, then crop."""
+    """Downsample, optional hybrid temporal mix, glow under a sharp-ish base, crop.
+
+    Visible base is ``(1-mix)*sharp + mix*shutter`` so the edge stays crisp.
+    Glow is generated from that stabilized mask and composited underneath.
+    """
     padded_w = width + 2 * overscan
     padded_h = height + 2 * overscan
-    chain: list[str] = []
-    if supersample > 1:
-        chain.append(f"scale={padded_w}:{padded_h}:flags=area")
-    box = shutter_box_size(shutter_px)
-    if box >= 3:
-        chain.append(f"avgblur=sizeX={box}:sizeY=1")
-    pre = ",".join(chain)
-    crop = f"crop={width}:{height}:{overscan}:{overscan}"
-    if glow > 0:
-        head = f"{pre}," if pre else ""
-        body = (
-            f"{head}split=2[base][g];[g]gblur=sigma="
-            f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,format=rgba"
+    mix = min(max(shutter_mix, 0.0), 1.0)
+    sharp_w = 1.0 - mix
+    sigma = shutter_sigma(shutter_px)
+    use_taa = sigma > 0.0 and mix > 0.0
+    scale = f"scale={padded_w}:{padded_h}:flags=area" if supersample > 1 else "format=rgba"
+    crop = f",crop={width}:{height}:{overscan}:{overscan}" if overscan > 0 else ""
+    if use_taa:
+        taa = (
+            f"{scale},split=2[sharp][taa];"
+            f"[taa]gblur=sigma={sigma:.4f}:sigmaV=0.01:steps=1[taab];"
+            f"[sharp][taab]blend=all_expr='A*{sharp_w:.4f}+B*{mix:.4f}'"
+            ":shortest=1,format=rgba"
         )
-        if overscan > 0:
-            return f"[0:v]{body},{crop}[out]"
-        return f"[0:v]{body}[out]"
-    rest = ["format=rgba"]
-    if overscan > 0:
-        rest.append(crop)
-    if pre:
-        return f"[0:v]{pre},{','.join(rest)}[out]"
-    return f"[0:v]{','.join(rest)}[out]"
+        if glow > 0:
+            return (
+                f"[0:v]{taa},split=2[base][g];[g]gblur=sigma="
+                f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
+                f"format=rgba{crop}[out]"
+            )
+        return f"[0:v]{taa}{crop}[out]"
+    if glow > 0:
+        return (
+            f"[0:v]{scale},split=2[base][g];[g]gblur=sigma="
+            f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
+            f"format=rgba{crop}[out]"
+        )
+    return f"[0:v]{scale}{crop}[out]"
 
 
 def encode_rgba_stream(
@@ -79,6 +85,7 @@ def encode_rgba_stream(
     overscan: int = 0,
     supersample: int = 1,
     shutter_px: float = 0.0,
+    shutter_mix: float = 0.25,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
@@ -87,7 +94,7 @@ def encode_rgba_stream(
     ss = max(1, int(supersample))
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
-    graph = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px)
+    graph = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
@@ -132,6 +139,7 @@ def encode_rgba_stream(
                 overscan=overscan,
                 supersample=ss,
                 shutter_px=shutter_px,
+                shutter_mix=shutter_mix,
             )
             completed = run_argv_stdin(argv, frames)
             if completed.returncode != 0:
@@ -168,9 +176,10 @@ def _dual_output_argv(
     overscan: int = 0,
     supersample: int = 1,
     shutter_px: float = 0.0,
+    shutter_mix: float = 0.25,
 ) -> list[str]:
     ss = max(1, int(supersample))
-    core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px)
+    core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
     graph = core.replace("[out]", "split=2[png][mov]", 1)
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan

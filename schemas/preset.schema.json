@@ -118,7 +118,13 @@
         "shutter_degrees": {
           "type": "number",
           "minimum": 0,
-          "description": "Horizontal motion-blur shutter before glow. 180-220 typical. 0 disables."
+          "description": "Temporal shutter in degrees. 60 is a light default; 0 disables."
+        },
+        "shutter_mix": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight of the temporally filtered frame mixed into the sharp base."
         },
         "normalization": {
           "type": "object",

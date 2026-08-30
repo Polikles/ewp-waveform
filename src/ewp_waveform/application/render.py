@@ -258,11 +258,15 @@ def render_job(
             png_work: Path | None = work / "png" if want_png else None
             mov_work: Path | None = work / "out.mov" if want_mov and not skip_mov else None
             px_per_frame = preset.canvas.width / (preset.waveform.window_seconds * job.fps)
-            raw_shutter = preset.signal.get("shutter_degrees", 200)
-            shutter_deg = 200.0
+            raw_shutter = preset.signal.get("shutter_degrees", 60)
+            shutter_deg = 60.0
             if isinstance(raw_shutter, int | float) and not isinstance(raw_shutter, bool):
                 shutter_deg = max(0.0, float(raw_shutter))
             shutter_px = px_per_frame * shutter_deg / 360.0
+            raw_mix = preset.signal.get("shutter_mix", 0.25)
+            shutter_mix = 0.25
+            if isinstance(raw_mix, int | float) and not isinstance(raw_mix, bool):
+                shutter_mix = min(max(float(raw_mix), 0.0), 1.0)
             encode_rgba_stream(
                 frames,
                 width=preset.canvas.width,
@@ -275,6 +279,7 @@ def render_job(
                 overscan=glow_overscan(glow),
                 supersample=SCROLL_SUPERSAMPLE,
                 shutter_px=shutter_px,
+                shutter_mix=shutter_mix,
             )
             if mov_work is not None and mov_work.is_file():
                 shutil.move(str(mov_work), str(mov_dest))
@@ -385,7 +390,8 @@ def _result_payload(
             "envelope_oversample": envelope_oversample_from_signal(preset.signal),
             "envelope_aa": envelope_aa_from_signal(preset.signal)[0],
             "envelope_aa_support": envelope_aa_from_signal(preset.signal)[1],
-            "shutter_degrees": preset.signal.get("shutter_degrees", 200),
+            "shutter_degrees": preset.signal.get("shutter_degrees", 60),
+            "shutter_mix": preset.signal.get("shutter_mix", 0.25),
             "glow": glow,
         },
         "resolved_performance_config": {
