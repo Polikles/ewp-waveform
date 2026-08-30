@@ -133,6 +133,12 @@ Watch: `*iuris-default_07cbef24e059.mov`.
 | B | 60° | 1.0 | `*iuris-abc-b_81f708930774.mov` (**default**) |
 | C | 90° | 1.0 | `*iuris-abc-c_ff8080a0283d.mov` |
 
+## Motion-Nyquist envelope LOD (operator, 2026-08-28)
+
+Remaining strobe is 1–4 px needles above temporal Nyquist (0.107 cyc/px at 280 px/s / 60 fps). Sinc LPF on amplitude-vs-X at 0.85× that (~0.091 cyc/px). Raster stays 12× and crisp; shutter 0 for this eval.
+
+Watch: `*iuris-default_ad0c99b500c0.mov`.
+
 ## No-glow comparison (operator, 2026-08-28)
 
 Shape of the dense envelope is better, but spikes strobe with medium glow. Comparison (same hop/oversample/60 fps, glow disabled):

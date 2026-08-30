@@ -23,7 +23,9 @@ smoothing = 0.0
 envelope_oversample = 4
 envelope_aa = "area"
 envelope_aa_support = 1.0
-shutter_degrees = 60
+envelope_motion_lpf = "sinc"
+envelope_motion_margin = 0.85
+shutter_degrees = 0
 shutter_mix = 0.25
 
 [signal.normalization]

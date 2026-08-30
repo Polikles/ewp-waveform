@@ -16,6 +16,9 @@ from ewp_waveform.analysis.envelope import (
     envelope_aa_from_signal,
     envelope_oversample_from_signal,
     hop_samples,
+    motion_cutoff_cyc_px,
+    motion_lpf_envelope,
+    motion_lpf_from_signal,
     normalize_bins,
     rms_bins_from_wav,
     scale_amplitude,
@@ -240,6 +243,20 @@ def render_job(
                 kind=aa_kind,
                 support_px=aa_support,
             )
+            lpf_kind, lpf_explicit, lpf_margin = motion_lpf_from_signal(preset.signal)
+            lpf_cutoff = motion_cutoff_cyc_px(
+                width=preset.canvas.width,
+                window_seconds=preset.waveform.window_seconds,
+                fps=job.fps,
+                margin=lpf_margin,
+                explicit=lpf_explicit,
+            )
+            bins = motion_lpf_envelope(
+                bins,
+                oversample=oversample,
+                cutoff_cyc_px=lpf_cutoff,
+                kind=lpf_kind,
+            )
             norm = preset.signal.get("normalization")
             norm_mode = "auto"
             soft = True
@@ -258,8 +275,8 @@ def render_job(
             png_work: Path | None = work / "png" if want_png else None
             mov_work: Path | None = work / "out.mov" if want_mov and not skip_mov else None
             px_per_frame = preset.canvas.width / (preset.waveform.window_seconds * job.fps)
-            raw_shutter = preset.signal.get("shutter_degrees", 60)
-            shutter_deg = 60.0
+            raw_shutter = preset.signal.get("shutter_degrees", 0)
+            shutter_deg = 0.0
             if isinstance(raw_shutter, int | float) and not isinstance(raw_shutter, bool):
                 shutter_deg = max(0.0, float(raw_shutter))
             shutter_px = px_per_frame * shutter_deg / 360.0
@@ -390,8 +407,16 @@ def _result_payload(
             "envelope_oversample": envelope_oversample_from_signal(preset.signal),
             "envelope_aa": envelope_aa_from_signal(preset.signal)[0],
             "envelope_aa_support": envelope_aa_from_signal(preset.signal)[1],
-            "shutter_degrees": preset.signal.get("shutter_degrees", 60),
+            "shutter_degrees": preset.signal.get("shutter_degrees", 0),
             "shutter_mix": preset.signal.get("shutter_mix", 0.25),
+            "envelope_motion_lpf": motion_lpf_from_signal(preset.signal)[0],
+            "envelope_motion_cutoff": motion_cutoff_cyc_px(
+                width=preset.canvas.width,
+                window_seconds=preset.waveform.window_seconds,
+                fps=job.fps,
+                margin=motion_lpf_from_signal(preset.signal)[2],
+                explicit=motion_lpf_from_signal(preset.signal)[1],
+            ),
             "glow": glow,
         },
         "resolved_performance_config": {

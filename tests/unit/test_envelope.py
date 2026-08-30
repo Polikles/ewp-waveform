@@ -1,3 +1,4 @@
+import math
 import struct
 import wave
 from itertools import pairwise
@@ -11,6 +12,8 @@ from ewp_waveform.analysis.envelope import (
     envelope_oversample_from_signal,
     hop_samples,
     iter_scroll_timing,
+    motion_cutoff_cyc_px,
+    motion_lpf_envelope,
     normalize_bins,
     reconstruction_kernel,
     rms_bins_from_wav,
@@ -75,6 +78,33 @@ def test_antialias_area_kills_subpixel_spike_keeps_wide_peak() -> None:
     a_wide = antialias_envelope(wide, oversample=oversample, kind="area", support_px=1.0)
     assert max(a_spike) < 0.55
     assert max(a_wide) > 0.7
+
+
+def test_motion_cutoff_matches_scroll_nyquist() -> None:
+    full = motion_cutoff_cyc_px(width=1400, window_seconds=5.0, fps=60.0, margin=1.0)
+    assert abs(full - 60.0 / (2.0 * 280.0)) < 1e-12
+    safe = motion_cutoff_cyc_px(width=1400, window_seconds=5.0, fps=60.0, margin=0.85)
+    assert 0.08 < safe < 0.10
+
+
+def test_higher_fps_raises_motion_cutoff() -> None:
+    slow = motion_cutoff_cyc_px(width=1400, window_seconds=5.0, fps=60.0, margin=1.0)
+    fast = motion_cutoff_cyc_px(width=1400, window_seconds=5.0, fps=120.0, margin=1.0)
+    assert abs(fast - 2.0 * slow) < 1e-12
+
+
+def test_motion_lpf_kills_needles_keeps_broad_lobe() -> None:
+    oversample = 4
+    n = 400
+    comb = [0.5 + 0.5 * math.sin(2 * math.pi * i / (2 * oversample)) for i in range(n)]
+    lobe = [0.5 + 0.5 * math.sin(2 * math.pi * i / (40 * oversample)) for i in range(n)]
+    cutoff = 0.09
+    comb_out = motion_lpf_envelope(comb, oversample=oversample, cutoff_cyc_px=cutoff, kind="sinc")
+    lobe_out = motion_lpf_envelope(lobe, oversample=oversample, cutoff_cyc_px=cutoff, kind="sinc")
+    mid_c = comb_out[80:-80]
+    mid_l = lobe_out[80:-80]
+    assert max(mid_c) - min(mid_c) < 0.2
+    assert max(mid_l) - min(mid_l) > 0.7
 
 
 def test_antialias_preserves_flat_interior() -> None:

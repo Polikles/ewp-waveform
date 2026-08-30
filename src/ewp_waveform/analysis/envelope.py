@@ -40,6 +40,43 @@ def envelope_aa_from_signal(signal: dict[str, object]) -> tuple[str, float]:
     return kind, support
 
 
+MOTION_LPF_ALLOWED = frozenset({"none", "sinc", "gaussian"})
+
+
+def motion_lpf_from_signal(signal: dict[str, object]) -> tuple[str, float, float]:
+    """Return (kind, explicit_cutoff_cyc_px or 0 for auto, safety margin)."""
+    kind = str(signal.get("envelope_motion_lpf") or "sinc").lower()
+    if kind not in MOTION_LPF_ALLOWED:
+        kind = "sinc"
+    cutoff = 0.0
+    raw_c = signal.get("envelope_motion_cutoff")
+    if isinstance(raw_c, int | float) and not isinstance(raw_c, bool) and raw_c > 0:
+        cutoff = float(raw_c)
+    margin = 0.85
+    raw_m = signal.get("envelope_motion_margin")
+    if isinstance(raw_m, int | float) and not isinstance(raw_m, bool) and raw_m > 0:
+        margin = float(raw_m)
+    return kind, cutoff, margin
+
+
+def motion_cutoff_cyc_px(
+    *,
+    width: int,
+    window_seconds: float,
+    fps: float,
+    margin: float = 0.85,
+    explicit: float = 0.0,
+) -> float:
+    """Temporal Nyquist in cycles/output-pixel: fps / (2 * width/window)."""
+    if explicit > 0.0:
+        return explicit
+    if width < 1 or window_seconds <= 0.0 or fps <= 0.0:
+        return 0.0
+    velocity = width / window_seconds
+    nyquist = fps / (2.0 * velocity)
+    return nyquist * min(max(margin, 0.05), 1.0)
+
+
 def hop_samples(
     sample_rate: int,
     width: int,
@@ -338,6 +375,48 @@ def antialias_envelope(
     if kind == "none" or oversample <= 1 or len(bins) < 2:
         return list(bins)
     kernel = reconstruction_kernel(kind, oversample=oversample, support_px=support_px)
+    if len(kernel) <= 1:
+        return list(bins)
+    return _convolve_zero_pad(bins, kernel)
+
+
+def _unit_sinc(x: float) -> float:
+    if abs(x) < 1e-12:
+        return 1.0
+    return math.sin(math.pi * x) / (math.pi * x)
+
+
+def motion_lpf_kernel(*, kind: str, oversample: int, cutoff_cyc_px: float) -> list[float]:
+    """Low-pass FIR in dense-bin steps. ``cutoff_cyc_px`` is cycles per output pixel."""
+    if cutoff_cyc_px <= 0.0 or oversample < 1:
+        return [1.0]
+    fc = min(cutoff_cyc_px / float(oversample), 0.49)
+    if kind == "gaussian":
+        sigma_px = math.sqrt(math.log(2.0)) / (2.0 * math.pi * cutoff_cyc_px)
+        sigma_bins = max(0.5, sigma_px * oversample)
+        radius = max(1, math.ceil(3.0 * sigma_bins))
+        taps = [math.exp(-0.5 * (k / sigma_bins) ** 2) for k in range(-radius, radius + 1)]
+        return _normalize_kernel(taps)
+    radius = max(8, math.ceil(3.0 / (2.0 * max(fc, 1e-6))))
+    taps = []
+    for n in range(-radius, radius + 1):
+        h = 2.0 * fc * _unit_sinc(2.0 * fc * n)
+        window = 0.5 + 0.5 * math.cos(math.pi * n / radius)
+        taps.append(h * window)
+    return _normalize_kernel(taps)
+
+
+def motion_lpf_envelope(
+    bins: Sequence[float],
+    *,
+    oversample: int,
+    cutoff_cyc_px: float,
+    kind: str = "sinc",
+) -> list[float]:
+    """Remove envelope features above temporal Nyquist. Raster edges stay crisp."""
+    if kind == "none" or cutoff_cyc_px <= 0.0 or oversample < 1 or len(bins) < 2:
+        return list(bins)
+    kernel = motion_lpf_kernel(kind=kind, oversample=oversample, cutoff_cyc_px=cutoff_cyc_px)
     if len(kernel) <= 1:
         return list(bins)
     return _convolve_zero_pad(bins, kernel)

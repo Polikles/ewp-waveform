@@ -120,6 +120,21 @@
           "minimum": 0,
           "description": "Temporal shutter in degrees. 60 is a light default; 0 disables."
         },
+        "envelope_motion_lpf": {
+          "type": "string",
+          "enum": ["none", "sinc", "gaussian"],
+          "description": "Temporal-Nyquist low-pass on envelope amplitude vs X. Adaptive with fps and scroll speed."
+        },
+        "envelope_motion_cutoff": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Explicit cutoff in cycles per output pixel. 0 derives fps/(2*velocity)*margin."
+        },
+        "envelope_motion_margin": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Safety factor on the derived temporal Nyquist. 0.85 → ~0.09 cyc/px at default scroll."
+        },
         "shutter_mix": {
           "type": "number",
           "minimum": 0,

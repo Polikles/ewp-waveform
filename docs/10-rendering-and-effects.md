@@ -47,7 +47,7 @@ Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as 
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, high-resolution RMS envelope over `window_seconds` (default 5). `signal.envelope_oversample` (1/2/4/8, default **4**) shrinks the audio hop so there are that many **real** RMS bins per output pixel. Before scrolling, a **reconstruction filter** (`envelope_aa`: `none` / `area` / `lanczos`, support in output pixels) band-limits the dense envelope so 1 px hairs cannot strobe — not `signal.smoothing` (that stays 0). Default is `area` with support **1.0** output pixel. A 60° / 25% hybrid shutter handles remaining 1/3-pixel shimmer without a wide spatial blur. The window **translates horizontally only** from the audio timestamp (fractional; not quantized). Linear interpolation is only between adjacent dense bins. Rasterization is **12×** supersampled, area-downsampled, then a **light hybrid shutter** (default 60°, 25% temporal / 75% sharp). Glow is generated from that stabilized mask and composited **under** the sharp base so the visible edge stays crisp. Default envelope reconstruction is `area` @ **1.0** output pixel. Peak half-height is computed from canvas minus `gblur` spread. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, high-resolution RMS (`envelope_oversample` default **4**). A light reconstruction `area` @ 1 px, then a **temporal-Nyquist sinc** on amplitude-vs-X (`envelope_motion_lpf`, cutoff `fps/(2*velocity)*0.85` ≈ 0.09 cyc/px at 1400/5s/60). That removes 1–4 px needles that cannot be shown stably at 4.67 px/frame, without blurring the rasterized edge. 12× crisp raster, area downsample, glow under the base. Shutter is **0** while this geometry LOD is evaluated. `signal.smoothing` stays 0. Peak half-height is computed from canvas minus `gblur` spread. Not a pixel match to linia lustrzana.
 
 Default production identity is **60 fps**. At 1400×280 / 5 s that is ~4.7 px/frame. 30 fps (~9.3 px/frame) remains supported but is not expected to look as smooth at this scroll speed; do not “fix” 30 fps judder by quantizing or extra-smoothing the scroll position. Do not use `tmix` / full-travel motion blur.
 
@@ -55,7 +55,7 @@ Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling e
 
 FFmpeg MVP **frequency+fixed-axis** path (experimental): `showfreqs` + mirror. Idea confirmed; look not product-final.
 
-Default preset: **`mirrored` + glow medium + 60 fps + `window_seconds=5` + envelope_oversample=4 + envelope_aa=area@3px**, color `#C7E6EC`. Amplitude `1.0` means “fill the glow-safe height”.
+Default preset: **`mirrored` + glow medium + 60 fps + 5 s window + oversample 4 + motion sinc LOD**, color `#C7E6EC`.
 
 ## Effects
 
