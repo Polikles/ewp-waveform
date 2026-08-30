@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Scroll jobs resume from validated workdir checkpoints: reuse completed chunks, reject stale signatures, emit `W_JOB_RESUMED`.
 - Envelope jobs split into 60 s logical chunks with window+FIR preroll and FFmpeg copy-concat of published segments (ADR-0006).
 - Equivalent-job SKIP: complete dests with a matching signature are skipped, listed in `outputs`, and re-validated; empty leftovers are rerendered.
 - Published MOV/PNG are probed for codec, alpha, size, and frame count before publish.

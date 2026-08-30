@@ -28,7 +28,7 @@ Channels are rendered independently, but speaker isolation is unproven; crosstal
 Grouped tracks differ by >1 and <=3 target frames. Review alignment.
 
 ### `W_JOB_RESUMED`
-A validated recovery path resumed at a reported source timestamp. Manually inspect the boundary.
+A validated recovery path resumed at a reported source timestamp (first rebuilt chunk). Manually inspect the boundary. The result also stores `resume_history`.
 
 ## Initial errors
 
@@ -38,7 +38,7 @@ A validated recovery path resumed at a reported source timestamp. Manually inspe
 - `E_OUTPUT_VALIDATION`
 - `E_PRESET_ALREADY_EXISTS`
 - `E_CONFIG_INVALID`
-- `E_CHECKPOINT_INCOMPATIBLE`
+- `E_CHECKPOINT_INCOMPATIBLE` — checkpoint schema/identity/integrity failed. Automatic resume discards that state and rerenders; it does not fail the job.
 
 Each stable ID must have documented meaning, probable causes, consequences, and remediation.
 

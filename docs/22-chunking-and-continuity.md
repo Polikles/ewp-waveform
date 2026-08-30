@@ -57,7 +57,11 @@ The FFmpeg scroll path uses overlap, not `showwaves` concat.
 - Published ProRes segments are copy-concatenated in the FFmpeg adapter. PNG sequences use contiguous `frame_%06d` numbers (`-start_number`).
 - Chunk size remains outside visual identity (ADR-0004). Equivalent continuity does not bump `visual_contract_version`.
 
-Spectrum (`showfreqs`) stays a single encode in this slice. Resume/checkpoints remain a later recovery slice.
+Spectrum (`showfreqs`) stays a single encode in this slice.
+
+## Resume
+
+Interrupted scroll jobs resume from `checkpoint.json` in the deterministic workdir. Reused segments are the same bytes that passed chunk validation; remaining chunks are encoded with the stored global peak so concat still matches an uninterrupted render. Changing source hash, signature, visual-contract version, clip, or chunk size invalidates the checkpoint.
 
 ## Stateful
 

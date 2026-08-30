@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import shutil
-import tempfile
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -27,6 +26,20 @@ from ewp_waveform.analysis.envelope import (
     rms_bins_from_wav,
     viewport_left_px,
     window_from_origin,
+)
+from ewp_waveform.application.checkpoint import (
+    CHECKPOINT_SCHEMA_VERSION,
+    Checkpoint,
+    ChunkRecord,
+    checkpoint_path,
+    identity_matches,
+    load_checkpoint,
+    png_chunk_complete,
+    reset_workdir,
+    resolve_workdir,
+    reusable_chunk_indices,
+    workdir_key,
+    write_checkpoint,
 )
 from ewp_waveform.application.chunks import (
     ProcessingWindow,
@@ -319,6 +332,7 @@ def render_job(
     start: float | None = None,
     duration: float | None = None,
     keep_temp: bool = False,
+    fail_after_chunk: int | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
     source_sha = sha256_file(job.path)
@@ -381,13 +395,23 @@ def render_job(
             validation=skip_validation,
         )
 
-    work = Path(tempfile.mkdtemp(prefix="ewp-waveform-"))
+    producing_mov = want_mov and not skip_mov
+    producing_png = want_png and not skip_png
+    key = workdir_key(
+        render_signature=sig,
+        clip_start=clip_start,
+        clip_duration=clip_duration,
+        want_mov=producing_mov,
+        want_png=producing_png,
+    )
+    work = resolve_workdir(performance, key)
     warnings: list[Diagnostic] = []
     outputs: list[dict[str, Any]] = list(skip_outputs)
     keep = keep_temp or bool(performance.workdirs.get("keep_on_failure", True))
     analysis: dict[str, Any] = {}
     normalization: dict[str, Any] = {}
     validation: dict[str, Any] = {"passed": False}
+    resume_history: list[dict[str, Any]] = []
     try:
         after_hash = sha256_file(job.path)
         if after_hash != source_sha:
@@ -406,6 +430,7 @@ def render_job(
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
         if job.domain.value == "frequency":
+            reset_workdir(work)
             decoded = work / "source.wav"
             decode_mono_wav(
                 job.path,
@@ -438,7 +463,8 @@ def render_job(
             analysis = {"chunk_count": 1, "preroll_seconds": 0.0, "postroll_seconds": 0.0}
         else:
             settings = _envelope_settings(preset, job.fps, glow)
-            chunks = plan_chunks(clip_duration, job.fps, _chunk_seconds(performance))
+            chunk_seconds = _chunk_seconds(performance)
+            chunks = plan_chunks(clip_duration, job.fps, chunk_seconds)
             windows = [
                 processing_window(
                     chunk,
@@ -453,47 +479,107 @@ def render_job(
                 "preroll_seconds": settings.preroll,
                 "postroll_seconds": settings.postroll,
             }
-            prepared = _prepare_chunk_envelopes(
-                job.path,
-                windows,
-                settings,
-                work=work,
-                clip_start=clip_start,
-                width=preset.canvas.width,
-                window_seconds=preset.waveform.window_seconds,
-            )
+            cp_file = checkpoint_path(work)
+            existing = load_checkpoint(cp_file)
+            completed_ok: set[int] = set()
             peak: float | None = None
-            if settings.norm_mode != "none":
-                collected: list[float] = []
-                bps = (
-                    float(preset.canvas.width * settings.oversample)
-                    / preset.waveform.window_seconds
+            if existing is not None and identity_matches(
+                existing,
+                source_sha256=source_sha,
+                render_signature=sig,
+                visual_contract_version=VISUAL_CONTRACT_VERSION,
+                renderer="ffmpeg",
+                fps=job.fps,
+                clip_start=clip_start,
+                clip_duration=clip_duration,
+                chunk_seconds=chunk_seconds,
+                expected_frames=expected_frames,
+                want_mov=producing_mov,
+                want_png=producing_png,
+            ):
+                completed_ok = set(
+                    reusable_chunk_indices(
+                        work,
+                        existing,
+                        windows,
+                        want_mov=producing_mov,
+                        want_png=producing_png,
+                    )
                 )
-                for item in prepared:
-                    collected.extend(
-                        published_bin_slice(
-                            item.bins,
-                            start_seconds=item.window.chunk.start_seconds,
-                            end_seconds=item.window.chunk.end_seconds,
-                            origin_seconds=item.window.decode_start,
-                            bins_per_second=bps,
-                        )
-                    )
-                peak = bin_peak(collected)
-                prepared = [
-                    PreparedChunk(
-                        window=item.window,
-                        bins=normalize_bins(item.bins, soft_clip=settings.soft_clip, peak=peak),
-                        origin=item.origin,
-                    )
-                    for item in prepared
+                peak = existing.peak
+                checkpoint = existing
+                checkpoint.completed_chunks = [
+                    record for record in existing.completed_chunks if record.index in completed_ok
                 ]
+            else:
+                reset_workdir(work)
+                checkpoint = Checkpoint(
+                    schema_version=CHECKPOINT_SCHEMA_VERSION,
+                    source_sha256=source_sha,
+                    render_signature=sig,
+                    visual_contract_version=VISUAL_CONTRACT_VERSION,
+                    renderer="ffmpeg",
+                    fps=job.fps,
+                    clip_start=clip_start,
+                    clip_duration=clip_duration,
+                    chunk_seconds=chunk_seconds,
+                    expected_frames=expected_frames,
+                    want_mov=producing_mov,
+                    want_png=producing_png,
+                    peak=None,
+                    preroll_seconds=settings.preroll,
+                    postroll_seconds=settings.postroll,
+                    completed_chunks=[],
+                )
+            work.mkdir(parents=True, exist_ok=True)
+            incomplete = [window for window in windows if window.chunk.index not in completed_ok]
+            prepared_by_index: dict[int, PreparedChunk] = {}
+            if incomplete:
+                analyze_windows = windows if peak is None else incomplete
+                prepared = _prepare_chunk_envelopes(
+                    job.path,
+                    analyze_windows,
+                    settings,
+                    work=work,
+                    clip_start=clip_start,
+                    width=preset.canvas.width,
+                    window_seconds=preset.waveform.window_seconds,
+                )
+                if settings.norm_mode != "none" and peak is None:
+                    collected: list[float] = []
+                    bps = (
+                        float(preset.canvas.width * settings.oversample)
+                        / preset.waveform.window_seconds
+                    )
+                    for item in prepared:
+                        collected.extend(
+                            published_bin_slice(
+                                item.bins,
+                                start_seconds=item.window.chunk.start_seconds,
+                                end_seconds=item.window.chunk.end_seconds,
+                                origin_seconds=item.window.decode_start,
+                                bins_per_second=bps,
+                            )
+                        )
+                    peak = bin_peak(collected)
+                if settings.norm_mode != "none":
+                    prepared = [
+                        PreparedChunk(
+                            window=item.window,
+                            bins=normalize_bins(item.bins, soft_clip=settings.soft_clip, peak=peak),
+                            origin=item.origin,
+                        )
+                        for item in prepared
+                    ]
+                prepared_by_index = {item.window.chunk.index: item for item in prepared}
+                checkpoint.peak = peak
+                write_checkpoint(cp_file, checkpoint)
             normalization = {
                 "mode": settings.norm_mode,
                 "soft_clip": settings.soft_clip,
                 "peak": peak,
             }
-            png_work: Path | None = work / "png" if want_png and not skip_png else None
+            png_work: Path | None = work / "png" if producing_png else None
             px_per_frame = preset.canvas.width / (preset.waveform.window_seconds * job.fps)
             raw_shutter = preset.signal.get("shutter_degrees", 0)
             shutter_deg = 0.0
@@ -505,8 +591,18 @@ def render_job(
             if isinstance(raw_mix, int | float) and not isinstance(raw_mix, bool):
                 shutter_mix = min(max(float(raw_mix), 0.0), 1.0)
             segments: list[Path] = []
-            for item in prepared:
-                chunk = item.window.chunk
+            reused: list[int] = []
+            for window in windows:
+                chunk = window.chunk
+                chunk_mov: Path | None = None
+                if producing_mov:
+                    chunk_mov = work / f"chunk-{chunk.index:04d}.mov"
+                if chunk.index in completed_ok:
+                    if chunk_mov is not None:
+                        segments.append(chunk_mov)
+                    reused.append(chunk.index)
+                    continue
+                item = prepared_by_index[chunk.index]
                 frames = iter_scroll_frames(
                     item.bins,
                     duration=clip_duration,
@@ -517,9 +613,8 @@ def render_job(
                     n_frames=chunk.n_frames,
                     origin=item.origin,
                 )
-                chunk_mov: Path | None = None
-                if want_mov and not skip_mov:
-                    chunk_mov = work / f"chunk-{chunk.index:04d}.mov"
+                if png_work is not None:
+                    png_work.mkdir(parents=True, exist_ok=True)
                 encode_rgba_stream(
                     frames,
                     width=preset.canvas.width,
@@ -535,9 +630,61 @@ def render_job(
                     shutter_mix=shutter_mix,
                     png_start_number=chunk.first_frame + 1,
                 )
-                if chunk_mov is not None and chunk_mov.is_file():
+                if chunk_mov is not None:
+                    chunk_report = _validate_mov(
+                        chunk_mov,
+                        width=preset.canvas.width,
+                        height=preset.canvas.height,
+                        expected_frames=chunk.n_frames,
+                    )
+                    if not chunk_report.get("passed"):
+                        raise EncodeError(f"chunk {chunk.index:04d} failed validation")
                     segments.append(chunk_mov)
-            if want_mov and not skip_mov:
+                if png_work is not None and not png_chunk_complete(
+                    png_work, first_frame=chunk.first_frame, n_frames=chunk.n_frames
+                ):
+                    raise EncodeError(f"chunk {chunk.index:04d} png frames missing")
+                checkpoint.completed_chunks.append(
+                    ChunkRecord(
+                        index=chunk.index,
+                        first_frame=chunk.first_frame,
+                        n_frames=chunk.n_frames,
+                        start_seconds=chunk.start_seconds,
+                        end_seconds=chunk.end_seconds,
+                        mov_name=chunk_mov.name if chunk_mov is not None else None,
+                        mov_sha256=sha256_file(chunk_mov) if chunk_mov is not None else None,
+                        png_count=chunk.n_frames if png_work is not None else None,
+                    )
+                )
+                write_checkpoint(cp_file, checkpoint)
+                if fail_after_chunk is not None and chunk.index >= fail_after_chunk:
+                    raise RuntimeError("injected checkpoint stop")
+            if reused:
+                remaining = [
+                    window.chunk.start_seconds
+                    for window in windows
+                    if window.chunk.index not in reused
+                ]
+                boundary = min(remaining) if remaining else clip_duration
+                warnings.append(
+                    Diagnostic(
+                        code=DiagnosticCode.W_JOB_RESUMED,
+                        severity=Severity.WARNING,
+                        message=(
+                            f"Resumed at source timestamp {boundary:.3f}s "
+                            f"(reused {len(reused)} chunk(s))."
+                        ),
+                        path=str(job.path),
+                    )
+                )
+                resume_history.append(
+                    {
+                        "resumed": True,
+                        "boundary_seconds": boundary,
+                        "reused_chunks": reused,
+                    }
+                )
+            if producing_mov:
                 tmp_mov = work / "out.mov"
                 concat_videos(segments, tmp_mov, list_path=work / "concat.txt")
                 validation = _validate_mov(
@@ -558,7 +705,7 @@ def render_job(
                     shutil.rmtree(png_dest)
                 shutil.move(str(png_work), str(png_dest))
                 outputs.append({"path": str(png_dest), "format": "png"})
-                if not (want_mov and not skip_mov):
+                if not producing_mov:
                     validation = png_report
                 else:
                     validation = {**validation, "png_frames": png_report.get("frames")}
@@ -593,6 +740,7 @@ def render_job(
             validation=validation,
             analysis=analysis,
             normalization=normalization,
+            resume_history=resume_history,
         )
         return payload
     else:
@@ -616,6 +764,7 @@ def render_job(
             validation=validation,
             analysis=analysis,
             normalization=normalization,
+            resume_history=resume_history,
         )
 
 
@@ -675,6 +824,7 @@ def _result_payload(
     validation: dict[str, Any] | None = None,
     analysis: dict[str, Any] | None = None,
     normalization: dict[str, Any] | None = None,
+    resume_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     glow = preset.effects.get("glow") if isinstance(preset.effects.get("glow"), dict) else {}
     report = validation if validation is not None else {"passed": status == "SUCCEEDED"}
@@ -736,6 +886,11 @@ def _result_payload(
         "warnings": [w.model_dump(mode="json") for w in warnings],
         "outputs": outputs,
         "validation": report,
+        "resume_history": resume_history or [],
         "timestamps": {"started_at": started, "completed_at": _utcnow()},
-        "execution": {"workdir": workdir, "capability": job.capability.value},
+        "execution": {
+            "workdir": workdir,
+            "capability": job.capability.value,
+            "resumed": bool(resume_history),
+        },
     }

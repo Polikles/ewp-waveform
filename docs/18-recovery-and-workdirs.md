@@ -16,7 +16,9 @@ temporary encodes
 diagnostics
 ```
 
-Envelope chunks live only in the workdir. Final output directories receive the concatenated/published asset plus `*_results.json`. Resume from chunk checkpoints is not implemented yet; a failed multi-chunk job keeps the workdir.
+Envelope chunks live only in the workdir. Final output directories receive the concatenated/published asset plus `*_results.json`.
+
+The workdir path is deterministic (`ewp-<key>` under `workdirs.root` or the process temp dir) so a later invocation can find `keep_on_failure` state. `checkpoint.json` is written after the global envelope peak is known and again after each completed chunk. Resume reuses only records that still match source hash, render signature, visual-contract/renderer, clip bounds, chunk plan, and per-chunk SHA-256 / PNG frame presence. Incompatible or corrupt checkpoints are discarded and the job starts clean (`E_CHECKPOINT_INCOMPATIBLE` is not a hard failure on automatic resume). Successful resume emits `W_JOB_RESUMED` with the source-timeline boundary of the first rebuilt chunk.
 
 ## Success lifecycle
 

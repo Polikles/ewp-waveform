@@ -193,6 +193,7 @@ def render(
     start: float | None = None,
     duration: float | None = None,
     keep_temp: bool = False,
+    fail_after_chunk: int | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -243,6 +244,7 @@ def render(
             start=start,
             duration=duration,
             keep_temp=keep_temp,
+            fail_after_chunk=fail_after_chunk,
         )
         out_dir = root / job.project_id
         out_dir.mkdir(parents=True, exist_ok=True)

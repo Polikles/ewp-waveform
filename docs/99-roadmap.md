@@ -35,7 +35,7 @@ No dates are assigned until evidence supports them.
 - [ ] deterministic signature/SKIP/versioning;
 - [ ] output validation;
 - [ ] results;
-- [ ] chunk/checkpoint/resume;
+- [x] chunk/checkpoint/resume;
 - [ ] benchmark runner;
 - [ ] operator installation/runbook.
 

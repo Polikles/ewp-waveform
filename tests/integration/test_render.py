@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import struct
 import subprocess
 import wave
@@ -247,3 +248,116 @@ def test_chunked_png_matches_unchunked_at_join(tmp_path: Path) -> None:
     join = one_frames[len(one_frames) // 2]
     for name in (one_frames[0].name, join.name, one_frames[-1].name):
         assert (one_dir / name).read_bytes() == (many_dir / name).read_bytes()
+
+
+def _chunks_perf(root: Path) -> str:
+    return f"""
+schema_version = 1
+name = "tiny-chunks-resume"
+
+[processing]
+chunk_seconds = 0.25
+jobs = 1
+ffmpeg_threads = 1
+
+[workdirs]
+persistent = true
+root = "{root}"
+keep_on_success = false
+keep_on_failure = true
+"""
+
+
+def _warning_codes(payload: dict[str, object]) -> list[str]:
+    warnings = payload["warnings"]
+    assert isinstance(warnings, list)
+    codes: list[str] = []
+    for item in warnings:
+        assert isinstance(item, dict)
+        codes.append(str(item["code"]))
+    return codes
+
+
+def test_resume_reuses_validated_chunks(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Resume.wav"
+    _tone_wav(src, seconds=0.6, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    performance = _write(tmp_path / "perf.toml", _chunks_perf(tmp_path / "work"))
+    interrupted = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+        fail_after_chunk=0,
+    )
+    assert _job_status(interrupted[0]) == "FAILED"
+    execution = interrupted[0]["execution"]
+    assert isinstance(execution, dict)
+    workdir = Path(str(execution["workdir"]))
+    assert (workdir / "checkpoint.json").is_file()
+    assert (workdir / "png" / "frame_000001.png").is_file()
+    first_png = (workdir / "png" / "frame_000001.png").read_bytes()
+    resumed = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+    )
+    assert _job_status(resumed[0]) == "SUCCEEDED"
+    assert "W_JOB_RESUMED" in _warning_codes(resumed[0])
+    history = resumed[0]["resume_history"]
+    assert isinstance(history, list)
+    assert history
+    assert isinstance(history[0], dict)
+    assert history[0]["reused_chunks"] == [0]
+    dest = _first_output(resumed[0])
+    assert (dest / "frame_000001.png").read_bytes() == first_png
+    reference = render(
+        src,
+        output_dir=tmp_path / "ref",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+        force=True,
+    )
+    assert _job_status(reference[0]) == "SUCCEEDED"
+    ref_dir = _first_output(reference[0])
+    for name in ("frame_000001.png", "frame_000004.png"):
+        assert (dest / name).read_bytes() == (ref_dir / name).read_bytes()
+
+
+def test_stale_checkpoint_is_not_reused(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Stale.wav"
+    _tone_wav(src, seconds=0.6, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    performance = _write(tmp_path / "perf.toml", _chunks_perf(tmp_path / "work"))
+    interrupted = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+        fail_after_chunk=0,
+    )
+    execution = interrupted[0]["execution"]
+    assert isinstance(execution, dict)
+    workdir = Path(str(execution["workdir"]))
+    checkpoint = workdir / "checkpoint.json"
+    payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+    payload["render_signature"] = "0" * 64
+    checkpoint.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    first_png = workdir / "png" / "frame_000001.png"
+    first_png.write_bytes(b"stale")
+    resumed = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+    )
+    assert _job_status(resumed[0]) == "SUCCEEDED"
+    assert "W_JOB_RESUMED" not in _warning_codes(resumed[0])
+    dest = _first_output(resumed[0])
+    assert (dest / "frame_000001.png").read_bytes() != b"stale"
