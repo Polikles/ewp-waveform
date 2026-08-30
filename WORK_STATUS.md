@@ -10,7 +10,7 @@ Development is internal-beta / pre-MVP. There is no chosen release candidate and
 
 ## Next phase
 
-FFmpeg MVP application started. Spike notes remain in `docs/notes/ffmpeg-spike/`.
+FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Next evidence: operator visual QA on a fresh WSL VM (`Instructions/runbook.md`) and long jobs off undersized disks.
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 

@@ -119,7 +119,7 @@ def test_glow_crop_graph_crops_overscan() -> None:
     graph = _glow_crop_graph(8.0, 1400, 280, 26)
     assert "gblur=sigma=8" in graph
     assert "crop=1400:280:26:26" in graph
-    assert graph.endswith("[out]")
+    assert graph.endswith("[vout]")
 
 
 def test_glow_crop_graph_downsamples_supersample() -> None:
@@ -139,6 +139,13 @@ def test_glow_crop_graph_hybrid_shutter_under_sharp_base() -> None:
 def test_glow_crop_graph_no_shutter_skips_blend() -> None:
     graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=0.0)
     assert "blend=" not in graph
+
+
+def test_dual_output_split_does_not_glue_onto_area_flag() -> None:
+    core = _glow_crop_graph(0.0, 80, 32, 0, supersample=12)
+    graph = core.replace("[vout]", ",split=2[png][mov]", 1)
+    assert "flags=area,split=2[png][mov]" in graph
+    assert "areasplit" not in graph
 
 
 def test_shutter_sigma_matches_short_shutter() -> None:

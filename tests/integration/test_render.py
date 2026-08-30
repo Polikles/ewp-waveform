@@ -455,3 +455,52 @@ def test_dry_run_reports_skip_after_successful_render(tmp_path: Path) -> None:
     assert plans[0].action == "SKIP"
     assert plans[0].mov_path is not None
     assert plans[0].mov_path.is_file()
+
+
+def test_render_writes_prores_and_png_together(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Both.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    results = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["prores4444", "png"],
+        preset_name=str(preset),
+        force=True,
+    )
+    if _job_status(results[0]) != "SUCCEEDED":
+        raise AssertionError(results[0].get("warnings"))
+    outputs = results[0]["outputs"]
+    assert isinstance(outputs, list)
+    kinds = {item["format"] for item in outputs if isinstance(item, dict)}
+    assert kinds == {"prores4444", "png"}
+    for item in outputs:
+        assert isinstance(item, dict)
+        path = Path(str(item["path"]))
+        assert path.exists()
+
+
+def test_batch_mixed_skip_and_success(tmp_path: Path) -> None:
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    first = tmp_path / "s0e00-One.wav"
+    second = tmp_path / "s0e00-Two.wav"
+    _tone_wav(first, seconds=0.4, rate=48000)
+    _tone_wav(second, seconds=0.4, rate=48000)
+    out = tmp_path / "out"
+    solo = render(
+        first,
+        output_dir=out,
+        formats=["prores4444"],
+        preset_name=str(preset),
+        force=False,
+    )
+    assert _job_status(solo[0]) == "SUCCEEDED"
+    batch = render(
+        tmp_path,
+        output_dir=out,
+        formats=["prores4444"],
+        preset_name=str(preset),
+        force=False,
+    )
+    statuses = sorted(_job_status(item) for item in batch)
+    assert statuses == ["SKIPPED", "SUCCEEDED"]

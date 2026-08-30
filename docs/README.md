@@ -46,4 +46,6 @@ Additional:
 - `adr/`
 - `notes/` — committed testing-result notes (evidence, not specification)
 
+Operator install/runbook (not architecture): `Instructions/`.
+
 All repository documentation is written in English.

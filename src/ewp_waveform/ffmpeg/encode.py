@@ -60,16 +60,16 @@ def _glow_crop_graph(
             return (
                 f"[0:v]{taa},split=2[base][g];[g]gblur=sigma="
                 f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
-                f"format=rgba{crop}[out]"
+                f"format=rgba{crop}[vout]"
             )
-        return f"[0:v]{taa}{crop}[out]"
+        return f"[0:v]{taa}{crop}[vout]"
     if glow > 0:
         return (
             f"[0:v]{scale},split=2[base][g];[g]gblur=sigma="
             f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
-            f"format=rgba{crop}[out]"
+            f"format=rgba{crop}[vout]"
         )
-    return f"[0:v]{scale}{crop}[out]"
+    return f"[0:v]{scale}{crop}[vout]"
 
 
 def encode_rgba_stream(
@@ -113,7 +113,7 @@ def encode_rgba_stream(
         "-filter_complex",
         graph,
         "-map",
-        "[out]",
+        "[vout]",
         "-fps_mode",
         "cfr",
         "-r",
@@ -192,7 +192,7 @@ def _dual_output_argv(
 ) -> list[str]:
     ss = max(1, int(supersample))
     core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
-    graph = core.replace("[out]", "split=2[png][mov]", 1)
+    graph = core.replace("[vout]", ",split=2[png][mov]", 1)
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
     argv = [

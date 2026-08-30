@@ -6,6 +6,8 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Operator install + runbook under `Instructions/` (Ubuntu/WSL2, doctor, SKIP/resume, fresh-VM checklist).
+- `waveform doctor` checks writable temp dir, free disk, and the encoders/filters the render path actually uses.
 - `waveform benchmark dry-run|run` expands a manifest matrix and records wall time / RSS / output size without mutating canonical presets.
 - `waveform preset list|show`, `performance list|show`, richer `dry-run` (signature, dests, SKIP/PROCESS), run-level `run_*_results.json`, and `clean --workdirs`.
 - Fixed-axis spectrum (`iuris-spectrum`) uses an application log-Hz span: `auto` from source energy or explicit `fmin_hz`/`fmax_hz`, drawn with mirrored bars. Scroll signatures are unchanged.
@@ -28,8 +30,13 @@ The project follows Semantic Versioning. Development is currently an internal be
 - Speech-cut spike follow-up; 30 and 60 documented as supported production FPS (`FR-RENDER-013`).
 - FFmpeg spike analysis of Iuris et Logos reference boards (style names, speaker colors, 1/2/3-speaker layouts).
 
+### Fixed
+
+- Dual PNG+ProRes encode no longer concatenates `flags=area` with `split` (`areasplit`).
+
 ### Changed
 
+- `waveform doctor` requires `gblur`/`overlay`/`scale` rather than unused `showwaves`/`showfreqs`.
 - Merged engineering workflow and legal contribution rules into `CONTRIBUTING.md`.
 - Status documents now treat the license as adopted and describe internal betas rather than a release candidate.
 - `FR-CLI-005` includes `capabilities`; `FR-CLI-009` covers `preset`, `performance`, `benchmark`, and `clean`.

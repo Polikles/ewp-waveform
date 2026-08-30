@@ -5,7 +5,7 @@
 ## Status
 
 - Specification baseline: accepted.
-- Implementation status: pre-MVP; CLI inspect/doctor/dry-run/capabilities/render/preview/preset/performance/clean work.
+- Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
 - Release status: internal beta; no release candidate; no public release.
 - Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
 - Python baseline: Python 3.12.
@@ -32,34 +32,18 @@ DaVinci Resolve / external compositor
 
 Audio editing/mastering, transcription, subtitles, source separation, final scene composition, and publishing are outside scope.
 
-## CLI (0.0.0)
+## Install and run
+
+Operator path (Ubuntu 24.04 / WSL2): [`Instructions/install.md`](./Instructions/install.md) then [`Instructions/runbook.md`](./Instructions/runbook.md).
 
 ```bash
-waveform doctor
-waveform capabilities
-waveform inspect "/path/to/input"
-waveform dry-run "/path/to/input" --preset iuris-default
-waveform preset list
-waveform performance show balanced
+uv sync --no-dev
+uv run waveform doctor
+uv run waveform preview "/path/to/file.wav" --duration 8 --output-dir "/path/to/out"
+uv run waveform render "/path/to/audio" --preset iuris-default --output-dir "/path/to/out"
 ```
 
-`render` / `preview` emit limited scrolling-envelope ProRes (or experimental spectrum). Full CLI surface: `docs/05-cli-specification.md`.
-
-## Planned CLI
-
-Core operator commands:
-
-```bash
-waveform render "/path/to/input" --output-dir "/path/to/output"
-waveform preview "/path/to/input"
-waveform dry-run "/path/to/input"
-waveform inspect "/path/to/input"
-waveform doctor
-```
-
-`INPUT` may be one file or one directory. Directory processing is batch processing. Recursion is opt-in.
-
-`preset`, `performance`, `clean --workdirs`, and `benchmark dry-run|run` are implemented. See `docs/05-cli-specification.md`.
+`INPUT` may be one file or one directory. Recursion is opt-in. Full CLI: `docs/05-cli-specification.md`.
 
 ## Core rules
 

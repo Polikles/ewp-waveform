@@ -38,4 +38,5 @@ The FFmpeg MVP is complete only when:
 - per-job results validate;
 - run summary is implemented or explicitly accepted as a documented MVP exception;
 - integration/regression/determinism/chunk/resume/output tests pass;
-- benchmark baseline and long-duration evidence exist.
+- benchmark **runner** exists; labelled spike estimates are not profile defaults;
+- long-duration and speech visual QA are operator evidence (fresh WSL VM / workstation), not missing code paths. See `Instructions/runbook.md`.

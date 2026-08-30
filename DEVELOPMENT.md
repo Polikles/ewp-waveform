@@ -3,37 +3,30 @@
 ## Reference environment
 
 - Ubuntu 24.04 under WSL2 or bare-metal Ubuntu.
-- Python 3.12.
-- `uv` for Python environment/dependency management.
-- FFmpeg and ffprobe as system dependencies for MVP.
+- Python 3.12 (`>=3.12,<3.13`).
+- `uv` for the virtualenv and lockfile.
+- FFmpeg and ffprobe as system packages (not vendored).
+
+Operator install (no ruff/mypy) is [`Instructions/install.md`](./Instructions/install.md).
 
 ## Current phase
 
-The next engineering phase is the FFmpeg research spike in `docs/21-ffmpeg-baseline-plan.md`. Record spike evidence as notes under `docs/notes/ffmpeg-spike/` (commands, capability outcomes, timing, and resource measurements). Do not commit generated media.
+FFmpeg MVP **roadmap** (code + operator runbook) is in place. Next evidence is operator visual QA on a fresh WSL VM and long jobs off undersized disks. Spike notes stay in `docs/notes/ffmpeg-spike/`. Do not commit generated media.
 
-## Lock file
+Playhead, particles, GPU, Docker, and public release remain deferred (`docs/99-roadmap.md`).
 
-`uv.lock` is intentionally not fabricated in this specification pack. Generate and review it in the implementation environment after the dependency baseline is accepted.
-
-## Intended quality gates
+## Quality gates
 
 ```bash
 uv sync
-make check
-make test-integration
-```
-
-`uv sync` installs the `dev` dependency group (ruff, mypy, pytest). If `make` is unavailable, the same gates are:
-
-```bash
 uv run ruff check .
 uv run mypy src tests
 uv run pytest tests/unit tests/regression
 uv run pytest tests/integration
 ```
 
-The implementation phase must keep these operational.
+If `make` is available: `make check` and `make test-integration`.
 
 ## External dependencies
 
-Do not vendor FFmpeg or other external binaries.
+Do not vendor FFmpeg, codecs, GPU runtimes, fonts, or media binaries.

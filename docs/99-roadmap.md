@@ -21,7 +21,7 @@ No dates are assigned until evidence supports them.
 - [x] operator visual QA of noise renders (direction OK; noise too thick; chunk seam confirmed);
 - [x] short speech cuts (s0e00 / s2e9) for style and glow comparison;
 - [x] 30 vs 60 fps encode path on speech (appearance differs; DaVinci playback still operator);
-- [ ] operator visual QA of speech renders;
+- [ ] operator visual QA of speech renders (fresh WSL VM; see `Instructions/runbook.md`);
 - [ ] long-duration (full s2e9 ~50 min, later ~2.5 h) **off this VM**;
 - [ ] music/non-speech sample when available.
 
@@ -37,7 +37,7 @@ No dates are assigned until evidence supports them.
 - [x] results;
 - [x] chunk/checkpoint/resume;
 - [x] benchmark runner;
-- [ ] operator installation/runbook.
+- [x] operator installation/runbook.
 
 ## Benchmark TODO
 - [ ] chunk 30/60/120/300 s;

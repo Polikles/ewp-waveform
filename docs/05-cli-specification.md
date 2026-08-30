@@ -65,7 +65,7 @@ Reports source/grouping metadata without rendering.
 
 ## Doctor
 
-Checks FFmpeg/ffprobe, encoders/alpha path, writable directories, disk space, and config validity. GPU checks are deferred.
+Checks FFmpeg/ffprobe, `prores_ks` and PNG encoders, `gblur`/`overlay`/`scale`, writable temp dir, and a minimum of 256 MiB free there. GPU checks are deferred. Canonical application config is validated when `--config` is passed to other commands.
 
 ## Capabilities
 
