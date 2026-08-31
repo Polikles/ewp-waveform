@@ -123,7 +123,7 @@ Use a **copy** of audio you are allowed to process. Do not commit outputs.
 1. Install (`Instructions/install.md`) until `waveform doctor` is `ok`.
 2. `waveform capabilities` — expect `domain:time+scroll` limited, `domain:frequency+fixed-axis` experimental, `effect:particles` unsupported, `domain:time+playhead` unsupported.
 3. `inspect` a single WAV and a `s0e00-Damian.wav` / `s0e00-Szymon.wav` pair; grouping must split on the first `-`.
-4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest.
+4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest. Full-file dests appear only after **all** chunks encode and concat; until then work lives under `/tmp/ewp-waveform-work/`. Progress is on **stderr** (`chunk N/M frame 300/3600`, …).
 5. `render` the same **preview clip** (`--start` / `--duration` matching preview) and `dry-run` must show `SKIP`. `--force` must write `_v002`. Full-file `render` is a different dest (minutes of 60 fps ProRes; watch stderr progress).
 6. `render --format prores4444 --format png` and confirm both exist plus `*_results.json` and `run_*_results.json`.
 7. `render --preset iuris-spectrum` on the same short clip; result JSON `analysis.fmin_hz` / `fmax_hz` populated.

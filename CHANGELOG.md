@@ -37,6 +37,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Fixed
 
+- Long FFmpeg stdin encodes no longer deadlock when the child fills a piped stderr (stats). Frame progress is logged every 300 frames.
 - Dual PNG+ProRes encode no longer concatenates `flags=area` with `split` (`areasplit`).
 
 ### Changed

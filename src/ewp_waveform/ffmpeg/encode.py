@@ -99,6 +99,9 @@ def encode_rgba_stream(
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
+        "-nostats",
+        "-loglevel",
+        "error",
         "-y",
         "-f",
         "rawvideo",
@@ -198,6 +201,9 @@ def _dual_output_argv(
     argv = [
         str(ffmpeg),
         "-hide_banner",
+        "-nostats",
+        "-loglevel",
+        "error",
         "-y",
         "-f",
         "rawvideo",

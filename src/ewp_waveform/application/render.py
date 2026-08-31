@@ -156,6 +156,19 @@ def planned_destinations(
     return sig, mov, png
 
 
+def _tick_frames(
+    frames: Iterator[bytes],
+    *,
+    n_frames: int,
+    note: Callable[[str], None],
+    label: str,
+) -> Iterator[bytes]:
+    for index, frame in enumerate(frames, start=1):
+        if index == 1 or index == n_frames or index % 300 == 0:
+            note(f"{label} frame {index}/{n_frames}")
+        yield frame
+
+
 def iter_scroll_frames(
     bins: list[float],
     *,
@@ -589,7 +602,12 @@ def render_job(
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
             note("spectrum encode")
             encode_rgba_stream(
-                frames,
+                _tick_frames(
+                    frames,
+                    n_frames=expected_frames,
+                    note=note,
+                    label="spectrum",
+                ),
                 width=preset.canvas.width,
                 height=preset.canvas.height,
                 fps=job.fps,
@@ -779,15 +797,20 @@ def render_job(
                     continue
                 note(f"chunk {chunk.index + 1}/{len(windows)} encode {chunk.n_frames} frames")
                 item = prepared_by_index[chunk.index]
-                frames = iter_scroll_frames(
-                    item.bins,
-                    duration=clip_duration,
-                    preset=preset,
-                    fps=job.fps,
-                    glow=glow,
-                    first_frame=chunk.first_frame,
+                frames = _tick_frames(
+                    iter_scroll_frames(
+                        item.bins,
+                        duration=clip_duration,
+                        preset=preset,
+                        fps=job.fps,
+                        glow=glow,
+                        first_frame=chunk.first_frame,
+                        n_frames=chunk.n_frames,
+                        origin=item.origin,
+                    ),
                     n_frames=chunk.n_frames,
-                    origin=item.origin,
+                    note=note,
+                    label=f"chunk {chunk.index + 1}/{len(windows)}",
                 )
                 if png_work is not None:
                     png_work.mkdir(parents=True, exist_ok=True)
