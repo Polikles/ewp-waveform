@@ -55,7 +55,7 @@ uv run waveform render "/path/to/audio" --preset iuris-default --output-dir "/pa
 - Alpha transparency is mandatory.
 - ProRes 4444 and PNG sequence are MVP formats.
 - FPS is part of render identity; output format and performance settings are not. Default **60**; 30 is supported.
-- Chunking and resume must preserve temporal/visual continuity.
+- Chunking and resume must preserve temporal/visual continuity. `jobs` is a process count for independent scroll chunks, not a look setting.
 - Equivalent completed jobs are skipped by deterministic render signature.
 - Canonical results are schema-valid JSON.
 - Repository documentation is written in English.

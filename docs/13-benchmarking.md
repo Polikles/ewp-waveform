@@ -67,7 +67,7 @@ Parallel jobs:
 1 / 2 / 4 / auto
 ```
 
-`auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers.
+`jobs` now fans out independent scroll-chunk encodes (one process per worker, each drawing RGBA and piping FFmpeg). It does not change intended appearance. `auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers. Spectrum stays single-process until it has a chunk contract.
 
 FFmpeg threads:
 

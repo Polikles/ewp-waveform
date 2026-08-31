@@ -27,7 +27,7 @@ CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`, `prese
 
 `render`/`preview` write scrolling RMS envelope (`iuris-default`, limited) or experimental fixed-axis spectrum (`iuris-spectrum`, auto/explicit Hz range). Exit codes frozen in `docs/09`.
 
-Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat matches a single-pass preview. Equivalent signatures SKIP complete dests and keep `outputs` populated. Failed scroll jobs keep a deterministic workdir and resume from validated `checkpoint.json` (`W_JOB_RESUMED`). Graceful Ctrl+C cancellation is still best-effort (last complete chunk).
+Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat matches a single-pass preview. After the global peak is stored, `jobs` (default `balanced`=2, `maximum`=4) encodes remaining chunks in parallel processes. Concat stays ordered copy. Equivalent signatures SKIP complete dests and keep `outputs` populated. Failed scroll jobs keep a deterministic workdir and resume from validated `checkpoint.json` (`W_JOB_RESUMED`). Graceful Ctrl+C cancellation is still best-effort (last complete chunk).
 
 Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to brand mirrored line.
 

@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Scroll chunk encode uses `jobs` as a process pool after the global peak is stored. Concat order is unchanged. `jobs=1` and `jobs=2` PNG sequences match. Spectrum remains a single encode.
 - Clip start/duration are part of render identity, so an 8 s preview cannot SKIP a full-file dest.
 - Progress lines on stderr during hash/decode/chunk/encode.
 - Windows drive paths (`D:\\foo`) map to `/mnt/d/foo` on Linux/WSL.

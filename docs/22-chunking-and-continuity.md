@@ -54,8 +54,10 @@ The FFmpeg scroll path uses overlap, not `showwaves` concat.
 - Each chunk decodes a processing window: **preroll** = `window_seconds` + FIR/glow pad, **postroll** = FIR/glow pad. The first chunk clamps preroll to t=0 (same zero-pad as an unchunked job).
 - Viewport timing is global. `bins[0]` of a mid-file decode is placed with a bin origin so frame *i* samples the same envelope index as a single-pass render.
 - Auto-normalization uses a **global** 95th-percentile peak collected from published regions only. Per-chunk auto-gain is forbidden (it would change bar height at joins).
-- Published ProRes segments are copy-concatenated in the FFmpeg adapter. PNG sequences use contiguous `frame_%06d` numbers (`-start_number`).
-- Chunk size remains outside visual identity (ADR-0004). Equivalent continuity does not bump `visual_contract_version`.
+- After that peak is stored, remaining logical chunks may encode concurrently (`performance.processing.jobs` **processes**, not GIL threads). Each worker draws and pipes its own FFmpeg stdin. Concat stays sequential copy in chunk-index order. Appearance must match `jobs=1`. Injected sequential failure (`fail_after_chunk`) stays single-process.
+- When `jobs>1` and `ffmpeg_threads=0`, each worker pins FFmpeg to 1 thread so auto-thread FFmpeg copies do not oversubscribe.
+- Published ProRes segments are copy-concatenated in the FFmpeg adapter. PNG sequences use contiguous `frame_%06d` numbers (`-start_number`). Concurrent PNG writes use non-overlapping frame numbers.
+- Chunk size and worker count remain outside visual identity (ADR-0004). Equivalent continuity does not bump `visual_contract_version`.
 
 Spectrum is a single-pass encode (no chunk concat in this slice). Hz span is visual identity, not a performance setting.
 

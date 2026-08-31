@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import math
+import multiprocessing
 import shutil
+import sys
 from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -296,6 +299,25 @@ def _chunk_seconds(performance: PerformanceProfile) -> float:
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         return 60.0
     return float(raw)
+
+
+def _job_workers(performance: PerformanceProfile) -> int:
+    raw = performance.processing.get("jobs", 1)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 1
+    return max(1, raw)
+
+
+def _encode_worker_threads(configured: int, workers: int) -> int:
+    """Avoid N auto-threaded FFmpeg processes oversubscribing the machine."""
+    if workers > 1 and configured == 0:
+        return 1
+    return configured
+
+
+def _stderr_note(message: str) -> None:
+    sys.stderr.write(f"{message}\n")
+    sys.stderr.flush()
 
 
 def _clip_bounds(
@@ -645,6 +667,7 @@ def render_job(
                 "chunk_count": 1,
                 "preroll_seconds": 0.0,
                 "postroll_seconds": 0.0,
+                "encode_workers": 1,
                 "fmin_hz": span.fmin_hz,
                 "fmax_hz": span.fmax_hz,
                 "frequency_range": span.source,
@@ -782,82 +805,27 @@ def render_job(
             shutter_mix = 0.25
             if isinstance(raw_mix, int | float) and not isinstance(raw_mix, bool):
                 shutter_mix = min(max(float(raw_mix), 0.0), 1.0)
-            segments: list[Path] = []
-            reused: list[int] = []
-            for window in windows:
-                chunk = window.chunk
-                chunk_mov: Path | None = None
-                if producing_mov:
-                    chunk_mov = work / f"chunk-{chunk.index:04d}.mov"
-                if chunk.index in completed_ok:
-                    note(f"chunk {chunk.index + 1}/{len(windows)} reuse")
-                    if chunk_mov is not None:
-                        segments.append(chunk_mov)
-                    reused.append(chunk.index)
-                    continue
-                note(f"chunk {chunk.index + 1}/{len(windows)} encode {chunk.n_frames} frames")
-                item = prepared_by_index[chunk.index]
-                frames = _tick_frames(
-                    iter_scroll_frames(
-                        item.bins,
-                        duration=clip_duration,
-                        preset=preset,
-                        fps=job.fps,
-                        glow=glow,
-                        first_frame=chunk.first_frame,
-                        n_frames=chunk.n_frames,
-                        origin=item.origin,
-                    ),
-                    n_frames=chunk.n_frames,
-                    note=note,
-                    label=f"chunk {chunk.index + 1}/{len(windows)}",
-                )
-                if png_work is not None:
-                    png_work.mkdir(parents=True, exist_ok=True)
-                encode_rgba_stream(
-                    frames,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                    fps=job.fps,
-                    glow=glow,
-                    png_dir=png_work,
-                    prores_path=chunk_mov,
-                    ffmpeg_threads=threads,
-                    overscan=glow_overscan(glow),
-                    supersample=SCROLL_SUPERSAMPLE,
-                    shutter_px=shutter_px,
-                    shutter_mix=shutter_mix,
-                    png_start_number=chunk.first_frame + 1,
-                )
-                if chunk_mov is not None:
-                    chunk_report = _validate_mov(
-                        chunk_mov,
-                        width=preset.canvas.width,
-                        height=preset.canvas.height,
-                        expected_frames=chunk.n_frames,
-                    )
-                    if not chunk_report.get("passed"):
-                        raise EncodeError(f"chunk {chunk.index:04d} failed validation")
-                    segments.append(chunk_mov)
-                if png_work is not None and not png_chunk_complete(
-                    png_work, first_frame=chunk.first_frame, n_frames=chunk.n_frames
-                ):
-                    raise EncodeError(f"chunk {chunk.index:04d} png frames missing")
-                checkpoint.completed_chunks.append(
-                    ChunkRecord(
-                        index=chunk.index,
-                        first_frame=chunk.first_frame,
-                        n_frames=chunk.n_frames,
-                        start_seconds=chunk.start_seconds,
-                        end_seconds=chunk.end_seconds,
-                        mov_name=chunk_mov.name if chunk_mov is not None else None,
-                        mov_sha256=sha256_file(chunk_mov) if chunk_mov is not None else None,
-                        png_count=chunk.n_frames if png_work is not None else None,
-                    )
-                )
-                write_checkpoint(cp_file, checkpoint)
-                if fail_after_chunk is not None and chunk.index >= fail_after_chunk:
-                    raise RuntimeError("injected checkpoint stop")
+            reused, encode_workers = _run_scroll_encodes(
+                windows=windows,
+                prepared_by_index=prepared_by_index,
+                completed_ok=completed_ok,
+                preset=preset,
+                clip_duration=clip_duration,
+                fps=job.fps,
+                glow=glow,
+                png_work=png_work,
+                work=work,
+                producing_mov=producing_mov,
+                ffmpeg_threads=threads,
+                shutter_px=shutter_px,
+                shutter_mix=shutter_mix,
+                workers=_job_workers(performance),
+                fail_after_chunk=fail_after_chunk,
+                checkpoint=checkpoint,
+                cp_file=cp_file,
+                note=note,
+            )
+            analysis["encode_workers"] = encode_workers
             if reused:
                 remaining = [
                     window.chunk.start_seconds
@@ -884,6 +852,7 @@ def render_job(
                     }
                 )
             if producing_mov:
+                segments = [work / f"chunk-{window.chunk.index:04d}.mov" for window in windows]
                 note(f"concat {len(segments)} segment(s)")
                 tmp_mov = work / "out.mov"
                 concat_videos(segments, tmp_mov, list_path=work / "concat.txt")
@@ -975,6 +944,234 @@ class PreparedChunk:
     window: ProcessingWindow
     bins: list[float]
     origin: float
+
+
+@dataclass(frozen=True)
+class ChunkEncodeTask:
+    """Pickleable payload for one independent scroll chunk (process-pool target)."""
+
+    chunk_index: int
+    n_windows: int
+    first_frame: int
+    n_frames: int
+    start_seconds: float
+    end_seconds: float
+    bins: list[float]
+    origin: float
+    clip_duration: float
+    preset: VisualPreset
+    fps: float
+    glow: float
+    png_dir: str | None
+    prores_path: str | None
+    ffmpeg_threads: int
+    overscan: int
+    supersample: int
+    shutter_px: float
+    shutter_mix: float
+
+
+def encode_scroll_chunk(
+    task: ChunkEncodeTask,
+    note: Callable[[str], None] | None = None,
+) -> ChunkRecord:
+    """Encode one logical chunk. Safe as a spawn process-pool target."""
+    progress = note if note is not None else _stderr_note
+    label = f"chunk {task.chunk_index + 1}/{task.n_windows}"
+    progress(f"{label} encode {task.n_frames} frames")
+    frames = _tick_frames(
+        iter_scroll_frames(
+            task.bins,
+            duration=task.clip_duration,
+            preset=task.preset,
+            fps=task.fps,
+            glow=task.glow,
+            first_frame=task.first_frame,
+            n_frames=task.n_frames,
+            origin=task.origin,
+        ),
+        n_frames=task.n_frames,
+        note=progress,
+        label=label,
+    )
+    png_dir = Path(task.png_dir) if task.png_dir is not None else None
+    prores_path = Path(task.prores_path) if task.prores_path is not None else None
+    encode_rgba_stream(
+        frames,
+        width=task.preset.canvas.width,
+        height=task.preset.canvas.height,
+        fps=task.fps,
+        glow=task.glow,
+        png_dir=png_dir,
+        prores_path=prores_path,
+        ffmpeg_threads=task.ffmpeg_threads,
+        overscan=task.overscan,
+        supersample=task.supersample,
+        shutter_px=task.shutter_px,
+        shutter_mix=task.shutter_mix,
+        png_start_number=task.first_frame + 1,
+    )
+    if prores_path is not None:
+        chunk_report = _validate_mov(
+            prores_path,
+            width=task.preset.canvas.width,
+            height=task.preset.canvas.height,
+            expected_frames=task.n_frames,
+        )
+        if not chunk_report.get("passed"):
+            raise EncodeError(f"chunk {task.chunk_index:04d} failed validation")
+    if png_dir is not None and not png_chunk_complete(
+        png_dir, first_frame=task.first_frame, n_frames=task.n_frames
+    ):
+        raise EncodeError(f"chunk {task.chunk_index:04d} png frames missing")
+    return ChunkRecord(
+        index=task.chunk_index,
+        first_frame=task.first_frame,
+        n_frames=task.n_frames,
+        start_seconds=task.start_seconds,
+        end_seconds=task.end_seconds,
+        mov_name=prores_path.name if prores_path is not None else None,
+        mov_sha256=sha256_file(prores_path) if prores_path is not None else None,
+        png_count=task.n_frames if png_dir is not None else None,
+    )
+
+
+def _chunk_task(
+    window: ProcessingWindow,
+    prepared: PreparedChunk,
+    *,
+    n_windows: int,
+    preset: VisualPreset,
+    clip_duration: float,
+    fps: float,
+    glow: float,
+    png_work: Path | None,
+    work: Path,
+    producing_mov: bool,
+    ffmpeg_threads: int,
+    shutter_px: float,
+    shutter_mix: float,
+) -> ChunkEncodeTask:
+    chunk = window.chunk
+    chunk_mov = work / f"chunk-{chunk.index:04d}.mov" if producing_mov else None
+    return ChunkEncodeTask(
+        chunk_index=chunk.index,
+        n_windows=n_windows,
+        first_frame=chunk.first_frame,
+        n_frames=chunk.n_frames,
+        start_seconds=chunk.start_seconds,
+        end_seconds=chunk.end_seconds,
+        bins=prepared.bins,
+        origin=prepared.origin,
+        clip_duration=clip_duration,
+        preset=preset,
+        fps=fps,
+        glow=glow,
+        png_dir=str(png_work) if png_work is not None else None,
+        prores_path=str(chunk_mov) if chunk_mov is not None else None,
+        ffmpeg_threads=ffmpeg_threads,
+        overscan=glow_overscan(glow),
+        supersample=SCROLL_SUPERSAMPLE,
+        shutter_px=shutter_px,
+        shutter_mix=shutter_mix,
+    )
+
+
+def _run_scroll_encodes(
+    *,
+    windows: Sequence[ProcessingWindow],
+    prepared_by_index: dict[int, PreparedChunk],
+    completed_ok: set[int],
+    preset: VisualPreset,
+    clip_duration: float,
+    fps: float,
+    glow: float,
+    png_work: Path | None,
+    work: Path,
+    producing_mov: bool,
+    ffmpeg_threads: int,
+    shutter_px: float,
+    shutter_mix: float,
+    workers: int,
+    fail_after_chunk: int | None,
+    checkpoint: Checkpoint,
+    cp_file: Path,
+    note: Callable[[str], None],
+) -> tuple[list[int], int]:
+    """Encode remaining chunks; concat order is applied by the caller.
+
+    ``jobs>1`` fans out independent chunks after the global peak is stored.
+    ``fail_after_chunk`` stays sequential so injected resume tests remain exact.
+    """
+    reused: list[int] = []
+    remaining: list[ProcessingWindow] = []
+    for window in windows:
+        if window.chunk.index in completed_ok:
+            note(f"chunk {window.chunk.index + 1}/{len(windows)} reuse")
+            reused.append(window.chunk.index)
+        else:
+            remaining.append(window)
+    if not remaining:
+        return reused, 0
+
+    work_abs = work.resolve()
+    png_abs = png_work.resolve() if png_work is not None else None
+    if png_abs is not None:
+        png_abs.mkdir(parents=True, exist_ok=True)
+
+    use_pool = workers > 1 and fail_after_chunk is None and len(remaining) > 1
+    encode_workers = min(workers, len(remaining)) if use_pool else 1
+    worker_threads = _encode_worker_threads(ffmpeg_threads, encode_workers)
+
+    def task_for(window: ProcessingWindow) -> ChunkEncodeTask:
+        return _chunk_task(
+            window,
+            prepared_by_index[window.chunk.index],
+            n_windows=len(windows),
+            preset=preset,
+            clip_duration=clip_duration,
+            fps=fps,
+            glow=glow,
+            png_work=png_abs,
+            work=work_abs,
+            producing_mov=producing_mov,
+            ffmpeg_threads=worker_threads,
+            shutter_px=shutter_px,
+            shutter_mix=shutter_mix,
+        )
+
+    def commit(record: ChunkRecord) -> None:
+        checkpoint.completed_chunks.append(record)
+        write_checkpoint(cp_file, checkpoint)
+
+    if not use_pool:
+        for window in remaining:
+            commit(encode_scroll_chunk(task_for(window), note=note))
+            if fail_after_chunk is not None and window.chunk.index >= fail_after_chunk:
+                raise RuntimeError("injected checkpoint stop")
+        return reused, encode_workers
+
+    note(f"encode {len(remaining)} remaining chunk(s) with {encode_workers} process(es)")
+    ctx = multiprocessing.get_context("spawn")
+    first_error: BaseException | None = None
+    with ProcessPoolExecutor(max_workers=encode_workers, mp_context=ctx) as pool:
+        pending = [pool.submit(encode_scroll_chunk, task_for(window)) for window in remaining]
+        try:
+            for future in as_completed(pending):
+                try:
+                    record = future.result()
+                except Exception as exc:
+                    if first_error is None:
+                        first_error = exc
+                    continue
+                commit(record)
+        except KeyboardInterrupt:
+            for future in pending:
+                future.cancel()
+            raise
+    if first_error is not None:
+        raise first_error
+    return reused, encode_workers
 
 
 def _prepare_chunk_envelopes(

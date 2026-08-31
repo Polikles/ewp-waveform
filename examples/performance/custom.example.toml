@@ -3,7 +3,7 @@ name = "custom-performance-example"
 
 [processing]
 chunk_seconds = 120
-jobs = 2
+jobs = 2  # process-pool scroll chunk encodes; does not change look
 ffmpeg_threads = 8
 
 [workdirs]

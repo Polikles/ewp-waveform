@@ -19,7 +19,7 @@ Compose those assets later in DaVinci Resolve or another NLE. This tool does not
 |---|---|---|
 | Scroll envelope (podcast target) | `iuris-default` | 60 fps, 5 s window, mirrored bars, medium glow. Limited vs brand mirrored line. Locked from operator pick `*ad0c99b500c0.mov`. |
 | Fixed-axis spectrum | `iuris-spectrum` | Frequency on X (log-Hz, auto span). Vertical motion only. Experimental. |
-| Performance | `balanced` | 60 s chunks, 2 jobs field (unused for parallel encode in this MVP), FFmpeg threads 0 (auto). |
+| Performance | `balanced` | 60 s chunks, 2 encode processes, FFmpeg threads 0 (auto; pinned to 1 per process when jobs>1). |
 
 Playhead envelope and particles are not available. GPU is not used.
 
@@ -104,7 +104,7 @@ If a long scroll job dies after some 60 s chunks:
 
 - A few seconds of `iuris-default` at 60 fps is the right smoke test.
 - Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk.
-- Chunk size (`--performance balanced`, `chunk_seconds = 60`) does not change the intended look.
+- Chunk size and `jobs` (`--performance balanced` or `maximum`) do not change the intended look. `balanced` uses 2 encode processes; `maximum` uses 4. A custom performance TOML can raise `jobs` further on a many-core CPU.
 - `benchmark run` is for matrices of short files. Do not point the example manifest at private episode paths inside git.
 
 ## Known limits (do not treat as bugs)
@@ -113,7 +113,7 @@ If a long scroll job dies after some 60 s chunks:
 - Spectrum is **experimental** (application FFT + log-Hz span, not the particle field).
 - Playhead mode is refused.
 - Particles enabled in a preset are refused.
-- `jobs` in a performance profile is recorded; this MVP does not fan out parallel encodes yet.
+- `jobs` is the number of **processes** that encode independent 60 s scroll chunks after the global peak is stored. Concat stays ordered copy. `jobs=1` and `jobs=2` must match visually. Spectrum is still a single encode. GPU is not used.
 - 10-bit ProRes request vs 12-bit ffprobe readout remains an open fidelity note.
 
 ## Fresh WSL VM checklist
@@ -145,3 +145,4 @@ Long s2e9 / ~2.5 h jobs stay off undersized VMs.
 | Empty leftover `.mov` | Empty dests are not skipped; rerun should replace them. |
 | Disk fills with ProRes | Use `preview --duration 8`; delete `waveform-output/` / `benchmark-output/` you created; they are gitignored. |
 | Resume did not reuse chunks | Checkpoint must match source hash and render signature. Stale files are discarded on purpose. |
+| CPU stays at a few percent | Old builds encoded chunks one-by-one (one Python core + one FFmpeg). Pull a revision that uses `jobs`, then `--performance balanced` (2 processes) or `maximum` (4). Custom `jobs` in a performance TOML can go higher. GPU is later. |

@@ -41,7 +41,8 @@ No dates are assigned until evidence supports them.
 
 ## Benchmark TODO
 - [ ] chunk 30/60/120/300 s;
-- [ ] jobs 1/2/4/auto;
+- [x] scroll chunk encode uses `jobs` as a process pool (`balanced`=2, `maximum`=4);
+- [ ] jobs 1/2/4/auto wall-time evidence on the operator workstation;
 - [ ] FFmpeg thread variants;
 - [ ] PNG/ProRes/both;
 - [ ] ~30/~60/~180 min inputs;
@@ -69,7 +70,7 @@ No dates are assigned until evidence supports them.
 - [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 
 ## Later
-- [ ] GPU feasibility/RTX benchmark;
+- [ ] GPU feasibility/RTX benchmark (after default-preset look stays locked and CPU process-parallel is measured);
 - [ ] low-resource profiles/minimum hardware;
 - [ ] Windows/Apple Silicon;
 - [ ] browser GUI;

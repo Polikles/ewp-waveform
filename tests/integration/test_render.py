@@ -289,14 +289,60 @@ def test_chunked_png_matches_unchunked_at_join(tmp_path: Path) -> None:
         assert (one_dir / name).read_bytes() == (many_dir / name).read_bytes()
 
 
-def _chunks_perf(root: Path) -> str:
+def test_parallel_chunk_png_matches_sequential(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Jobs.wav"
+    _tone_wav(src, seconds=0.6, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    sequential_perf = _write(tmp_path / "jobs1.toml", TINY_CHUNKS)
+    parallel_perf = _write(
+        tmp_path / "jobs2.toml",
+        TINY_CHUNKS.replace('name = "tiny-chunks"', 'name = "tiny-chunks-jobs2"').replace(
+            "jobs = 1", "jobs = 2"
+        ),
+    )
+    sequential = render(
+        src,
+        output_dir=tmp_path / "one",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(sequential_perf),
+        force=True,
+    )
+    parallel = render(
+        src,
+        output_dir=tmp_path / "two",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(parallel_perf),
+        force=True,
+    )
+    assert _job_status(sequential[0]) == "SUCCEEDED"
+    assert _job_status(parallel[0]) == "SUCCEEDED"
+    sequential_analysis = sequential[0]["analysis"]
+    parallel_analysis = parallel[0]["analysis"]
+    assert isinstance(sequential_analysis, dict)
+    assert isinstance(parallel_analysis, dict)
+    assert int(sequential_analysis["chunk_count"]) >= 2
+    assert int(sequential_analysis["encode_workers"]) == 1
+    assert int(parallel_analysis["encode_workers"]) == 2
+    one_dir = _first_output(sequential[0])
+    two_dir = _first_output(parallel[0])
+    one_frames = sorted(one_dir.glob("frame_*.png"))
+    two_frames = sorted(two_dir.glob("frame_*.png"))
+    assert [path.name for path in one_frames] == [path.name for path in two_frames]
+    assert one_frames
+    for left, right in zip(one_frames, two_frames, strict=True):
+        assert left.read_bytes() == right.read_bytes()
+
+
+def _chunks_perf(root: Path, jobs: int = 2) -> str:
     return f"""
 schema_version = 1
 name = "tiny-chunks-resume"
 
 [processing]
 chunk_seconds = 0.25
-jobs = 1
+jobs = {jobs}
 ffmpeg_threads = 1
 
 [workdirs]
