@@ -1,4 +1,4 @@
-"""Draw RGBA frames for scrolling envelope bars (linia lustrzana family)."""
+"""Draw RGBA frames for scrolling envelope bars (mirrored-line family)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def bar_metrics(style: str, stroke_width: float) -> tuple[int, int]:
         return 1, 0
     if style == "classic":
         return max(1, stroke // 2), 2
-    # mirrored (linia lustrzana): dense touching bars, no 1 px gap (that gap strobes).
+    # mirrored line: dense touching bars, no 1 px gap (that gap strobes).
     return stroke, 0
 
 

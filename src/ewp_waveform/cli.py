@@ -14,12 +14,21 @@ from ewp_waveform.application.service import AppError
 from ewp_waveform.config.load import load_performance, load_preset
 from ewp_waveform.domain.diagnostics import EXIT_CODE_VALUES, ExitCode
 from ewp_waveform.identity import short_signature
+from ewp_waveform.paths import normalize_user_path
 
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help="ewp-waveform — deterministic transparent waveform assets.",
 )
+
+
+def _cli_path(value: str) -> Path:
+    return normalize_user_path(value)
+
+
+def _progress(message: str) -> None:
+    typer.echo(message, err=True)
 
 
 def _fail(exc: AppError) -> None:
@@ -64,13 +73,15 @@ def capabilities() -> None:
 
 @app.command("inspect")
 def inspect_cmd(
-    input_path: Path = typer.Argument(..., metavar="INPUT"),
+    input_path: str = typer.Argument(..., metavar="INPUT"),
     recursive: bool = typer.Option(False, "--recursive"),
     config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
 ) -> None:
     """Report source and grouping metadata without rendering."""
     try:
-        rows = app_service.inspect_input(input_path, recursive=recursive, config_path=config)
+        rows = app_service.inspect_input(
+            _cli_path(input_path), recursive=recursive, config_path=config
+        )
     except AppError as exc:
         _fail(exc)
     for media, project_id, track_id in rows:
@@ -84,28 +95,32 @@ def inspect_cmd(
 
 @app.command("dry-run")
 def dry_run_cmd(
-    input_path: Path = typer.Argument(..., metavar="INPUT"),
+    input_path: str = typer.Argument(..., metavar="INPUT"),
     recursive: bool = typer.Option(False, "--recursive"),
     config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
     preset: str | None = typer.Option(None, "--preset"),
     performance: str | None = typer.Option(None, "--performance"),
     fps: float | None = typer.Option(None, "--fps"),
-    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    output_dir: str | None = typer.Option(None, "--output-dir"),
     format_name: list[str] | None = typer.Option(None, "--format"),
     force: bool = typer.Option(False, "--force"),
+    start: float | None = typer.Option(None, "--start"),
+    duration: float | None = typer.Option(None, "--duration"),
 ) -> None:
     """Resolve discovery, grouping, signatures, dests, and SKIP/PROCESS without rendering."""
     try:
         _cfg, visual, perf, plans, diagnostics = app_service.plan_jobs(
-            input_path,
+            _cli_path(input_path),
             recursive=recursive,
             config_path=config,
             preset_name=preset,
             performance_name=performance,
             fps_override=fps,
-            output_dir=output_dir,
+            output_dir=_cli_path(output_dir) if output_dir else None,
             formats=format_name,
             force=force,
+            start=start,
+            duration=duration,
         )
     except AppError as exc:
         _fail(exc)
@@ -138,14 +153,14 @@ def dry_run_cmd(
 
 
 def _run_render(
-    input_path: Path,
+    input_path: str,
     *,
     recursive: bool,
     config: Path | None,
     preset: str | None,
     performance: str | None,
     fps: float | None,
-    output_dir: Path | None,
+    output_dir: str | None,
     formats: list[str] | None,
     force: bool,
     start: float | None,
@@ -154,18 +169,19 @@ def _run_render(
 ) -> None:
     try:
         results = app_service.render(
-            input_path,
+            _cli_path(input_path),
             recursive=recursive,
             config_path=config,
             preset_name=preset,
             performance_name=performance,
             fps_override=fps,
-            output_dir=output_dir,
+            output_dir=_cli_path(output_dir) if output_dir else None,
             formats=formats or None,
             force=force,
             start=start,
             duration=duration,
             keep_temp=keep_temp,
+            progress=_progress,
         )
     except AppError as exc:
         _fail(exc)
@@ -176,7 +192,20 @@ def _run_render(
         status = "UNKNOWN"
         if isinstance(job_obj, dict):
             status = str(job_obj.get("status", "UNKNOWN"))
-        typer.echo(f"{status}: {payload.get('result_json', '')}")
+        stamps = payload.get("timestamps")
+        duration_s = ""
+        if isinstance(stamps, dict) and stamps.get("duration_seconds") is not None:
+            duration_s = f"  duration_s={stamps.get('duration_seconds')}"
+        typer.echo(f"{status}: {payload.get('result_json', '')}{duration_s}")
+        warns = payload.get("warnings")
+        if isinstance(warns, list):
+            for item in warns:
+                if isinstance(item, dict) and item.get("severity") == "warning":
+                    typer.secho(
+                        f"{item.get('code')}: {item.get('message')}",
+                        fg=typer.colors.YELLOW,
+                        err=True,
+                    )
         outputs = payload.get("outputs")
         if isinstance(outputs, list):
             for item in outputs:
@@ -196,13 +225,13 @@ def _run_render(
 
 @app.command()
 def render(
-    input_path: Path = typer.Argument(..., metavar="INPUT"),
+    input_path: str = typer.Argument(..., metavar="INPUT"),
     recursive: bool = typer.Option(False, "--recursive"),
     config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
     preset: str | None = typer.Option(None, "--preset"),
     performance: str | None = typer.Option(None, "--performance"),
     fps: float | None = typer.Option(None, "--fps"),
-    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    output_dir: str | None = typer.Option(None, "--output-dir"),
     format_name: list[str] | None = typer.Option(None, "--format"),
     force: bool = typer.Option(False, "--force"),
     keep_temp: bool = typer.Option(False, "--keep-temp"),
@@ -226,14 +255,14 @@ def render(
 
 @app.command()
 def preview(
-    input_path: Path = typer.Argument(..., metavar="INPUT"),
+    input_path: str = typer.Argument(..., metavar="INPUT"),
     start: float = typer.Option(0.0, "--start"),
     duration: float = typer.Option(8.0, "--duration"),
     recursive: bool = typer.Option(False, "--recursive"),
     config: Path | None = typer.Option(None, "--config", exists=True, dir_okay=False),
     preset: str | None = typer.Option(None, "--preset"),
     fps: float | None = typer.Option(None, "--fps"),
-    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    output_dir: str | None = typer.Option(None, "--output-dir"),
     format_name: list[str] | None = typer.Option(None, "--format"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:

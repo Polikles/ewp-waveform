@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +59,14 @@ def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def elapsed_seconds(started_at: str, completed_at: str) -> float:
+    def parse(stamp: str) -> datetime:
+        return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+    delta: timedelta = parse(completed_at) - parse(started_at)
+    return max(0.0, delta.total_seconds())
+
+
 def build_run_summary(
     results: list[dict[str, Any]],
     *,
@@ -82,11 +90,18 @@ def build_run_summary(
             skipped += 1
         elif status == "FAILED":
             failed += 1
+        job_duration = None
+        stamps = payload.get("timestamps")
+        if isinstance(stamps, dict) and "duration_seconds" in stamps:
+            job_duration = stamps.get("duration_seconds")
+        elif isinstance(stamps, dict) and "started_at" in stamps and "completed_at" in stamps:
+            job_duration = elapsed_seconds(str(stamps["started_at"]), str(stamps["completed_at"]))
         jobs.append(
             {
                 "job_id": job_id,
                 "status": status,
                 "result_json": payload.get("result_json"),
+                "duration_seconds": job_duration,
             }
         )
     run_id = started_at.replace("-", "").replace(":", "")
@@ -101,7 +116,11 @@ def build_run_summary(
             "failed": failed,
         },
         "jobs": jobs,
-        "timestamps": {"started_at": started_at, "completed_at": completed_at},
+        "timestamps": {
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "duration_seconds": elapsed_seconds(started_at, completed_at),
+        },
     }
 
 

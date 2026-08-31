@@ -36,22 +36,22 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
         CapabilityItem(
             name="style:classic",
             level=CapabilityLevel.LIMITED,
-            notes="Linia klasyczna: phrase-length thin ticks. Not 33 ms PCM.",
+            notes="Classic line: phrase-length thin ticks. Not 33 ms PCM.",
         ),
         CapabilityItem(
             name="style:mirrored",
             level=CapabilityLevel.LIMITED,
-            notes="Scrolling RMS bars implemented; not yet pixel-matched to the boards.",
+            notes="Scrolling RMS mirrored-line bars; not yet pixel-matched to the boards.",
         ),
         CapabilityItem(
             name="style:filled",
             level=CapabilityLevel.LIMITED,
-            notes="Wstęga. showwavespic matches time scale, not discrete bars.",
+            notes="Filled ribbon. showwavespic matches time scale, not discrete bars.",
         ),
         CapabilityItem(
             name="style:segmented",
             level=CapabilityLevel.EXPERIMENTAL,
-            notes="Impuls segmentowy: discrete columns. Slim-gap sausage is the wrong experiment.",
+            notes="Segmented impulse: discrete columns. Slim-gap sausage is the wrong experiment.",
         ),
         CapabilityItem(
             name="effect:glow",

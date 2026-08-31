@@ -29,6 +29,8 @@ def render_signature(
     preset: VisualPreset,
     fps: float,
     renderer: str = "ffmpeg",
+    clip_start: float = 0.0,
+    clip_duration: float | None = None,
 ) -> str:
     payload = {
         "source_sha256": source_sha256,
@@ -47,6 +49,8 @@ def render_signature(
         "effects": preset.effects,
         "renderer": renderer,
         "visual_contract_version": VISUAL_CONTRACT_VERSION,
+        "clip_start": round(max(clip_start, 0.0), 9),
+        "clip_duration": None if clip_duration is None else round(max(clip_duration, 0.0), 9),
     }
     if preset.waveform.domain == "frequency":
         payload["spectrum_contract_version"] = SPECTRUM_CONTRACT_VERSION

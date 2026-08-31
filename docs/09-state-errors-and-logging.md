@@ -30,6 +30,9 @@ Grouped tracks differ by >1 and <=3 target frames. Review alignment.
 ### `W_JOB_RESUMED`
 A validated recovery path resumed at a reported source timestamp (first rebuilt chunk). Manually inspect the boundary. The result also stores `resume_history`.
 
+### `W_OUTPUT_SPACE`
+Output-size estimate is missing, or is close to / above free space on the output volume. Labelled spike extrapolation; not a hard stop.
+
 ## Initial errors
 
 - `E_INPUT_UNSUPPORTED`

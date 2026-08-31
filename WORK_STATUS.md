@@ -16,12 +16,12 @@ Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `spe
 
 Two choosable visual defaults:
 
-- **time + scroll** — sliding phrase envelope (linia lustrzana); current podcast target.
+- **time + scroll** — sliding phrase envelope (mirrored line); current podcast target.
 - **frequency + fixed axis** — spectrum-like wave, silence flat, vertical motion only; particle field for MVP2.
 
 Playhead envelope is later (scrubber / optional viz).
 
-FFmpeg cannot draw linia lustrzana faithfully (`showwaves` window wrong). Fixed-axis spectrum is application FFT + log-Hz span (experimental vs brand).
+FFmpeg cannot draw mirrored line faithfully (`showwaves` window wrong). Fixed-axis spectrum is application FFT + log-Hz span (experimental vs brand).
 
 CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`, `preset list|show`, `performance list|show`, `clean --workdirs`, `benchmark dry-run|run`.
 
@@ -29,7 +29,7 @@ CLI: `doctor`, `inspect`, `capabilities`, `dry-run`, `preview`, `render`, `prese
 
 Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat matches a single-pass preview. Equivalent signatures SKIP complete dests and keep `outputs` populated. Failed scroll jobs keep a deterministic workdir and resume from validated `checkpoint.json` (`W_JOB_RESUMED`). Graceful Ctrl+C cancellation is still best-effort (last complete chunk).
 
-Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to linia lustrzana.
+Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to brand mirrored line.
 
 Long jobs run on the operator workstation.
 

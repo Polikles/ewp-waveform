@@ -2,7 +2,7 @@ schema_version = 1
 name = "initial-style-and-performance-matrix"
 
 [[inputs]]
-path = "/path/to/s0e00-Szymon.wav"
+path = "/path/to/s0e00-Damian.wav"
 
 [[inputs]]
 path = "/path/to/s0e00-Damian.wav"

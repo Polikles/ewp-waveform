@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ewp_waveform.application.capability import capability_for_preset
+from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
 from ewp_waveform.application.plan import plan_destinations_for_job
 from ewp_waveform.application.render import output_root, render_job
 from ewp_waveform.application.results import utc_now, write_run_summary
@@ -20,14 +21,6 @@ from ewp_waveform.domain.models import PlannedJob, TimeMode, VisualizationDomain
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
 from ewp_waveform.ffmpeg.process import ToolNotFoundError
 from ewp_waveform.identity import sha256_file
-
-# Spike note (docs/notes/ffmpeg-spike/findings.md): filled+medium glow, 1400x280, 30 fps.
-_SPIKE_PRORES_MB_PER_S = 12.5
-_SPIKE_PNG_MB_PER_S = 3.6
-_SPIKE_PIXEL_FPS = 1400 * 280 * 30
-_ESTIMATE_LABEL = (
-    "labelled spike extrapolation (filled+glow 1400x280 @ 30 fps); not a profile default"
-)
 
 OVERRIDE_KEYS = frozenset(
     {
@@ -149,16 +142,6 @@ def _variant_preset(variant: BenchmarkVariant, manifest_dir: Path) -> VisualPres
     return apply_overrides(base, variant.overrides, variant.name)
 
 
-def _disk_estimate_mb(duration: float, preset: VisualPreset, formats: list[str]) -> float:
-    scale = (preset.canvas.width * preset.canvas.height * preset.canvas.fps) / _SPIKE_PIXEL_FPS
-    total = 0.0
-    if "prores4444" in formats or not formats:
-        total += duration * _SPIKE_PRORES_MB_PER_S * scale
-    if "png" in formats:
-        total += duration * _SPIKE_PNG_MB_PER_S * scale
-    return total
-
-
 def expand_benchmark(
     manifest: BenchmarkManifest,
     *,
@@ -219,8 +202,8 @@ def expand_benchmark(
                         and duration is not None
                         and duration > 0
                     ):
-                        estimate = _disk_estimate_mb(duration, preset, formats)
-                        label = _ESTIMATE_LABEL
+                        estimate = estimate_output_mb(duration, preset, formats)
+                        label = ESTIMATE_LABEL
                     cells.append(
                         BenchmarkCell(
                             input_path=source,

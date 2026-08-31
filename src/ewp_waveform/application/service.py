@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,8 +20,9 @@ from ewp_waveform.application.benchmark import (
 )
 from ewp_waveform.application.capability import capability_for_preset
 from ewp_waveform.application.clean import clean_workdirs, list_workdirs
+from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
 from ewp_waveform.application.plan import JobPlan, plan_destinations_for_job
-from ewp_waveform.application.render import output_root, render_job
+from ewp_waveform.application.render import _clip_bounds, output_root, render_job
 from ewp_waveform.application.results import build_run_summary, utc_now, write_run_summary
 from ewp_waveform.config.load import (
     list_performance_profiles,
@@ -194,6 +197,8 @@ def plan_jobs(
     output_dir: Path | None = None,
     formats: list[str] | None = None,
     force: bool = False,
+    start: float | None = None,
+    duration: float | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -225,6 +230,10 @@ def plan_jobs(
             )
             continue
         root = output_root(job.path, output_dir, app_cfg.output.directory_name)
+        _clip_start, clip_dur = _clip_bounds(media, start, duration)
+        space = _output_space_warning(root, preset, fmts, clip_dur)
+        if space is not None:
+            diagnostics.append(space)
         planned = plan_destinations_for_job(
             job,
             preset,
@@ -232,6 +241,8 @@ def plan_jobs(
             output_dir=root,
             formats=fmts,
             force=force,
+            clip_start=start if start is not None and start > 0 else 0.0,
+            clip_duration=duration if duration is not None and duration > 0 else None,
         )
         plans.append(
             JobPlan(
@@ -262,6 +273,7 @@ def render(
     duration: float | None = None,
     keep_temp: bool = False,
     fail_after_chunk: int | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -300,9 +312,16 @@ def render(
     failed = 0
     started = utc_now()
     summary_root: Path | None = None
+    extra_space: list[Diagnostic] = []
     for job in jobs:
         media = probe_media(job.path)
         root = output_root(job.path, output_dir, app_cfg.output.directory_name)
+        _cs, clip_dur = _clip_bounds(media, start, duration)
+        space = _output_space_warning(root, preset, fmts, clip_dur)
+        if space is not None:
+            extra_space.append(space)
+            if progress is not None:
+                progress(f"{space.code.value}: {space.message}")
         payload = render_job(
             job,
             media,
@@ -315,7 +334,14 @@ def render(
             duration=duration,
             keep_temp=keep_temp,
             fail_after_chunk=fail_after_chunk,
+            progress=progress,
         )
+        if extra_space:
+            existing = payload.get("warnings")
+            merged = list(existing) if isinstance(existing, list) else []
+            merged.extend(w.model_dump(mode="json") for w in extra_space)
+            payload["warnings"] = merged
+            extra_space.clear()
         out_dir = root / job.project_id
         out_dir.mkdir(parents=True, exist_ok=True)
         result_file = out_dir / f"{job.path.stem}_{preset.name}_results.json"
@@ -339,6 +365,38 @@ def render(
             payload["run_json"] = str(summary_path)
     _ = failed
     return results
+
+
+def _output_space_warning(
+    root: Path,
+    preset: VisualPreset,
+    formats: list[str],
+    clip_duration: float,
+) -> Diagnostic | None:
+    root.mkdir(parents=True, exist_ok=True)
+    free_mb = shutil.disk_usage(root).free / (1024 * 1024)
+    estimate = estimate_output_mb(clip_duration, preset, formats)
+    if estimate is None:
+        return Diagnostic(
+            code=DiagnosticCode.W_OUTPUT_SPACE,
+            severity=Severity.WARNING,
+            message=(
+                f"Could not estimate output size for {root}; {free_mb:.0f} MiB free. "
+                f"Confirm disk headroom before long jobs."
+            ),
+            path=str(root),
+        )
+    if estimate >= free_mb * 0.8:
+        return Diagnostic(
+            code=DiagnosticCode.W_OUTPUT_SPACE,
+            severity=Severity.WARNING,
+            message=(
+                f"Estimated output {estimate:.0f} MiB is close to or above {free_mb:.0f} MiB "
+                f"free on {root} ({ESTIMATE_LABEL})."
+            ),
+            path=str(root),
+        )
+    return None
 
 
 def catalog_presets() -> list[tuple[str, Path]]:

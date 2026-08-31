@@ -17,7 +17,7 @@ Compose those assets later in DaVinci Resolve or another NLE. This tool does not
 
 | Choice | Name | Meaning |
 |---|---|---|
-| Scroll envelope (podcast target) | `iuris-default` | 60 fps, 5 s window, mirrored bars, medium glow. Limited vs linia lustrzana. Locked from operator pick `*ad0c99b500c0.mov`. |
+| Scroll envelope (podcast target) | `iuris-default` | 60 fps, 5 s window, mirrored bars, medium glow. Limited vs brand mirrored line. Locked from operator pick `*ad0c99b500c0.mov`. |
 | Fixed-axis spectrum | `iuris-spectrum` | Frequency on X (log-Hz, auto span). Vertical motion only. Experimental. |
 | Performance | `balanced` | 60 s chunks, 2 jobs field (unused for parallel encode in this MVP), FFmpeg threads 0 (auto). |
 
@@ -26,7 +26,7 @@ Playhead envelope and particles are not available. GPU is not used.
 ## File names and grouping
 
 - One source file → one waveform job.
-- `s0e00-Szymon.wav` groups as project `s0e00`, track `Szymon` (first `-`).
+- `s0e00-Damian.wav` groups as project `s0e00`, track `Damian` (first `-`).
 - Ungrouped names are valid (`interview.wav` → project and track `interview`).
 - Directory input is a batch. Recursion is off unless `--recursive`.
 - Tracks in the same project whose durations differ by more than 3 frames at the target FPS fail the batch (`E_PROJECT_TIMELINE_MISMATCH`).
@@ -109,7 +109,7 @@ If a long scroll job dies after some 60 s chunks:
 
 ## Known limits (do not treat as bugs)
 
-- Scroll geometry is **limited** vs brand linia lustrzana (dense RMS bars, not a pixel match).
+- Scroll geometry is **limited** vs brand mirrored line (dense RMS bars, not a pixel match).
 - Spectrum is **experimental** (application FFT + log-Hz span, not the particle field).
 - Playhead mode is refused.
 - Particles enabled in a preset are refused.
@@ -122,9 +122,9 @@ Use a **copy** of audio you are allowed to process. Do not commit outputs.
 
 1. Install (`Instructions/install.md`) until `waveform doctor` is `ok`.
 2. `waveform capabilities` — expect `domain:time+scroll` limited, `domain:frequency+fixed-axis` experimental, `effect:particles` unsupported, `domain:time+playhead` unsupported.
-3. `inspect` a single WAV and a `s0e00-Name.wav` pair; grouping must split on the first `-`.
-4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`).
-5. `render` the same clip. `dry-run` immediately after must show `SKIP`. `--force` must write `_v002`.
+3. `inspect` a single WAV and a `s0e00-Damian.wav` / `s0e00-Szymon.wav` pair; grouping must split on the first `-`.
+4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest.
+5. `render` the same **preview clip** (`--start` / `--duration` matching preview) and `dry-run` must show `SKIP`. `--force` must write `_v002`. Full-file `render` is a different dest (minutes of 60 fps ProRes; watch stderr progress).
 6. `render --format prores4444 --format png` and confirm both exist plus `*_results.json` and `run_*_results.json`.
 7. `render --preset iuris-spectrum` on the same short clip; result JSON `analysis.fmin_hz` / `fmax_hz` populated.
 8. Interrupt a multi-chunk job (tiny `chunk_seconds` in a custom performance TOML, or a longer file) and resume; look for `W_JOB_RESUMED`.

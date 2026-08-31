@@ -53,6 +53,8 @@ def plan_destinations_for_job(
     output_dir: Path,
     formats: list[str],
     force: bool,
+    clip_start: float = 0.0,
+    clip_duration: float | None = None,
 ) -> JobPlan:
     sig, mov, png = planned_destinations(
         job,
@@ -60,6 +62,8 @@ def plan_destinations_for_job(
         source_sha256=source_sha256,
         output_dir=output_dir,
         formats=formats,
+        clip_start=clip_start,
+        clip_duration=clip_duration,
     )
     action, mov_out, png_out = classify_action(mov_path=mov, png_path=png, force=force)
     return JobPlan(

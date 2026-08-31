@@ -4,17 +4,17 @@ Input:
 
 ```text
 audio/
-├── s0e00-Szymon.wav
 ├── s0e00-Damian.wav
-├── s0e01-Szymon.wav
+├── s0e00-Guest.wav
+├── s0e01-Damian.wav
 └── interview.mp3
 ```
 
 Groups:
 
 ```text
-s0e00 -> Szymon, Damian
-s0e01 -> Szymon
+s0e00 -> Damian, Guest
+s0e01 -> Damian
 interview -> interview
 ```
 

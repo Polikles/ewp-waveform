@@ -53,7 +53,7 @@ Still store:
 
 Each `render` invocation writes a run summary next to the output root as `run_<id>_results.json` (schema `schemas/run.schema.json`). It stores run ID, job references, SUCCEEDED/SKIPPED/FAILED counts, and timestamps.
 
-Run ID is operational, not visual identity. Per-job payloads include `run_json` pointing at that file.
+Run ID is operational, not visual identity. Per-job payloads include `run_json` pointing at that file. `timestamps.duration_seconds` is wall time for that job; the run summary stores the same field for the bulk and per job.
 
 ## Versioning
 

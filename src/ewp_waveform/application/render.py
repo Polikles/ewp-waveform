@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import shutil
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,6 +55,7 @@ from ewp_waveform.application.chunks import (
     plan_chunks,
     processing_window,
 )
+from ewp_waveform.application.results import elapsed_seconds
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
@@ -134,9 +135,17 @@ def planned_destinations(
     source_sha256: str,
     output_dir: Path,
     formats: Sequence[str],
+    clip_start: float = 0.0,
+    clip_duration: float | None = None,
 ) -> tuple[str, Path | None, Path | None]:
     """Return render signature and canonical dest paths (mov, png dir)."""
-    sig = render_signature(source_sha256=source_sha256, preset=preset, fps=job.fps)
+    sig = render_signature(
+        source_sha256=source_sha256,
+        preset=preset,
+        fps=job.fps,
+        clip_start=clip_start,
+        clip_duration=clip_duration,
+    )
     short = short_signature(sig)
     project_dir = output_dir / job.project_id
     stem = f"{job.path.stem}_{preset.name}_{short}"
@@ -417,16 +426,26 @@ def render_job(
     duration: float | None = None,
     keep_temp: bool = False,
     fail_after_chunk: int | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
+
+    def note(message: str) -> None:
+        if progress is not None:
+            progress(message)
+
+    note(f"hashing {job.path}")
     source_sha = sha256_file(job.path)
     after_hash = source_sha
+    clip_start, clip_duration = _clip_bounds(media, start, duration)
     sig, mov_dest, png_dest = planned_destinations(
         job,
         preset,
         source_sha256=source_sha,
         output_dir=output_dir,
         formats=formats,
+        clip_start=clip_start,
+        clip_duration=duration if duration is not None and duration > 0 else None,
     )
     project_dir = output_dir / job.project_id
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -439,7 +458,6 @@ def render_job(
     if png_dest is not None:
         png_dest, skip_png = publish_path(png_dest, force=force)
 
-    clip_start, clip_duration = _clip_bounds(media, start, duration)
     expected_frames = max(1, round(clip_duration * job.fps))
     skip_outputs: list[dict[str, Any]] = []
     skip_validation: dict[str, Any] = {"passed": True}
@@ -469,6 +487,7 @@ def render_job(
                 skip_validation = png_report
 
     if (not want_mov or skip_mov) and (not want_png or skip_png) and not force:
+        note("skip: equivalent output already present")
         return _result_payload(
             job,
             media,
@@ -518,6 +537,10 @@ def render_job(
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
         if job.domain.value == "frequency":
+            note(
+                f"spectrum decode {clip_duration:.1f}s -> {expected_frames} frames "
+                f"@ {job.fps:g} fps"
+            )
             reset_workdir(work)
             decoded = work / "source.wav"
             decode_mono_wav(
@@ -540,6 +563,7 @@ def render_job(
                 soft = bool(norm.get("soft_clip", True))
             peak = None
             if norm_mode != "none":
+                note("spectrum peak scan")
                 peak = spectrum_peak(
                     decoded,
                     n_frames=expected_frames,
@@ -563,6 +587,7 @@ def render_job(
             )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
+            note("spectrum encode")
             encode_rgba_stream(
                 frames,
                 width=preset.canvas.width,
@@ -608,6 +633,9 @@ def render_job(
             }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
+            note(
+                f"scroll decode {clip_duration:.1f}s -> {expected_frames} frames @ {job.fps:g} fps"
+            )
             settings = _envelope_settings(preset, job.fps, glow)
             chunk_seconds = _chunk_seconds(performance)
             chunks = plan_chunks(clip_duration, job.fps, chunk_seconds)
@@ -744,10 +772,12 @@ def render_job(
                 if producing_mov:
                     chunk_mov = work / f"chunk-{chunk.index:04d}.mov"
                 if chunk.index in completed_ok:
+                    note(f"chunk {chunk.index + 1}/{len(windows)} reuse")
                     if chunk_mov is not None:
                         segments.append(chunk_mov)
                     reused.append(chunk.index)
                     continue
+                note(f"chunk {chunk.index + 1}/{len(windows)} encode {chunk.n_frames} frames")
                 item = prepared_by_index[chunk.index]
                 frames = iter_scroll_frames(
                     item.bins,
@@ -831,6 +861,7 @@ def render_job(
                     }
                 )
             if producing_mov:
+                note(f"concat {len(segments)} segment(s)")
                 tmp_mov = work / "out.mov"
                 concat_videos(segments, tmp_mov, list_path=work / "concat.txt")
                 validation = _validate_mov(
@@ -1036,7 +1067,11 @@ def _result_payload(
         "validation": report,
         "performance": {},
         "resume_history": resume_history or [],
-        "timestamps": {"started_at": started, "completed_at": _utcnow()},
+        "timestamps": {
+            "started_at": started,
+            "completed_at": (completed := _utcnow()),
+            "duration_seconds": elapsed_seconds(started, completed),
+        },
         "execution": {
             "workdir": workdir,
             "capability": job.capability.value,

@@ -4,6 +4,7 @@ from pathlib import Path
 from ewp_waveform.application.results import (
     RESULT_REQUIRED_KEYS,
     build_run_summary,
+    elapsed_seconds,
     result_payload_errors,
 )
 from ewp_waveform.paths import project_root
@@ -50,3 +51,8 @@ def test_run_summary_counts(tmp_path: Path) -> None:
     )
     assert summary["counts"] == {"jobs": 3, "succeeded": 1, "skipped": 1, "failed": 1}
     assert summary["run_id"] == "20260830T000000Z"
+    assert summary["timestamps"]["duration_seconds"] == 1.0
+
+
+def test_elapsed_seconds_parses_zulu() -> None:
+    assert elapsed_seconds("2026-08-30T00:00:00Z", "2026-08-30T00:01:30Z") == 90.0

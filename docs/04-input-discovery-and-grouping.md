@@ -21,9 +21,9 @@ A single file is always valid.
 Split on the first configured separator (`-` by default).
 
 ```text
-s0e00-Szymon-Kowalski.wav
+s0e00-Damian-Kowalski.wav
 project = s0e00
-track = Szymon-Kowalski
+track = Damian-Kowalski
 ```
 
 Ungrouped example:

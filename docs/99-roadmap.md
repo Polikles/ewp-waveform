@@ -62,7 +62,7 @@ No dates are assigned until evidence supports them.
 
 ## FFmpeg visual tuning (after MVP baseline)
 - [ ] phrase-length **scroll** envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
-- [ ] linia lustrzana as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
+- [ ] mirrored line as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
 - [x] `lowpass=80` rejected as a default;
 - [x] fixed-axis spectrum (`iuris-spectrum`): speech-centered Hz range, vertical-only motion;
 - [ ] playhead envelope (full-file + cursor) for optional viz and GUI scrubber;

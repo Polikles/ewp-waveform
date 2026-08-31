@@ -6,6 +6,11 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Clip start/duration are part of render identity, so an 8 s preview cannot SKIP a full-file dest.
+- Progress lines on stderr during hash/decode/chunk/encode.
+- Windows drive paths (`D:\\foo`) map to `/mnt/d/foo` on Linux/WSL.
+- `W_OUTPUT_SPACE` when output size cannot be estimated or the estimate is close to free space.
+- `timestamps.duration_seconds` on per-job and run summaries.
 - Operator install + runbook under `Instructions/` (Ubuntu/WSL2, doctor, SKIP/resume, fresh-VM checklist).
 - `waveform doctor` checks writable temp dir, free disk, and the encoders/filters the render path actually uses.
 - `waveform benchmark dry-run|run` expands a manifest matrix and records wall time / RSS / output size without mutating canonical presets.

@@ -9,7 +9,7 @@ Batch reruns need reliable SKIP while alternative presets/settings and multiple 
 ## Decision
 Compute deterministic render signature from stable inputs defining intended visual output.
 
-Include source identity, normalization context, resolved visual config, seed, FPS, renderer identity, and visual-contract/algorithm versions.
+Include source identity, clip start/duration (full file is `clip_duration=null`), normalization context, resolved visual config, seed, FPS, renderer identity, and visual-contract/algorithm versions. A preview interval is a different identity from a full-file render.
 
 Exclude output format/path, chunk size, workers, threads, performance profile, and wall-clock timestamp.
 

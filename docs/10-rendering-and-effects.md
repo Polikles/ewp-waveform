@@ -40,14 +40,14 @@ Styles define the primary waveform representation. The style interface must be e
 
 Brand boards (`docs/notes/ffmpeg-spike/reference.md`) define the four styles as **phrase-length amplitude shapes**, not a 33 ms PCM oscilloscope:
 
-- `classic` — thin vertical ticks (linia klasyczna), low glow.
-- `mirrored` — vertical mirrored bars (linia lustrzana), medium glow; **default on 1/2/3-speaker templates**.
-- `filled` — smooth ribbon (wstęga wypełniona), higher glow.
-- `segmented` — discrete columns (impuls segmentowy), medium glow.
+- `classic` — thin vertical ticks (classic line), low glow.
+- `mirrored` — vertical mirrored bars (mirrored line), medium glow; **default on 1/2/3-speaker templates**.
+- `filled` — smooth ribbon (filled ribbon), higher glow.
+- `segmented` — discrete columns (segmented impulse), medium glow.
 
 FFmpeg `showwaves` at output fps is the wrong window. `lowpass=80` is **rejected**.
 
-FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, high-resolution RMS (`envelope_oversample` default **4**). A light reconstruction `area` @ 1 px, then a **temporal-Nyquist sinc** on amplitude-vs-X (`envelope_motion_lpf`, cutoff `fps/(2*velocity)*0.85` ≈ 0.09 cyc/px at 1400/5s/60). That removes 1–4 px needles that cannot be shown stably at 4.67 px/frame, without blurring the rasterized edge. 12× crisp raster, area downsample, glow under the base. Shutter is **0** while this geometry LOD is evaluated. `signal.smoothing` stays 0. Peak half-height is computed from canvas minus `gblur` spread. Not a pixel match to linia lustrzana.
+FFmpeg MVP **time+scroll** path (limited): decode to workdir WAV, high-resolution RMS (`envelope_oversample` default **4**). A light reconstruction `area` @ 1 px, then a **temporal-Nyquist sinc** on amplitude-vs-X (`envelope_motion_lpf`, cutoff `fps/(2*velocity)*0.85` ≈ 0.09 cyc/px at 1400/5s/60). That removes 1–4 px needles that cannot be shown stably at 4.67 px/frame, without blurring the rasterized edge. 12× crisp raster, area downsample, glow under the base. Shutter is **0** while this geometry LOD is evaluated. `signal.smoothing` stays 0. Peak half-height is computed from canvas minus `gblur` spread. Not a pixel match to brand mirrored line.
 
 Default production identity is **60 fps**. At 1400×280 / 5 s that is ~4.7 px/frame. 30 fps (~9.3 px/frame) remains supported but is not expected to look as smooth at this scroll speed; do not “fix” 30 fps judder by quantizing or extra-smoothing the scroll position. Do not use `tmix` / full-travel motion blur.
 

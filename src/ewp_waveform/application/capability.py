@@ -17,10 +17,10 @@ def capability_for_preset(preset: VisualPreset) -> tuple[CapabilityLevel, str]:
         return CapabilityLevel.UNSUPPORTED, "Playhead envelope is deferred."
     style = preset.waveform.style
     if style == "segmented":
-        return CapabilityLevel.EXPERIMENTAL, "Impuls segmentowy is not implemented faithfully."
+        return CapabilityLevel.EXPERIMENTAL, "Segmented impulse is not implemented faithfully."
     if style in {"classic", "mirrored", "filled"}:
         return (
             CapabilityLevel.LIMITED,
-            "Scrolling RMS envelope bars (5 s window). Limited vs brand linia lustrzana.",
+            "Scrolling RMS envelope bars (5 s window). Limited vs brand mirrored line.",
         )
     return CapabilityLevel.UNSUPPORTED, f"Unknown style '{style}'."

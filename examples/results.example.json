@@ -12,7 +12,7 @@
     "version": "example",
     "visual_contract_version": 12
   },
-  "project": {"project_id": "s0e00", "track_id": "Szymon"},
+  "project": {"project_id": "s0e00", "track_id": "Damian"},
   "inputs": [{
     "path": "s0e00-Szymon.wav",
     "sha256": "EXAMPLE",

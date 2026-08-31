@@ -32,6 +32,7 @@ def test_planned_destinations_include_short_signature(tmp_path: Path) -> None:
         source_sha256=sha256_file(src),
         output_dir=tmp_path / "out",
         formats=["prores4444"],
+        clip_duration=8.0,
     )
     assert mov is not None
     assert png is None
