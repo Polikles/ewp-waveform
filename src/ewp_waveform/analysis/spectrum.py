@@ -20,6 +20,9 @@ ENERGY_LO = 0.05
 ENERGY_HI = 0.95
 ANALYSIS_HOP_SECONDS = 0.05
 DB_PER_OCTAVE_EXP = 20.0 * math.log10(2.0)
+PIVOT_TAU_SECONDS = 0.5
+DOMINANT_PEAK_FRACTION = 0.35
+EDGE_TAPER_FRACTION = 0.125
 
 
 @dataclass(frozen=True)
@@ -293,7 +296,51 @@ def compress_bands(values: Sequence[float], exponent: float) -> list[float]:
     return [float(v) ** exp if v > 0.0 else 0.0 for v in values]
 
 
-def upsample_bands(bands: Sequence[float], width: int) -> list[float]:
+def dominant_band_pivot(bands: Sequence[float]) -> float:
+    """Energy-weighted centroid of the dominant region. Not argmax.
+
+    Bands below ``DOMINANT_PEAK_FRACTION`` of the peak are ignored so a long
+    low-level tail cannot pull the center, and a single-bin spike cannot win
+    against a broader plateau.
+    """
+    n = len(bands)
+    if n <= 2:
+        return max(n - 1, 0) / 2.0
+    values = [max(0.0, float(v)) for v in bands]
+    peak = max(values)
+    last = float(n - 1)
+    if peak <= 1e-12:
+        return last / 2.0
+    thresh = DOMINANT_PEAK_FRACTION * peak
+    weights = [max(0.0, value - thresh) ** 2 for value in values]
+    total = sum(weights)
+    if total <= 1e-18:
+        weights = [value * value for value in values]
+        total = sum(weights)
+    if total <= 1e-18:
+        return last / 2.0
+    pivot = sum(index * weight for index, weight in enumerate(weights)) / total
+    return min(max(pivot, 1.0), last - 1.0)
+
+
+def remap_band_index(t: float, *, n_bands: int, pivot: float | None) -> float:
+    """Map normalized X in [0, 1] to a band index. ``pivot`` lands at X=0.5."""
+    last = float(max(n_bands - 1, 1))
+    x = min(max(t, 0.0), 1.0)
+    if pivot is None:
+        return x * last
+    p = min(max(pivot, 1e-6), last - 1e-6)
+    if x <= 0.5:
+        return (x / 0.5) * p
+    return p + ((x - 0.5) / 0.5) * (last - p)
+
+
+def upsample_bands(
+    bands: Sequence[float],
+    width: int,
+    *,
+    pivot: float | None = None,
+) -> list[float]:
     """PCHIP the coarse log-band envelope onto the output X axis."""
     if width < 1:
         return []
@@ -306,8 +353,38 @@ def upsample_bands(bands: Sequence[float], width: int) -> list[float]:
     knots = [max(0.0, float(v)) for v in bands]
     slopes = pchip_slopes(knots)
     denom = max(width - 1, 1)
-    last = float(n - 1)
-    return [pchip_eval(knots, slopes, (x / denom) * last, unit=False) for x in range(width)]
+    return [
+        pchip_eval(knots, slopes, remap_band_index(x / denom, n_bands=n, pivot=pivot), unit=False)
+        for x in range(width)
+    ]
+
+
+def apply_edge_taper(
+    columns: Sequence[float],
+    *,
+    content_width: int,
+    pad: int = 0,
+    fraction: float = EDGE_TAPER_FRACTION,
+) -> list[float]:
+    """Fade the outer ``fraction`` of the *content* width to zero (presentation)."""
+    n = len(columns)
+    if n < 2 or fraction <= 0.0 or content_width < 2:
+        return list(columns)
+    fade = min(max(fraction, 0.0), 0.49)
+    out = [0.0] * n
+    denom = max(content_width - 1, 1)
+    for i, value in enumerate(columns):
+        pos = (i - pad) / denom
+        if pos <= 0.0 or pos >= 1.0:
+            weight = 0.0
+        elif pos < fade:
+            weight = 0.5 - 0.5 * math.cos(math.pi * (pos / fade))
+        elif pos > 1.0 - fade:
+            weight = 0.5 - 0.5 * math.cos(math.pi * ((1.0 - pos) / fade))
+        else:
+            weight = 1.0
+        out[i] = float(value) * weight
+    return out
 
 
 def log_resample(
@@ -400,6 +477,43 @@ def apply_spectrum_spatial(
     return smooth_bins(columns, sigma=sigma)
 
 
+def spectrum_bands(
+    path: Path,
+    *,
+    frame_index: int,
+    fps: float,
+    span: FrequencySpan,
+    scale: str,
+    n_bands: int,
+    tilt_db_per_octave: float,
+    compress: float,
+) -> list[float]:
+    """Tilted, compressed log-RMS bands. No pixel upsample or spatial LPF."""
+    with wave.open(str(path), "rb") as wav:
+        rate = wav.getframerate()
+    center = round(frame_index * rate / fps) if fps > 0 else 0
+    start = center - FFT_SIZE // 2
+    samples, rate, _total = _read_window(path, start=start, count=FFT_SIZE)
+    mags = rfft_magnitudes(samples)
+    count = max(2, int(n_bands))
+    rms = log_band_rms(
+        mags,
+        sample_rate=rate,
+        fmin_hz=span.fmin_hz,
+        fmax_hz=span.fmax_hz,
+        n_bands=count,
+    )
+    gains = tilt_gains(
+        count,
+        fmin_hz=span.fmin_hz,
+        fmax_hz=span.fmax_hz,
+        db_per_octave=tilt_db_per_octave,
+    )
+    tilted = [rms[i] * gains[i] for i in range(count)]
+    scaled = [_scale_open(v, scale) for v in tilted]
+    return compress_bands(scaled, compress)
+
+
 def spectrum_columns(
     path: Path,
     *,
@@ -413,32 +527,27 @@ def spectrum_columns(
     n_bands: int | None = None,
     tilt_db_per_octave: float = 0.0,
     compress: float = 1.0,
+    pivot: float | None = None,
 ) -> list[float]:
-    with wave.open(str(path), "rb") as wav:
-        rate = wav.getframerate()
-    center = round(frame_index * rate / fps) if fps > 0 else 0
-    start = center - FFT_SIZE // 2
-    samples, rate, _total = _read_window(path, start=start, count=FFT_SIZE)
-    mags = rfft_magnitudes(samples)
-    bands = None if n_bands is None else max(2, int(n_bands))
-    if bands is not None:
-        rms = log_band_rms(
-            mags,
-            sample_rate=rate,
-            fmin_hz=span.fmin_hz,
-            fmax_hz=span.fmax_hz,
-            n_bands=bands,
+    if n_bands is not None:
+        values = spectrum_bands(
+            path,
+            frame_index=frame_index,
+            fps=fps,
+            span=span,
+            scale=scale,
+            n_bands=n_bands,
+            tilt_db_per_octave=tilt_db_per_octave,
+            compress=compress,
         )
-        gains = tilt_gains(
-            bands,
-            fmin_hz=span.fmin_hz,
-            fmax_hz=span.fmax_hz,
-            db_per_octave=tilt_db_per_octave,
-        )
-        tilted = [rms[i] * gains[i] for i in range(bands)]
-        scaled = [_scale_open(v, scale) for v in tilted]
-        columns = upsample_bands(compress_bands(scaled, compress), width)
+        columns = upsample_bands(values, width, pivot=pivot)
     else:
+        with wave.open(str(path), "rb") as wav:
+            rate = wav.getframerate()
+        center = round(frame_index * rate / fps) if fps > 0 else 0
+        start = center - FFT_SIZE // 2
+        samples, rate, _total = _read_window(path, start=start, count=FFT_SIZE)
+        mags = rfft_magnitudes(samples)
         columns = log_resample(
             mags,
             sample_rate=rate,

@@ -76,4 +76,25 @@ uv run python scripts/spectrum_mapping_abc.py "/path/to/file.wav" \
   --output-dir "/path/to/output-test-spectrum-mapping" --duration 8
 ```
 
+Operator: **B** (64 RMS bands, +3 dB/oct, compress 0.75) is the new mapping baseline. Contour is good enough to judge shape. Remaining issue is **horizontal layout**: energy still sits on one side instead of a centered, waveform-like ribbon.
+
+## Horizontal layout experiment (not a preset/schema change)
+
+Keep B mapping, contour, Gaussian 1×, EMA, glow, and gain. Do not circular-shift or crop.
+
+- Pivot = energy-weighted centroid of bands above 35% of peak (not argmax), EMA'd at 0.5 s independently of amplitude EMA.
+- Piecewise map: lowest band → left, pivot → center, highest band → right. Order preserved.
+- Optional cosine taper on the outer 12.5% of content width (presentation only).
+
+| | Dir | Layout |
+|---|---|---|
+| A | `a-layout-baseline/` | B mapping, log-Hz X |
+| B | `b-layout-recenter/` | dominant-region recenter |
+| C | `c-layout-recenter-taper/` | recenter + edge taper |
+
+```bash
+uv run python scripts/spectrum_layout_abc.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-layout" --duration 8
+```
+
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).

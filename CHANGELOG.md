@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Spectrum layout experiment: dominant-region recenter + optional edge taper on the 64-band B mapping. Script: `scripts/spectrum_layout_abc.py`.
 - Spectrum mapping experiment: 32/64 log-RMS bands, tilt, and compression before the existing contour. Production mapping unchanged. Script: `scripts/spectrum_mapping_abc.py`.
 - Spectrum log-Hz spatial-scale experiment: true Gaussian LPF at 1× / 2× / 3.5× current σ, contour raster on. Production still uses 3-box spatial smoothing. Script: `scripts/spectrum_spatial_abc.py`.
 - Spectrum contour raster experiment (`draw_spectrum_frame`, PCHIP, no peak overshoot) behind an internal flag; production spectrum stays column raster. A/B script: `scripts/spectrum_contour_ab.py`.

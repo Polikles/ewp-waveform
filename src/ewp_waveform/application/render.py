@@ -31,12 +31,18 @@ from ewp_waveform.analysis.envelope import (
     window_from_origin,
 )
 from ewp_waveform.analysis.spectrum import (
+    PIVOT_TAU_SECONDS,
     FrequencySpan,
+    apply_edge_taper,
+    apply_spectrum_spatial,
     blend_columns,
+    dominant_band_pivot,
     ema_alpha,
     resolve_frequency_span,
+    spectrum_bands,
     spectrum_columns,
     spectrum_peak,
+    upsample_bands,
 )
 from ewp_waveform.application.checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
@@ -258,12 +264,15 @@ def iter_spectrum_frames(
     n_bands: int | None = None,
     tilt_db_per_octave: float = 0.0,
     compress: float = 1.0,
+    recenter: bool = False,
+    edge_taper: float = 0.0,
 ) -> Iterator[bytes]:
     """Fixed-axis frames: X is log-Hz, motion is vertical only.
 
     ``contour`` is a visual-target experiment: PCHIP filled silhouette instead
     of independent column spans. ``spatial_sigma`` / ``spatial_filter`` are
     log-Hz LPF experiments; FFT, span, EMA, and gain are unchanged.
+    ``recenter`` / ``edge_taper`` are layout-only (not analysis or gain).
     """
     width = preset.canvas.width
     height = preset.canvas.height
@@ -273,26 +282,55 @@ def iter_spectrum_frames(
     draw_w = width + 2 * pad
     draw_h = height + 2 * pad
     alpha = ema_alpha(fps, tau_seconds)
+    pivot_alpha = ema_alpha(fps, PIVOT_TAU_SECONDS)
     previous: list[float] | None = None
+    pivot: float | None = None
     filt = _spectrum_spatial_filter(spatial_filter)
+    taper = edge_taper if edge_taper > 0.0 else 0.0
     for i in range(n_frames):
-        raw = spectrum_columns(
-            path,
-            frame_index=i,
-            fps=fps,
-            width=draw_w,
-            span=span,
-            scale=scale,
-            smoothing_sigma=spatial_sigma,
-            spatial_filter=filt,
-            n_bands=n_bands,
-            tilt_db_per_octave=tilt_db_per_octave,
-            compress=compress,
-        )
+        if n_bands is not None:
+            bands = spectrum_bands(
+                path,
+                frame_index=i,
+                fps=fps,
+                span=span,
+                scale=scale,
+                n_bands=n_bands,
+                tilt_db_per_octave=tilt_db_per_octave,
+                compress=compress,
+            )
+            layout_pivot: float | None = None
+            if recenter:
+                instant = dominant_band_pivot(bands)
+                if pivot is None:
+                    pivot = instant
+                else:
+                    pivot = pivot_alpha * instant + (1.0 - pivot_alpha) * pivot
+                layout_pivot = pivot
+            raw = upsample_bands(bands, draw_w, pivot=layout_pivot)
+            raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
+        else:
+            raw = spectrum_columns(
+                path,
+                frame_index=i,
+                fps=fps,
+                width=draw_w,
+                span=span,
+                scale=scale,
+                smoothing_sigma=spatial_sigma,
+                spatial_filter=filt,
+            )
         if peak is not None and peak > 0.0:
             raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
         blended = blend_columns(previous, raw, alpha)
         previous = blended
+        if taper > 0.0:
+            blended = apply_edge_taper(
+                blended,
+                content_width=width,
+                pad=pad,
+                fraction=taper,
+            )
         if contour:
             yield draw_spectrum_frame(
                 blended,
@@ -512,6 +550,8 @@ def render_job(
     spectrum_n_bands: int | None = None,
     spectrum_tilt_db_per_octave: float = 0.0,
     spectrum_compress: float = 1.0,
+    spectrum_recenter: bool = False,
+    spectrum_edge_taper: float = 0.0,
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -675,6 +715,16 @@ def render_job(
                 and spectrum_compress > 0.0
                 else 1.0
             )
+            recenter = bool(spectrum_recenter)
+            taper = (
+                float(spectrum_edge_taper)
+                if isinstance(spectrum_edge_taper, int | float)
+                and not isinstance(spectrum_edge_taper, bool)
+                and spectrum_edge_taper > 0.0
+                else 0.0
+            )
+            if taper > 0.0:
+                taper = min(taper, 0.49)
             peak = None
             if norm_mode != "none":
                 note("spectrum peak scan")
@@ -708,6 +758,8 @@ def render_job(
                 n_bands=n_bands,
                 tilt_db_per_octave=tilt_db,
                 compress=compress,
+                recenter=recenter,
+                edge_taper=taper,
             )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
@@ -767,6 +819,8 @@ def render_job(
                 "spectrum_n_bands": n_bands,
                 "spectrum_tilt_db_per_octave": tilt_db,
                 "spectrum_compress": compress,
+                "spectrum_recenter": recenter,
+                "spectrum_edge_taper": taper,
             }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

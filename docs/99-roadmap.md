@@ -73,7 +73,8 @@ No dates are assigned until evidence supports them.
 - [x] fixed-axis spectrum (`iuris-spectrum`): speech-centered Hz range, vertical-only motion;
 - [x] spectrum contour vs column raster A/B (`draw_spectrum_frame`; contour kept, difference too small);
 - [x] spectrum log-Hz Gaussian spatial scale A/B/C (operator: 3.5× contour is smooth enough);
-- [ ] spectrum mapping 32/64 log-RMS bands + tilt/compression A/B/C (operator visual);
+- [x] spectrum mapping 32/64 log-RMS bands + tilt/compression (operator: B is the new baseline);
+- [ ] spectrum horizontal layout recenter + taper A/B/C (operator visual);
 - [ ] playhead envelope (full-file + cursor) for optional viz and GUI scrubber;
 - [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 

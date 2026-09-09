@@ -7,13 +7,16 @@ from pathlib import Path
 from ewp_waveform.analysis.spectrum import (
     FFT_SIZE,
     FrequencySpan,
+    apply_edge_taper,
     auto_frequency_span,
     compress_bands,
+    dominant_band_pivot,
     ema_alpha,
     gaussian_kernel,
     gaussian_smooth,
     log_band_rms,
     log_resample,
+    remap_band_index,
     resolve_frequency_span,
     rfft_magnitudes,
     spectrum_columns,
@@ -209,9 +212,51 @@ def test_band_mapping_is_coarser_than_pixel_resample(tmp_path: Path) -> None:
         tilt_db_per_octave=3.0,
         compress=0.75,
     )
+
     def lobe_width(values: list[float]) -> int:
         peak = max(values)
         return sum(1 for value in values if value >= 0.25 * peak)
 
     assert pixel != bands
     assert lobe_width(bands) > lobe_width(pixel)
+
+
+def test_dominant_pivot_follows_a_plateau_not_a_spike() -> None:
+    bands = [0.05] * 64
+    bands[8] = 1.0
+    for index in range(24, 40):
+        bands[index] = 0.8
+    pivot = dominant_band_pivot(bands)
+    assert 24.0 < pivot < 40.0
+    assert abs(pivot - 8.0) > 10.0
+
+
+def test_remap_is_monotonic_and_puts_pivot_at_center() -> None:
+    n_bands = 64
+    width = 129
+    pivot = 16.0
+    indices = [
+        remap_band_index(x / (width - 1), n_bands=n_bands, pivot=pivot) for x in range(width)
+    ]
+    assert indices[0] == 0.0
+    assert abs(indices[width // 2] - pivot) < 1e-9
+    assert abs(indices[-1] - (n_bands - 1)) < 1e-9
+    for earlier, later in pairwise(indices):
+        assert later + 1e-12 >= earlier
+
+
+def test_recenter_moves_left_energy_toward_mid() -> None:
+    bands = [0.9, 0.8, 0.3] + [0.05] * 61
+    uniform = upsample_bands(bands, 65)
+    remapped = upsample_bands(bands, 65, pivot=dominant_band_pivot(bands))
+    mid = slice(22, 43)
+    assert sum(remapped[mid]) > sum(uniform[mid])
+
+
+def test_edge_taper_zeros_ends_and_keeps_the_middle() -> None:
+    columns = [0.8] * 80
+    faded = apply_edge_taper(columns, content_width=80, pad=0, fraction=0.125)
+    assert faded[0] == 0.0
+    assert faded[-1] == 0.0
+    assert abs(faded[40] - 0.8) < 1e-12
+    assert faded[4] < faded[20]
