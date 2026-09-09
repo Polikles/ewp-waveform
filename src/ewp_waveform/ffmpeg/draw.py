@@ -45,6 +45,114 @@ def glow_overscan(sigma: float) -> int:
     return max(8, round(sigma * 3) + 2)
 
 
+def _mirrored_metrics(
+    *,
+    height: int,
+    amplitude: float,
+    glow_sigma: float,
+    vertical_margin: int,
+    content_height: int | None,
+) -> tuple[int, int, int, float]:
+    """Return center y, peak half-height, margin, and vertical cap."""
+    center = height // 2
+    inner = content_height or height
+    if glow_sigma > 0:
+        max_half = peak_half_height(inner, glow_sigma, amplitude)
+        margin = glow_overscan(glow_sigma)
+    else:
+        margin = max(0, vertical_margin)
+        usable = min(inner // 2, inner - inner // 2 - 1) - margin
+        max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
+    cap = max(1.0, float(min(center - margin, height - center - 1 - margin)))
+    return center, max_half, margin, cap
+
+
+def _pchip_end_slope(slope: float, delta: float) -> float:
+    if delta == 0.0:
+        return 0.0
+    if (slope > 0.0) != (delta > 0.0):
+        return 0.0
+    limit = 3.0 * delta
+    if abs(slope) > abs(limit):
+        return limit
+    return slope
+
+
+def pchip_slopes(values: Sequence[float]) -> list[float]:
+    """Fritsch-Carlson PCHIP slopes on unit-spaced knots. No overshoot of local peaks."""
+    n = len(values)
+    if n == 0:
+        return []
+    if n == 1:
+        return [0.0]
+    delta = [values[i + 1] - values[i] for i in range(n - 1)]
+    slopes = [0.0] * n
+    slopes[0] = delta[0]
+    slopes[-1] = delta[-1]
+    for i in range(1, n - 1):
+        left = delta[i - 1]
+        right = delta[i]
+        if left == 0.0 or right == 0.0 or (left > 0.0) != (right > 0.0):
+            slopes[i] = 0.0
+        else:
+            slopes[i] = 2.0 / (1.0 / left + 1.0 / right)
+    slopes[0] = _pchip_end_slope(slopes[0], delta[0])
+    slopes[-1] = _pchip_end_slope(slopes[-1], delta[-1])
+    return slopes
+
+
+def pchip_eval(values: Sequence[float], slopes: Sequence[float], x: float) -> float:
+    """Hermite cubic on unit-spaced knots. Clamped to [0, 1] and the local knot pair."""
+    n = len(values)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return min(max(values[0], 0.0), 1.0)
+    if x <= 0.0:
+        return min(max(values[0], 0.0), 1.0)
+    last = float(n - 1)
+    if x >= last:
+        return min(max(values[-1], 0.0), 1.0)
+    i = min(n - 2, math.floor(x))
+    t = x - i
+    y0 = values[i]
+    y1 = values[i + 1]
+    d0 = slopes[i]
+    d1 = slopes[i + 1]
+    t2 = t * t
+    t3 = t2 * t
+    y = (
+        y0 * (2.0 * t3 - 3.0 * t2 + 1.0)
+        + d0 * (t3 - 2.0 * t2 + t)
+        + y1 * (-2.0 * t3 + 3.0 * t2)
+        + d1 * (t3 - t2)
+    )
+    lo = min(y0, y1)
+    hi = max(y0, y1)
+    return min(max(y, lo, 0.0), hi, 1.0)
+
+
+def _draw_center_line(
+    frame: bytearray,
+    *,
+    width: int,
+    height: int,
+    center: int,
+    r: int,
+    g: int,
+    b: int,
+) -> None:
+    y = min(height - 1, max(0, center))
+    row = y * width * 4
+    for px in range(width):
+        off = row + px * 4
+        if frame[off + 3] == 0:
+            frame[off] = r
+            frame[off + 1] = g
+            frame[off + 2] = b
+            frame[off + 3] = 140
+
+
 def peak_half_height(content_height: int, glow_sigma: float, amplitude: float = 1.0) -> int:
     """Bar half-height that leaves gblur room inside the output frame.
 
@@ -120,15 +228,13 @@ def draw_envelope_frame(
     r, g, b = parse_rgb(color)
     out_w = width * ss
     frame = bytearray(out_w * height * 4)
-    center = height // 2
-    inner = content_height or height
-    if glow_sigma > 0:
-        max_half = peak_half_height(inner, glow_sigma, amplitude)
-        margin = glow_overscan(glow_sigma)
-    else:
-        margin = max(0, vertical_margin)
-        usable = min(inner // 2, inner - inner // 2 - 1) - margin
-        max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
+    center, max_half, _margin, cap = _mirrored_metrics(
+        height=height,
+        amplitude=amplitude,
+        glow_sigma=glow_sigma,
+        vertical_margin=vertical_margin,
+        content_height=content_height,
+    )
     stroke, gap = bar_metrics(style, stroke_width)
     stroke_ss = stroke * ss
     gap_ss = gap * ss
@@ -152,7 +258,6 @@ def draw_envelope_frame(
                     xs.append(x)
                 x += period_ss
             strip_w = float(stroke_ss)
-        cap = max(1.0, float(min(center - margin, height - center - 1 - margin)))
         for x in xs:
             world_px = scroll_phase + x / ss
             mag = sample_bin(columns, world_px * env_ss - phase_env_floor)
@@ -175,13 +280,59 @@ def draw_envelope_frame(
                 b=b,
             )
     if center_line:
-        y = min(height - 1, max(0, center))
-        row = y * out_w * 4
-        for px in range(out_w):
-            off = row + px * 4
-            if frame[off + 3] == 0:
-                frame[off] = r
-                frame[off + 1] = g
-                frame[off + 2] = b
-                frame[off + 3] = 140
+        _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)
+    return bytes(frame)
+
+
+def draw_spectrum_frame(
+    columns: Sequence[float],
+    *,
+    width: int,
+    height: int,
+    color: str,
+    amplitude: float,
+    center_line: bool,
+    content_height: int | None = None,
+    supersample: int = 1,
+    glow_sigma: float = 0.0,
+    vertical_margin: int = 1,
+) -> bytes:
+    """Mirrored filled contour from per-X amplitudes (PCHIP, no peak overshoot).
+
+    Knots are one amplitude per output pixel. Rasterization is a filled region
+    under the reconstructed upper contour, mirrored through the center line.
+    """
+    ss = max(1, int(supersample))
+    r, g, b = parse_rgb(color)
+    out_w = width * ss
+    frame = bytearray(out_w * height * 4)
+    center, max_half, _margin, cap = _mirrored_metrics(
+        height=height,
+        amplitude=amplitude,
+        glow_sigma=glow_sigma,
+        vertical_margin=vertical_margin,
+        content_height=content_height,
+    )
+    if columns:
+        knots = [min(max(float(value), 0.0), 1.0) for value in columns]
+        slopes = pchip_slopes(knots)
+        for x in range(out_w):
+            mag = pchip_eval(knots, slopes, x / ss)
+            half = min(float(max_half) * mag, cap)
+            if half <= 0.0:
+                continue
+            _put_span(
+                frame,
+                width=out_w,
+                height=height,
+                x0=float(x),
+                x1=float(x + 1),
+                y0=float(center) - half,
+                y1=float(center) + half + 1.0,
+                r=r,
+                g=g,
+                b=b,
+            )
+    if center_line:
+        _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)
     return bytes(frame)

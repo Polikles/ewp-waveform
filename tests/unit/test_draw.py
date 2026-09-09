@@ -3,8 +3,11 @@ from itertools import pairwise
 from ewp_waveform.ffmpeg.draw import (
     bar_metrics,
     draw_envelope_frame,
+    draw_spectrum_frame,
     glow_overscan,
     glow_vertical_margin,
+    pchip_eval,
+    pchip_slopes,
     peak_half_height,
 )
 from ewp_waveform.ffmpeg.encode import _glow_crop_graph, shutter_sigma
@@ -228,3 +231,76 @@ def test_supersample_frame_is_wider() -> None:
         supersample=4,
     )
     assert len(frame) == width * 4 * height * 4
+
+
+def test_pchip_preserves_knots_and_does_not_overshoot_peaks() -> None:
+    values = [0.1, 0.2, 1.0, 0.2, 0.15, 0.8, 0.1]
+    slopes = pchip_slopes(values)
+    for index, value in enumerate(values):
+        assert abs(pchip_eval(values, slopes, float(index)) - value) < 1e-9
+    peak = max(values)
+    dense = [pchip_eval(values, slopes, i / 8.0) for i in range((len(values) - 1) * 8 + 1)]
+    assert max(dense) <= peak + 1e-12
+    monotone = [0.1, 0.3, 0.4, 0.7, 0.95]
+    mono_slopes = pchip_slopes(monotone)
+    n_samples = (len(monotone) - 1) * 4 + 1
+    samples = [pchip_eval(monotone, mono_slopes, i / 4.0) for i in range(n_samples)]
+    for earlier, later in pairwise(samples):
+        assert later + 1e-12 >= earlier
+
+
+def test_spectrum_contour_is_mirrored_with_antialiased_edge() -> None:
+    width, height = 24, 48
+    columns = [0.1, 0.25, 0.8, 1.0, 0.7, 0.2] + [0.0] * (width - 6)
+    frame = draw_spectrum_frame(
+        columns,
+        width=width,
+        height=height,
+        color="#C7E6EC",
+        amplitude=1.0,
+        center_line=True,
+    )
+    assert len(frame) == width * height * 4
+    center = height // 2
+    for x in (2, 4):
+        alphas = [frame[(y * width + x) * 4 + 3] for y in range(height)]
+        assert any(0 < a < 255 for a in alphas)
+        above = [y for y, a in enumerate(alphas) if a >= 200 and y < center]
+        below = [y for y, a in enumerate(alphas) if a >= 200 and y > center]
+        assert above
+        assert below
+        assert abs((center - above[0]) - (below[-1] - center)) <= 1
+    line_alpha = frame[(center * width + 20) * 4 + 3]
+    assert line_alpha == 140
+
+
+def test_spectrum_contour_differs_from_column_raster() -> None:
+    width, height = 16, 40
+    ss = 4
+    columns = [0.15, 0.2, 0.95, 0.25, 0.2, 0.85, 0.2, 0.15] + [0.1] * 8
+    columns_frame = draw_envelope_frame(
+        columns,
+        width=width,
+        height=height,
+        color="#FFFFFF",
+        amplitude=1.0,
+        stroke_width=3.0,
+        style="mirrored",
+        center_line=False,
+        supersample=ss,
+    )
+    contour_frame = draw_spectrum_frame(
+        columns,
+        width=width,
+        height=height,
+        color="#FFFFFF",
+        amplitude=1.0,
+        center_line=False,
+        supersample=ss,
+    )
+    assert columns_frame != contour_frame
+    out_w = width * ss
+    peak_x = 2 * ss
+    assert _column_opaque_span(columns_frame, out_w, height, peak_x) == _column_opaque_span(
+        contour_frame, out_w, height, peak_x
+    )

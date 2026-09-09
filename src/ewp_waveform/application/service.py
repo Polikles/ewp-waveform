@@ -274,6 +274,7 @@ def render(
     keep_temp: bool = False,
     fail_after_chunk: int | None = None,
     progress: Callable[[str], None] | None = None,
+    spectrum_contour: bool = False,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -335,6 +336,7 @@ def render(
             keep_temp=keep_temp,
             fail_after_chunk=fail_after_chunk,
             progress=progress,
+            spectrum_contour=spectrum_contour,
         )
         if extra_space:
             existing = payload.get("warnings")

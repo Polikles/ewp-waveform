@@ -71,6 +71,7 @@ No dates are assigned until evidence supports them.
 - [ ] mirrored line as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
 - [x] `lowpass=80` rejected as a default;
 - [x] fixed-axis spectrum (`iuris-spectrum`): speech-centered Hz range, vertical-only motion;
+- [ ] spectrum contour vs column raster A/B (`draw_spectrum_frame`; operator visual);
 - [ ] playhead envelope (full-file + cursor) for optional viz and GUI scrubber;
 - [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 

@@ -463,6 +463,7 @@ def test_spectrum_render_records_hz_span(tmp_path: Path) -> None:
     analysis = results[0]["analysis"]
     assert isinstance(analysis, dict)
     assert analysis["frequency_range"] == "explicit"
+    assert analysis["spectrum_raster"] == "columns"
     assert isinstance(analysis["fmin_hz"], int | float)
     assert isinstance(analysis["fmax_hz"], int | float)
     assert abs(float(analysis["fmin_hz"]) - 200.0) < 1.0
@@ -470,6 +471,48 @@ def test_spectrum_render_records_hz_span(tmp_path: Path) -> None:
     mov = _first_output(results[0])
     assert mov.is_file()
     assert mov.stat().st_size > 0
+
+
+def test_spectrum_contour_png_differs_from_columns(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-SpecContour.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(tmp_path / "tiny-spec.toml", TINY_SPECTRUM)
+    columns = render(
+        src,
+        output_dir=tmp_path / "a-columns",
+        formats=["png"],
+        preset_name=str(preset),
+        force=True,
+        spectrum_contour=False,
+    )
+    contour = render(
+        src,
+        output_dir=tmp_path / "b-contour",
+        formats=["png"],
+        preset_name=str(preset),
+        force=True,
+        spectrum_contour=True,
+    )
+    assert _job_status(columns[0]) == "SUCCEEDED"
+    assert _job_status(contour[0]) == "SUCCEEDED"
+    columns_analysis = columns[0]["analysis"]
+    contour_analysis = contour[0]["analysis"]
+    assert isinstance(columns_analysis, dict)
+    assert isinstance(contour_analysis, dict)
+    assert columns_analysis["spectrum_raster"] == "columns"
+    assert contour_analysis["spectrum_raster"] == "contour"
+    one_dir = _first_output(columns[0])
+    two_dir = _first_output(contour[0])
+    one_frames = sorted(one_dir.glob("frame_*.png"))
+    two_frames = sorted(two_dir.glob("frame_*.png"))
+    assert [path.name for path in one_frames] == [path.name for path in two_frames]
+    assert one_frames
+    differed = False
+    for left, right in zip(one_frames, two_frames, strict=True):
+        if left.read_bytes() != right.read_bytes():
+            differed = True
+            break
+    assert differed
 
 
 def test_dry_run_reports_skip_after_successful_render(tmp_path: Path) -> None:

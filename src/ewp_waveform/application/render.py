@@ -64,7 +64,12 @@ from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.concat import concat_videos
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
-from ewp_waveform.ffmpeg.draw import SCROLL_SUPERSAMPLE, draw_envelope_frame, glow_overscan
+from ewp_waveform.ffmpeg.draw import (
+    SCROLL_SUPERSAMPLE,
+    draw_envelope_frame,
+    draw_spectrum_frame,
+    glow_overscan,
+)
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
     encode_rgba_stream,
@@ -234,8 +239,13 @@ def iter_spectrum_frames(
     scale: str,
     tau_seconds: float,
     soft_clip: bool,
+    contour: bool = False,
 ) -> Iterator[bytes]:
-    """Fixed-axis frames: X is log-Hz, motion is vertical only."""
+    """Fixed-axis frames: X is log-Hz, motion is vertical only.
+
+    ``contour`` is a visual-target experiment: PCHIP filled silhouette instead
+    of independent column spans. Analysis/FFT/EMA/span are unchanged.
+    """
     width = preset.canvas.width
     height = preset.canvas.height
     stroke = preset.waveform.stroke_width or 3.0
@@ -262,21 +272,34 @@ def iter_spectrum_frames(
             raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
         blended = blend_columns(previous, raw, alpha)
         previous = blended
-        yield draw_envelope_frame(
-            blended,
-            width=draw_w,
-            height=draw_h,
-            color=preset.waveform.color,
-            amplitude=preset.waveform.amplitude,
-            stroke_width=stroke,
-            style=preset.waveform.style,
-            center_line=center,
-            scroll_phase=0.0,
-            content_height=height,
-            supersample=SCROLL_SUPERSAMPLE,
-            glow_sigma=glow,
-            envelope_oversample=1,
-        )
+        if contour:
+            yield draw_spectrum_frame(
+                blended,
+                width=draw_w,
+                height=draw_h,
+                color=preset.waveform.color,
+                amplitude=preset.waveform.amplitude,
+                center_line=center,
+                content_height=height,
+                supersample=SCROLL_SUPERSAMPLE,
+                glow_sigma=glow,
+            )
+        else:
+            yield draw_envelope_frame(
+                blended,
+                width=draw_w,
+                height=draw_h,
+                color=preset.waveform.color,
+                amplitude=preset.waveform.amplitude,
+                stroke_width=stroke,
+                style=preset.waveform.style,
+                center_line=center,
+                scroll_phase=0.0,
+                content_height=height,
+                supersample=SCROLL_SUPERSAMPLE,
+                glow_sigma=glow,
+                envelope_oversample=1,
+            )
 
 
 @dataclass(frozen=True)
@@ -462,6 +485,7 @@ def render_job(
     keep_temp: bool = False,
     fail_after_chunk: int | None = None,
     progress: Callable[[str], None] | None = None,
+    spectrum_contour: bool = False,
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -619,6 +643,7 @@ def render_job(
                 scale=scale,
                 tau_seconds=tau,
                 soft_clip=soft,
+                contour=spectrum_contour,
             )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
@@ -671,6 +696,7 @@ def render_job(
                 "fmin_hz": span.fmin_hz,
                 "fmax_hz": span.fmax_hz,
                 "frequency_range": span.source,
+                "spectrum_raster": "contour" if spectrum_contour else "columns",
             }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

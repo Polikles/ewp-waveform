@@ -17,4 +17,22 @@ Renders were operator-local (`local-renders/ffmpeg-spike/spectrum/`, not in git;
 
 Stock `showfreqs` is a **limited** stand-in (and this FFmpeg build cannot zoom `fmin`/`fmax`). The application now maps an FFT onto a log-Hz span (`auto` or explicit) and draws mirrored bars. Still experimental vs the brand spectrum; particles remain custom-renderer.
 
+## Contour raster experiment (not a preset/schema change)
+
+`draw_envelope_frame` rasterizes each amplitude as an independent vertical span. Even with spatial smoothing and 12× supersample, the silhouette stays column-derived / faceted.
+
+`draw_spectrum_frame` keeps the same per-X amplitude array, reconstructs a mirrored filled contour with Fritsch-Carlson PCHIP (no overshoot of local peaks), and uses the same glow encode path. FFT, span, EMA, and spatial smoothing are unchanged. Production default remains **columns**.
+
+A/B (same clip, not in git):
+
+```bash
+uv run python scripts/spectrum_contour_ab.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-ab" --duration 8
+```
+
+- A `a-columns/` — current column raster
+- B `b-contour/` — PCHIP contour
+
+Results JSON `analysis.spectrum_raster` is `columns` or `contour`. Render signature is unchanged (do not SKIP A onto B).
+
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).
