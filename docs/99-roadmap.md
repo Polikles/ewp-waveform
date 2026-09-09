@@ -76,7 +76,8 @@ No dates are assigned until evidence supports them.
 - [x] spectrum mapping 32/64 log-RMS bands + tilt/compression (operator: B is the new baseline);
 - [x] spectrum horizontal layout recenter + taper A/B/C (operator: B recentered 64-band is spectrum baseline);
 - [x] centered temporal RMS envelope vs recentered spectrum (**rejected**: X must be stationary);
-- [ ] static center-out 64-band fold vs recentered spectrum (operator visual);
+- [x] static center-out 64-band fold vs recentered spectrum (kept as regression);
+- [ ] AnalysisFrame → VisualField (65-slot center-out) filled ribbon vs old fold (operator visual);
 - [ ] playhead envelope (full-file + cursor) for optional viz and GUI scrubber;
 - [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 

@@ -120,4 +120,13 @@ uv run python scripts/spectrum_fold_abc.py "/path/to/file.wav" \
   --output-dir "/path/to/output-test-spectrum-fold" --duration 8
 ```
 
-Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).
+## VisualField architecture (not a preset/schema change)
+
+Pipeline: **AnalysisFrame** (64 RMS bands) → static **VisualField** (`amplitude[N]`, N need not equal 64) → filled-ribbon renderer. X slots never move. Mapping weights are fixed; left and right are not copies of each other. Default center-out field is **65** slots (one center). Old recentered and even/odd fold paths remain as regression modes.
+
+```bash
+uv run python scripts/spectrum_field_ribbon.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-field" --duration 8
+```
+
+Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber). Future styles (bars, classic line, segmented) should consume the same VisualField.

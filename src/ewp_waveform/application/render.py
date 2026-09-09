@@ -30,6 +30,7 @@ from ewp_waveform.analysis.envelope import (
     viewport_left_px,
     window_from_origin,
 )
+from ewp_waveform.analysis.frames import AnalysisFrame
 from ewp_waveform.analysis.spectrum import (
     PIVOT_TAU_SECONDS,
     FrequencySpan,
@@ -98,6 +99,8 @@ from ewp_waveform.identity import (
     sha256_file,
     short_signature,
 )
+from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
+from ewp_waveform.visual.ribbon import field_to_columns
 
 
 def _glow_sigma(preset: VisualPreset) -> float:
@@ -378,6 +381,101 @@ def iter_spectrum_frames(
                 glow_sigma=glow,
                 envelope_oversample=1,
             )
+
+
+def _visual_field_peak(
+    path: Path,
+    *,
+    n_frames: int,
+    fps: float,
+    width: int,
+    span: FrequencySpan,
+    scale: str,
+    n_bands: int,
+    tilt_db_per_octave: float,
+    compress: float,
+    spatial_sigma: float,
+    spatial_filter: str,
+    mapping: CenterOutMapping,
+) -> float:
+    collected: list[float] = []
+    step = 1 if n_frames <= 240 else max(1, n_frames // 120)
+    filt = _spectrum_spatial_filter(spatial_filter)
+    for i in range(0, n_frames, step):
+        bands = spectrum_bands(
+            path,
+            frame_index=i,
+            fps=fps,
+            span=span,
+            scale=scale,
+            n_bands=n_bands,
+            tilt_db_per_octave=tilt_db_per_octave,
+            compress=compress,
+        )
+        field = mapping.apply(AnalysisFrame.from_bands(bands))
+        columns = field_to_columns(field, width)
+        columns = apply_spectrum_spatial(columns, sigma=spatial_sigma, kind=filt)
+        collected.extend(columns)
+    return bin_peak(collected)
+
+
+def iter_field_frames(
+    path: Path,
+    *,
+    n_frames: int,
+    preset: VisualPreset,
+    fps: float,
+    glow: float,
+    span: FrequencySpan,
+    peak: float | None,
+    scale: str,
+    tau_seconds: float,
+    soft_clip: bool,
+    n_bands: int,
+    tilt_db_per_octave: float,
+    compress: float,
+    spatial_sigma: float,
+    spatial_filter: str,
+    mapping: CenterOutMapping,
+) -> Iterator[bytes]:
+    """AnalysisFrame -> static VisualField -> filled ribbon. X slots never move."""
+    height = preset.canvas.height
+    center = bool(preset.waveform.center_line)
+    pad = glow_overscan(glow)
+    draw_w = preset.canvas.width + 2 * pad
+    draw_h = height + 2 * pad
+    alpha = ema_alpha(fps, tau_seconds)
+    filt = _spectrum_spatial_filter(spatial_filter)
+    previous: list[float] | None = None
+    for i in range(n_frames):
+        bands = spectrum_bands(
+            path,
+            frame_index=i,
+            fps=fps,
+            span=span,
+            scale=scale,
+            n_bands=n_bands,
+            tilt_db_per_octave=tilt_db_per_octave,
+            compress=compress,
+        )
+        field = mapping.apply(AnalysisFrame.from_bands(bands))
+        raw = field_to_columns(field, draw_w)
+        raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
+        if peak is not None and peak > 0.0:
+            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        blended = blend_columns(previous, raw, alpha)
+        previous = blended
+        yield draw_spectrum_frame(
+            blended,
+            width=draw_w,
+            height=draw_h,
+            color=preset.waveform.color,
+            amplitude=preset.waveform.amplitude,
+            center_line=center,
+            content_height=preset.canvas.height,
+            supersample=SCROLL_SUPERSAMPLE,
+            glow_sigma=glow,
+        )
 
 
 def iter_temporal_frames(
@@ -856,7 +954,12 @@ def render_job(
                 )
                 if taper > 0.0:
                     taper = min(taper, 0.49)
-                layout = "center_out" if spectrum_layout == "center_out" else "linear"
+                if spectrum_layout == "field_center_out":
+                    layout = "field_center_out"
+                elif spectrum_layout == "center_out":
+                    layout = "center_out"
+                else:
+                    layout = "linear"
                 slot_sigma = (
                     float(spectrum_slot_sigma)
                     if isinstance(spectrum_slot_sigma, int | float)
@@ -864,43 +967,81 @@ def render_job(
                     and spectrum_slot_sigma > 0.0
                     else 0.0
                 )
-                if norm_mode != "none":
-                    note("spectrum peak scan")
-                    peak = spectrum_peak(
+                if layout == "field_center_out":
+                    field_bands = n_bands if n_bands is not None else 64
+                    mapping = CenterOutMapping(n_slots=CENTER_OUT_SLOTS, n_bands=field_bands)
+                    if norm_mode != "none":
+                        note("spectrum peak scan")
+                        peak = _visual_field_peak(
+                            decoded,
+                            n_frames=expected_frames,
+                            fps=job.fps,
+                            width=preset.canvas.width,
+                            span=span,
+                            scale=scale,
+                            n_bands=field_bands,
+                            tilt_db_per_octave=tilt_db,
+                            compress=compress,
+                            spatial_sigma=spatial_sigma,
+                            spatial_filter=spatial_filter,
+                            mapping=mapping,
+                        )
+                    frames = iter_field_frames(
                         decoded,
                         n_frames=expected_frames,
+                        preset=preset,
                         fps=job.fps,
-                        width=preset.canvas.width,
+                        glow=glow,
                         span=span,
+                        peak=peak,
                         scale=scale,
-                        smoothing_sigma=spatial_sigma,
+                        tau_seconds=tau,
+                        soft_clip=soft,
+                        n_bands=field_bands,
+                        tilt_db_per_octave=tilt_db,
+                        compress=compress,
+                        spatial_sigma=spatial_sigma,
+                        spatial_filter=spatial_filter,
+                        mapping=mapping,
+                    )
+                else:
+                    if norm_mode != "none":
+                        note("spectrum peak scan")
+                        peak = spectrum_peak(
+                            decoded,
+                            n_frames=expected_frames,
+                            fps=job.fps,
+                            width=preset.canvas.width,
+                            span=span,
+                            scale=scale,
+                            smoothing_sigma=spatial_sigma,
+                            spatial_filter=spatial_filter,
+                            n_bands=n_bands,
+                            tilt_db_per_octave=tilt_db,
+                            compress=compress,
+                        )
+                    frames = iter_spectrum_frames(
+                        decoded,
+                        n_frames=expected_frames,
+                        preset=preset,
+                        fps=job.fps,
+                        glow=glow,
+                        span=span,
+                        peak=peak,
+                        scale=scale,
+                        tau_seconds=tau,
+                        soft_clip=soft,
+                        contour=spectrum_contour,
+                        spatial_sigma=spatial_sigma,
                         spatial_filter=spatial_filter,
                         n_bands=n_bands,
                         tilt_db_per_octave=tilt_db,
                         compress=compress,
+                        recenter=recenter,
+                        edge_taper=taper,
+                        layout=layout,
+                        slot_sigma=slot_sigma,
                     )
-                frames = iter_spectrum_frames(
-                    decoded,
-                    n_frames=expected_frames,
-                    preset=preset,
-                    fps=job.fps,
-                    glow=glow,
-                    span=span,
-                    peak=peak,
-                    scale=scale,
-                    tau_seconds=tau,
-                    soft_clip=soft,
-                    contour=spectrum_contour,
-                    spatial_sigma=spatial_sigma,
-                    spatial_filter=spatial_filter,
-                    n_bands=n_bands,
-                    tilt_db_per_octave=tilt_db,
-                    compress=compress,
-                    recenter=recenter,
-                    edge_taper=taper,
-                    layout=layout,
-                    slot_sigma=slot_sigma,
-                )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
             encode_label = "temporal" if geometry != "spectrum" else "spectrum"
@@ -966,6 +1107,10 @@ def render_job(
                     "spectrum_edge_taper": taper,
                     "spectrum_layout": layout,
                     "spectrum_slot_sigma": slot_sigma,
+                    "visual_pipeline": (
+                        "analysis_field_ribbon" if layout == "field_center_out" else "legacy"
+                    ),
+                    "visual_slots": CENTER_OUT_SLOTS if layout == "field_center_out" else None,
                 }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

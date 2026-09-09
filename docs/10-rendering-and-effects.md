@@ -53,7 +53,11 @@ Default production identity is **60 fps**. At 1400×280 / 5 s that is ~4.7 px/fr
 
 Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling envelope.
 
-FFmpeg MVP **frequency+fixed-axis** path (experimental): application FFT mapped onto a log-Hz axis, then mirrored draw/encode. Production still uses per-pixel magnitude lerp, column rasterization (`draw_envelope_frame`), and a 3-box spatial blur at `width/200`. **X is stationary:** each horizontal slot is a fixed analysis bin; only Y amplitude animates. A scrolling temporal window is rejected. Visual-target experiments (not schema): PCHIP contour, 64-band RMS mapping with dominant-region recenter (control), and a **static center-out fold** of those bands (`scripts/spectrum_fold_abc.py`). `signal.frequency.range = "auto"` fits a span around source energy so typical speech sits near the log-midpoint; explicit `fmin_hz` / `fmax_hz` override. Stock `showfreqs` is no longer the encode path (this FFmpeg build has no `fmin`/`fmax` zoom). Not a pixel match to the brand spectrum.
+FFmpeg MVP **frequency+fixed-axis** path (experimental): application FFT mapped onto a log-Hz axis, then mirrored draw/encode. Production still uses per-pixel magnitude lerp, column rasterization (`draw_envelope_frame`), and a 3-box spatial blur at `width/200`. **X is stationary:** each horizontal slot is a fixed mix of analysis bands; only Y amplitude animates. A scrolling temporal window is rejected.
+
+Target architecture: **AnalysisFrame** (audio features) → static **VisualField** (`amplitude[N]`, N independent of band count) → style renderer. The first style is the filled ribbon. Glow/particles stay downstream. Old recentered and even/odd fold outputs remain reference modes. New center-out field: 65 slots, one visual center (`scripts/spectrum_field_ribbon.py`).
+
+`signal.frequency.range = "auto"` fits a span around source energy so typical speech sits near the log-midpoint; explicit `fmin_hz` / `fmax_hz` override. Stock `showfreqs` is no longer the encode path (this FFmpeg build has no `fmin`/`fmax` zoom). Not a pixel match to the brand spectrum.
 
 Default preset **`iuris-default`** (locked to operator pick `*ad0c99b500c0.mov`): mirrored, glow medium, 60 fps, 5 s window, oversample 4, motion sinc LOD, shutter 0, color `#C7E6EC`.
 

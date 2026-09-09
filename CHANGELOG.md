@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Visual pipeline split: AnalysisFrame → static VisualField → filled-ribbon renderer. 65-slot center-out mapping (one visual center). Script: `scripts/spectrum_field_ribbon.py`. Old recentered/fold modes remain.
 - Static center-out fold of 64 spectral bands (X slots never move). Temporal-envelope experiment rejected: X must be stationary. Script: `scripts/spectrum_fold_abc.py`.
 - Centered temporal-envelope visual experiment (1.5 s RMS / RMS+peak) vs recentered 64-band spectrum. Script: `scripts/spectrum_envelope_abc.py`.
 - Spectrum layout experiment: dominant-region recenter + optional edge taper on the 64-band B mapping. Script: `scripts/spectrum_layout_abc.py`.
