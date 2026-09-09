@@ -97,21 +97,27 @@ uv run python scripts/spectrum_layout_abc.py "/path/to/file.wav" \
   --output-dir "/path/to/output-test-spectrum-layout" --duration 8
 ```
 
-Operator: keep **B recentered 64-band spectrum** as the spectrum baseline. The target look is a designed amplitude ribbon, so the next test is a **centered temporal envelope** (X is time in a local window, not frequency).
+Operator: keep **B recentered 64-band spectrum** as the spectrum control. **Temporal-envelope B/C is rejected:** X must be stationary. Each horizontal position is a fixed analysis slot; only Y amplitude may change. No scrolling window, no dynamic pivot.
 
-## Centered temporal envelope experiment (not a preset/schema change)
+## Fixed center-out spectral fold (not a preset/schema change)
 
-Offline window around the current frame: `t ± 0.75 s` (1.5 s), 64 equal-time bins, RMS (C blends 30% peak-abs), compress 0.75, Gaussian σ=1 on the 64 bins, PCHIP contour, same glow/gain/EMA. No frequency tilt, no edge taper.
+Same 64 RMS bands, +3 dB/oct, compress 0.75, amplitude EMA, contour. Static permutation every frame:
 
-| | Dir | Source |
+```text
+..., b4, b2, b0 | b1, b3, b5, ...
+```
+
+Band 0 sits immediately left of center; band 1 immediately right. No frame-dependent reorder.
+
+| | Dir | Layout |
 |---|---|---|
-| A | `a-recentered-spectrum/` | B recentered spectrum (control) |
-| B | `b-temporal-rms/` | centered RMS envelope |
-| C | `c-temporal-rms-peak/` | centered RMS + peak mix |
+| A | `a-recentered-control/` | recentered 64-band spectrum (control) |
+| B | `b-center-out-fold/` | fixed center-out fold |
+| C | `c-center-out-smooth/` | fold + Gaussian σ=1 on visual slots |
 
 ```bash
-uv run python scripts/spectrum_envelope_abc.py "/path/to/file.wav" \
-  --output-dir "/path/to/output-test-spectrum-envelope" --duration 8
+uv run python scripts/spectrum_fold_abc.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-fold" --duration 8
 ```
 
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).

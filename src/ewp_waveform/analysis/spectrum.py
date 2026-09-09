@@ -288,6 +288,28 @@ def tilt_gains(
     return gains
 
 
+def fold_bands_center_out(bands: Sequence[float]) -> list[float]:
+    """Static center-out fold. Identical permutation every frame.
+
+    Left-to-right visual slots: even bands descending into the center, then
+    odd bands ascending: ``..., b4, b2, b0 | b1, b3, b5, ...``.
+    Band 0 (lowest) sits immediately left of center; band 1 immediately right.
+    """
+    n = len(bands)
+    if n < 2:
+        return [max(0.0, float(v)) for v in bands]
+    out = [0.0] * n
+    left = n // 2
+    for i in range(left):
+        out[i] = max(0.0, float(bands[2 * (left - 1 - i)]))
+    right = n - left
+    for i in range(right):
+        odd = 2 * i + 1
+        if odd < n:
+            out[left + i] = max(0.0, float(bands[odd]))
+    return out
+
+
 def compress_bands(values: Sequence[float], exponent: float) -> list[float]:
     """Power compressor on non-negative amplitudes. 1.0 is a no-op."""
     if exponent >= 1.0:

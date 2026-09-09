@@ -12,6 +12,7 @@ from ewp_waveform.analysis.spectrum import (
     compress_bands,
     dominant_band_pivot,
     ema_alpha,
+    fold_bands_center_out,
     gaussian_kernel,
     gaussian_smooth,
     log_band_rms,
@@ -260,3 +261,19 @@ def test_edge_taper_zeros_ends_and_keeps_the_middle() -> None:
     assert faded[-1] == 0.0
     assert abs(faded[40] - 0.8) < 1e-12
     assert faded[4] < faded[20]
+
+
+def test_center_out_fold_is_static_and_puts_b0_at_center_left() -> None:
+    bands = list(range(8))
+    folded = fold_bands_center_out(bands)
+    assert folded == [6.0, 4.0, 2.0, 0.0, 1.0, 3.0, 5.0, 7.0]
+    assert fold_bands_center_out(bands) == folded
+    assert folded[3] == 0.0
+    assert folded[4] == 1.0
+    wide = list(range(64))
+    out = fold_bands_center_out(wide)
+    assert out[31] == 0.0
+    assert out[32] == 1.0
+    assert out[0] == 62.0
+    assert out[-1] == 63.0
+    assert sorted(out) == [float(i) for i in wide]

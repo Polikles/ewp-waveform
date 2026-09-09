@@ -38,6 +38,8 @@ from ewp_waveform.analysis.spectrum import (
     blend_columns,
     dominant_band_pivot,
     ema_alpha,
+    fold_bands_center_out,
+    gaussian_smooth,
     resolve_frequency_span,
     spectrum_bands,
     spectrum_columns,
@@ -274,6 +276,8 @@ def iter_spectrum_frames(
     compress: float = 1.0,
     recenter: bool = False,
     edge_taper: float = 0.0,
+    layout: str = "linear",
+    slot_sigma: float = 0.0,
 ) -> Iterator[bytes]:
     """Fixed-axis frames: X is log-Hz, motion is vertical only.
 
@@ -281,6 +285,7 @@ def iter_spectrum_frames(
     of independent column spans. ``spatial_sigma`` / ``spatial_filter`` are
     log-Hz LPF experiments; FFT, span, EMA, and gain are unchanged.
     ``recenter`` / ``edge_taper`` are layout-only (not analysis or gain).
+    ``layout="center_out"`` is a static fold; X slots never move between frames.
     """
     width = preset.canvas.width
     height = preset.canvas.height
@@ -307,15 +312,21 @@ def iter_spectrum_frames(
                 tilt_db_per_octave=tilt_db_per_octave,
                 compress=compress,
             )
-            layout_pivot: float | None = None
-            if recenter:
-                instant = dominant_band_pivot(bands)
-                if pivot is None:
-                    pivot = instant
-                else:
-                    pivot = pivot_alpha * instant + (1.0 - pivot_alpha) * pivot
-                layout_pivot = pivot
-            raw = upsample_bands(bands, draw_w, pivot=layout_pivot)
+            if layout == "center_out":
+                slots = fold_bands_center_out(bands)
+                if slot_sigma > 0.0:
+                    slots = gaussian_smooth(slots, sigma=slot_sigma)
+                raw = upsample_bands(slots, draw_w, pivot=None)
+            else:
+                layout_pivot: float | None = None
+                if recenter:
+                    instant = dominant_band_pivot(bands)
+                    if pivot is None:
+                        pivot = instant
+                    else:
+                        pivot = pivot_alpha * instant + (1.0 - pivot_alpha) * pivot
+                    layout_pivot = pivot
+                raw = upsample_bands(bands, draw_w, pivot=layout_pivot)
             raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         else:
             raw = spectrum_columns(
@@ -610,6 +621,8 @@ def render_job(
     spectrum_recenter: bool = False,
     spectrum_edge_taper: float = 0.0,
     visual_geometry: str = "spectrum",
+    spectrum_layout: str = "linear",
+    spectrum_slot_sigma: float = 0.0,
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -843,6 +856,14 @@ def render_job(
                 )
                 if taper > 0.0:
                     taper = min(taper, 0.49)
+                layout = "center_out" if spectrum_layout == "center_out" else "linear"
+                slot_sigma = (
+                    float(spectrum_slot_sigma)
+                    if isinstance(spectrum_slot_sigma, int | float)
+                    and not isinstance(spectrum_slot_sigma, bool)
+                    and spectrum_slot_sigma > 0.0
+                    else 0.0
+                )
                 if norm_mode != "none":
                     note("spectrum peak scan")
                     peak = spectrum_peak(
@@ -877,6 +898,8 @@ def render_job(
                     compress=compress,
                     recenter=recenter,
                     edge_taper=taper,
+                    layout=layout,
+                    slot_sigma=slot_sigma,
                 )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
@@ -941,6 +964,8 @@ def render_job(
                     "spectrum_compress": compress,
                     "spectrum_recenter": recenter,
                     "spectrum_edge_taper": taper,
+                    "spectrum_layout": layout,
+                    "spectrum_slot_sigma": slot_sigma,
                 }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
