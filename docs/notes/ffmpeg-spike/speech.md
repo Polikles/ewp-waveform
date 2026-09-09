@@ -184,4 +184,17 @@ Board **impuls segmentowy** is discrete rounded columns of a phrase envelope. Th
 
 ## Long jobs
 
-Not run here: full s2e9, 60 min, 2.5 h. Disk and ProRes size rule them out on this VM. Short s2e9 cut at 4:10 looks consistent with s0e00 Damian (same filled+glow graph, speech-shaped, not noise-sausage).
+Not run here: full s2e9, 60 min, 2.5 h. Disk and ProRes size rule them out on undersized VMs. Short s2e9 cut at 4:10 looks consistent with s0e00 Damian (same filled+glow graph, speech-shaped, not noise-sausage).
+
+## Full-file application scroll (operator, 2026-08-31 / 2026-09-09)
+
+`waveform render` `iuris-default` ProRes on `s0e00.wav` (~395.7 s, 23741 frames @ 60 fps, 7 chunks). Dest identity `9c129955cbb0`. ~10 GB throwaway asset accepted. Look on par with the 8 s preview; operator played the file and scrubbed — no visible artifacts at a quick glance.
+
+| Date | Profile | `jobs` | Wall | Real-time factor | Host CPU (approx.) |
+|---|---|---|---|---|---|
+| 2026-08-31 | sequential encode | 1 | 12604 s | ~31.9× | single-digit % |
+| 2026-09-09 | `maximum` | 4 | 4010 s | ~10.1× | ~17% |
+
+Process-pool `jobs` helped (~3.1×) and did not change the look. ~17% of a 20-core / 28-thread 14700K is still under-used (Python GIL drawer + one FFmpeg stdin per worker). Further wall-time cuts are a requirement (`NFR-PERF-005`); the custom renderer owns using the machine (`NFR-PERF-006`). A 50 min episode at ~10× realtime is still many hours — keep full s2e9 off the critical path until throughput is closer to usable.
+
+`iuris-spectrum` on this full file is still pending operator visual QA.

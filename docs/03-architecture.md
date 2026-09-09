@@ -55,6 +55,8 @@ Pass separation supports effect recomputation, caching/reuse, per-pass continuit
 
 Chunk size, worker count, FFmpeg threads, and future device choice describe how equivalent work is computed. They do not intentionally define appearance.
 
+Wall time and real-time factor are product metrics (`NFR-PERF-005`). The FFmpeg MVP may leave CPU unused; the custom renderer must be built to use available cores and later GPU (`NFR-PERF-006`, ADR-0011).
+
 ## Plugin readiness
 
 Use internal protocols/registries in MVP. Public plugin discovery/loading is deferred until compatibility, packaging, versioning, and security contracts stabilize.

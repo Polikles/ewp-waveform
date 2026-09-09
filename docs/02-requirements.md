@@ -174,6 +174,8 @@
 - **FR-BENCH-013** — Dedicated resume benchmark compares uninterrupted vs resumed output.
 - **FR-BENCH-014** — Continuity-strategy benchmark compares stateful/overlap/hybrid where supported.
 - **FR-BENCH-015** — Long-duration endurance target is approximately three hours.
+- **FR-BENCH-016** — Performance benchmarks include wall time, CPU utilization, real-time factor (wall / source duration), and output size versus source duration, across `jobs` and `chunk_seconds`. Labelled operator evidence is recorded. A numeric throughput default is adopted only from that evidence and must not change intended appearance.
+- **FR-BENCH-017** — Custom-renderer (MVP2) throughput is a required benchmark family before GPU work: same visual identity, higher CPU (and later GPU) utilization than the FFmpeg MVP.
 
 ## Non-functional requirements
 
@@ -194,6 +196,8 @@
 - **NFR-PERF-002** — Parallelism is configurable.
 - **NFR-PERF-003** — Performance defaults derive from benchmark evidence.
 - **NFR-PERF-004** — Processing model supports typical 20–80 minute files and ~3 h endurance input.
+- **NFR-PERF-005** — Wall time and real-time factor are first-class performance metrics. Reducing them without changing intended appearance is a product goal. Numeric thresholds become profile defaults only from labelled benchmark or operator evidence.
+- **NFR-PERF-006** — The FFmpeg MVP may under-use the host CPU (Python GIL drawing plus one FFmpeg stdin per worker). The custom renderer (MVP2) must be designed to use available CPU cores, and later GPU, as a performance setting that does not define appearance.
 
 - **NFR-PORT-001** — Reference: Ubuntu 24.04 WSL2 and bare metal.
 - **NFR-PORT-002** — Core does not depend on WSL-specific APIs.

@@ -9,6 +9,7 @@
 | Resume differs from uninterrupted | Hidden defects | checkpoint validation + resume benchmark/warning |
 | Single transient suppresses long waveform | Poor visual consistency | robust normalization + soft clipping |
 | PNG sequence explodes disk usage | Failed long jobs | free-space checks + benchmark dry-run estimates |
+| FFmpeg MVP wall time too high for episode length | 50 min × ~10× realtime is not a usable throwaway pipeline | `jobs` process pool; labelled throughput benchmarks (`FR-BENCH-016`); custom renderer CPU/GPU (`NFR-PERF-006`) |
 | Signature omits visual input | Incorrect SKIP | ADR + signature tests |
 | Performance settings alter appearance | Non-reproducible result | invariance tests |
 | Future GPU path is nondeterministic | Backend mismatch | explicit tolerances + GPU validation |

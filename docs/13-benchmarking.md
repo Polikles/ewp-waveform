@@ -26,6 +26,17 @@ Measure where available:
 
 Future GPU metrics: peak VRAM, GPU utilization, GPU processing time.
 
+Throughput (wall time / real-time factor) is a **required** performance target, not an optional extra (`NFR-PERF-005`, `FR-BENCH-016`). Large ProRes is acceptable for throwaway assets; long wall time is not. Numeric bars (for example a maximum real-time factor on the operator workstation) are adopted only from labelled evidence.
+
+Labelled operator evidence, `iuris-default` ProRes on `s0e00.wav` (~395.7 s source, 23741 frames @ 60 fps, 7×60 s chunks, ~10 GB):
+
+| Date | `jobs` | Wall | Real-time factor | CPU (Task Manager, approx.) | Look |
+|---|---|---|---|---|---|
+| 2026-08-31 | 1 (unused field) | 12604 s | ~31.9× | single-digit % | on par with 8 s preview |
+| 2026-09-09 | 4 (`maximum`) | 4010 s | ~10.1× | ~17% | no visible artifacts at operator glance |
+
+`jobs=4` is ~3.1× faster, still far from using a 20-core host. Further FFmpeg-MVP gains (higher `jobs`, less Python per frame) are in-scope but limited. The custom renderer owns using the machine (`NFR-PERF-006`, `FR-BENCH-017`). GPU waits until default-preset look stays locked and this CPU-parallel evidence is in.
+
 ### Visual benchmarks
 
 Goal: compare styles/effects/normalization and tune appearance.
@@ -67,7 +78,7 @@ Parallel jobs:
 1 / 2 / 4 / auto
 ```
 
-`jobs` now fans out independent scroll-chunk encodes (one process per worker, each drawing RGBA and piping FFmpeg). It does not change intended appearance. `auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers. Spectrum stays single-process until it has a chunk contract.
+`jobs` now fans out independent scroll-chunk encodes (one process per worker, each drawing RGBA and piping FFmpeg). It does not change intended appearance. First wall-time evidence: `jobs=1` → `jobs=4` on `s0e00` (~3.1×). `auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers. Spectrum stays single-process until it has a chunk contract.
 
 FFmpeg threads:
 

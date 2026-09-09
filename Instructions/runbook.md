@@ -103,8 +103,9 @@ If a long scroll job dies after some 60 s chunks:
 ## Disk and time (honest)
 
 - A few seconds of `iuris-default` at 60 fps is the right smoke test.
-- Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk.
+- Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk. ~10 GB for 6.5 min @ 1400×280×60 is expected; ~100 GB per 50 min speaker is acceptable as a throwaway asset.
 - Chunk size and `jobs` (`--performance balanced` or `maximum`) do not change the intended look. `balanced` uses 2 encode processes; `maximum` uses 4. A custom performance TOML can raise `jobs` further on a many-core CPU.
+- Labelled wall time on `s0e00` (~6.5 min): ~3.5 h at `jobs=1`, ~67 min at `jobs=4` (~10× realtime, ~17% of a 14700K). Further cuts are a product goal; the FFmpeg path will not use the whole machine.
 - `benchmark run` is for matrices of short files. Do not point the example manifest at private episode paths inside git.
 
 ## Known limits (do not treat as bugs)

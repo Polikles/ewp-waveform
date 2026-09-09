@@ -11,9 +11,9 @@ Operator install (no ruff/mypy) is [`Instructions/install.md`](./Instructions/in
 
 ## Current phase
 
-FFmpeg MVP **roadmap** (code + operator runbook) is in place. Next evidence is operator visual QA on a fresh WSL VM and long jobs off undersized disks. Spike notes stay in `docs/notes/ffmpeg-spike/`. Do not commit generated media.
+FFmpeg MVP **roadmap** (code + operator runbook) is in place. Operator visual QA of full `s0e00` scroll is recorded. Next evidence is `iuris-spectrum` on speech; episode-length jobs wait on throughput. Spike notes stay in `docs/notes/ffmpeg-spike/`. Do not commit generated media.
 
-Playhead, particles, GPU, Docker, and public release remain deferred (`docs/99-roadmap.md`). GPU work waits until default-preset look stays locked and CPU process-parallel (`jobs`) is measured.
+Playhead, particles, GPU, Docker, and public release remain deferred (`docs/99-roadmap.md`). GPU work waits until default-preset look stays locked, CPU `jobs` evidence is in, and custom-renderer CPU throughput is measured.
 
 ## Quality gates
 

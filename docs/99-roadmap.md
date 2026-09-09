@@ -21,8 +21,9 @@ No dates are assigned until evidence supports them.
 - [x] operator visual QA of noise renders (direction OK; noise too thick; chunk seam confirmed);
 - [x] short speech cuts (s0e00 / s2e9) for style and glow comparison;
 - [x] 30 vs 60 fps encode path on speech (appearance differs; DaVinci playback still operator);
-- [ ] operator visual QA of speech renders (fresh WSL VM; see `Instructions/runbook.md`);
-- [ ] long-duration (full s2e9 ~50 min, later ~2.5 h) **off this VM**;
+- [x] operator visual QA of speech renders (fresh WSL VM; `s0e00.wav` full `iuris-default` ProRes: look on par with 8 s preview, no artifacts at operator glance; see `docs/notes/ffmpeg-spike/speech.md`);
+- [ ] operator visual QA of `iuris-spectrum` on the same speech source;
+- [ ] long-duration (full s2e9 ~50 min, later ~2.5 h) **after throughput is closer to usable** (~10× realtime still implies many hours);
 - [ ] music/non-speech sample when available.
 
 ## Phase 2 — FFmpeg MVP
@@ -42,7 +43,9 @@ No dates are assigned until evidence supports them.
 ## Benchmark TODO
 - [ ] chunk 30/60/120/300 s;
 - [x] scroll chunk encode uses `jobs` as a process pool (`balanced`=2, `maximum`=4);
-- [ ] jobs 1/2/4/auto wall-time evidence on the operator workstation;
+- [x] jobs 1 vs 4 wall-time on `s0e00` (12604 s → 4010 s, ~3.1×, ~17% CPU);
+- [ ] jobs 1/2/4/8/auto wall-time matrix (same identity);
+- [ ] wall-time / real-time-factor target adopted from evidence (`FR-BENCH-016`, `NFR-PERF-005`);
 - [ ] FFmpeg thread variants;
 - [ ] PNG/ProRes/both;
 - [ ] ~30/~60/~180 min inputs;
@@ -56,10 +59,12 @@ No dates are assigned until evidence supports them.
 - [ ] canonical RGBA;
 - [ ] multi-pass waveform/effects;
 - [ ] robust scaling;
+- [ ] design for available CPU (threads/SIMD/processes); FFmpeg MVP may stay under-used (`NFR-PERF-006`);
 - [ ] continuity strategy benchmark;
 - [ ] absolute-time particles;
 - [ ] full style/effect implementation;
-- [ ] intermediate pass reuse/cache.
+- [ ] intermediate pass reuse/cache;
+- [ ] throughput benchmark vs FFmpeg MVP on the same identity (`FR-BENCH-017`) before GPU.
 
 ## FFmpeg visual tuning (after MVP baseline)
 - [ ] phrase-length **scroll** envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
@@ -70,7 +75,7 @@ No dates are assigned until evidence supports them.
 - [ ] particle collision against the fixed-axis wave (custom renderer, especially music).
 
 ## Later
-- [ ] GPU feasibility/RTX benchmark (after default-preset look stays locked and CPU process-parallel is measured);
+- [ ] GPU feasibility/RTX 3090 benchmark (after default-preset look stays locked, CPU `jobs` evidence is in, and custom-renderer CPU throughput is measured);
 - [ ] low-resource profiles/minimum hardware;
 - [ ] Windows/Apple Silicon;
 - [ ] browser GUI;

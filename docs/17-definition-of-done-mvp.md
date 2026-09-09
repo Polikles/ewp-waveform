@@ -39,4 +39,4 @@ The FFmpeg MVP is complete only when:
 - run summary is implemented or explicitly accepted as a documented MVP exception;
 - integration/regression/determinism/chunk/resume/output tests pass;
 - benchmark **runner** exists; labelled spike estimates are not profile defaults;
-- long-duration and speech visual QA are operator evidence (fresh WSL VM / workstation), not missing code paths. See `Instructions/runbook.md`.
+- long-duration and speech visual QA are operator evidence (fresh WSL VM / workstation), not missing code paths. See `Instructions/runbook.md`. Full `s0e00` `iuris-default` scroll is recorded (`docs/notes/ffmpeg-spike/speech.md`); `iuris-spectrum` and ~50 min jobs are still open.

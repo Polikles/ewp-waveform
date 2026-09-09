@@ -10,7 +10,7 @@ Development is internal-beta / pre-MVP. There is no chosen release candidate and
 
 ## Next phase
 
-FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Next evidence: operator visual QA on a fresh WSL VM (`Instructions/runbook.md`) and long jobs off undersized disks.
+FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Operator visual QA: full `s0e00.wav` `iuris-default` ProRes looks usable (no artifacts at a glance); `jobs=4` cut wall time 12604 s → 4010 s (~10× realtime, ~17% CPU). Next evidence: `iuris-spectrum` on the same speech source. Episode-length jobs wait until throughput is closer to usable. Wall-time is a requirement (`NFR-PERF-005`); custom renderer owns using the CPU/GPU (`NFR-PERF-006`).
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
@@ -31,7 +31,7 @@ Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat
 
 Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to brand mirrored line.
 
-Long jobs run on the operator workstation.
+Long jobs run on the operator workstation. Labelled `s0e00` throughput is in `docs/13-benchmarking.md` and `docs/notes/ffmpeg-spike/speech.md`.
 
 ## Deferred pending evidence
 
