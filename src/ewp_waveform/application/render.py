@@ -44,6 +44,14 @@ from ewp_waveform.analysis.spectrum import (
     spectrum_peak,
     upsample_bands,
 )
+from ewp_waveform.analysis.temporal import (
+    TEMPORAL_BINS,
+    TEMPORAL_PEAK_MIX,
+    TEMPORAL_WINDOW_SECONDS,
+    load_mono_f32,
+    temporal_envelope_columns,
+    temporal_envelope_peak,
+)
 from ewp_waveform.application.checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
     Checkpoint,
@@ -361,6 +369,55 @@ def iter_spectrum_frames(
             )
 
 
+def iter_temporal_frames(
+    samples: list[float],
+    rate: int,
+    *,
+    n_frames: int,
+    preset: VisualPreset,
+    fps: float,
+    glow: float,
+    peak: float | None,
+    tau_seconds: float,
+    soft_clip: bool,
+    origin_seconds: float,
+    peak_mix: float,
+) -> Iterator[bytes]:
+    """Centered temporal envelope: X is time in a local window, current time at mid."""
+    width = preset.canvas.width
+    height = preset.canvas.height
+    center = bool(preset.waveform.center_line)
+    pad = glow_overscan(glow)
+    draw_w = width + 2 * pad
+    draw_h = height + 2 * pad
+    alpha = ema_alpha(fps, tau_seconds)
+    previous: list[float] | None = None
+    for i in range(n_frames):
+        time_seconds = origin_seconds + (i / fps if fps > 0 else 0.0)
+        raw = temporal_envelope_columns(
+            samples,
+            rate,
+            time_seconds=time_seconds,
+            width=draw_w,
+            peak_mix=peak_mix,
+        )
+        if peak is not None and peak > 0.0:
+            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        blended = blend_columns(previous, raw, alpha)
+        previous = blended
+        yield draw_spectrum_frame(
+            blended,
+            width=draw_w,
+            height=draw_h,
+            color=preset.waveform.color,
+            amplitude=preset.waveform.amplitude,
+            center_line=center,
+            content_height=height,
+            supersample=SCROLL_SUPERSAMPLE,
+            glow_sigma=glow,
+        )
+
+
 @dataclass(frozen=True)
 class EnvelopeSettings:
     oversample: int
@@ -552,6 +609,7 @@ def render_job(
     spectrum_compress: float = 1.0,
     spectrum_recenter: bool = False,
     spectrum_edge_taper: float = 0.0,
+    visual_geometry: str = "spectrum",
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -662,19 +720,11 @@ def render_job(
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
         if job.domain.value == "frequency":
-            note(
-                f"spectrum decode {clip_duration:.1f}s -> {expected_frames} frames "
-                f"@ {job.fps:g} fps"
+            geometry = (
+                visual_geometry
+                if visual_geometry in {"temporal_rms", "temporal_rms_peak"}
+                else "spectrum"
             )
-            reset_workdir(work)
-            decoded = work / "source.wav"
-            decode_mono_wav(
-                job.path,
-                decoded,
-                start=clip_start if clip_start > 0 else None,
-                duration=clip_duration if clip_duration > 0 else None,
-            )
-            span = resolve_frequency_span(decoded, preset.signal)
             scale = str(preset.signal.get("scale") or "sqrt")
             raw_smooth = preset.signal.get("smoothing", 0.0)
             tau = 0.0
@@ -686,90 +736,158 @@ def render_job(
             if isinstance(norm, dict):
                 norm_mode = str(norm.get("mode") or "auto")
                 soft = bool(norm.get("soft_clip", True))
-            spatial_scale = (
-                spectrum_spatial_scale
-                if isinstance(spectrum_spatial_scale, int | float)
-                and not isinstance(spectrum_spatial_scale, bool)
-                and spectrum_spatial_scale > 0.0
-                else 1.0
+            note(
+                f"{'temporal' if geometry != 'spectrum' else 'spectrum'} decode "
+                f"{clip_duration:.1f}s -> {expected_frames} frames @ {job.fps:g} fps"
             )
-            spatial_filter = _spectrum_spatial_filter(spectrum_spatial_filter)
-            spatial_sigma = _spectrum_spatial_sigma(preset.canvas.width, tau, float(spatial_scale))
-            n_bands = (
-                int(spectrum_n_bands)
-                if isinstance(spectrum_n_bands, int)
-                and not isinstance(spectrum_n_bands, bool)
-                and spectrum_n_bands >= 2
-                else None
-            )
-            tilt_db = (
-                float(spectrum_tilt_db_per_octave)
-                if isinstance(spectrum_tilt_db_per_octave, int | float)
-                and not isinstance(spectrum_tilt_db_per_octave, bool)
-                else 0.0
-            )
-            compress = (
-                float(spectrum_compress)
-                if isinstance(spectrum_compress, int | float)
-                and not isinstance(spectrum_compress, bool)
-                and spectrum_compress > 0.0
-                else 1.0
-            )
-            recenter = bool(spectrum_recenter)
-            taper = (
-                float(spectrum_edge_taper)
-                if isinstance(spectrum_edge_taper, int | float)
-                and not isinstance(spectrum_edge_taper, bool)
-                and spectrum_edge_taper > 0.0
-                else 0.0
-            )
-            if taper > 0.0:
-                taper = min(taper, 0.49)
+            reset_workdir(work)
+            decoded = work / "source.wav"
+            origin_seconds = 0.0
+            if geometry != "spectrum":
+                half = TEMPORAL_WINDOW_SECONDS / 2.0
+                pad_start = max(0.0, clip_start - half)
+                pad_end = min(media.duration_seconds, clip_start + clip_duration + half)
+                decode_mono_wav(
+                    job.path,
+                    decoded,
+                    start=pad_start if pad_start > 0 else None,
+                    duration=max(pad_end - pad_start, clip_duration),
+                )
+                origin_seconds = clip_start - pad_start
+            else:
+                decode_mono_wav(
+                    job.path,
+                    decoded,
+                    start=clip_start if clip_start > 0 else None,
+                    duration=clip_duration if clip_duration > 0 else None,
+                )
+            peak_mix = TEMPORAL_PEAK_MIX if geometry == "temporal_rms_peak" else 0.0
             peak = None
-            if norm_mode != "none":
-                note("spectrum peak scan")
-                peak = spectrum_peak(
+            if geometry != "spectrum":
+                samples, rate = load_mono_f32(decoded)
+                if norm_mode != "none":
+                    note("temporal peak scan")
+                    peak = temporal_envelope_peak(
+                        samples,
+                        rate,
+                        n_frames=expected_frames,
+                        fps=job.fps,
+                        origin_seconds=origin_seconds,
+                        width=preset.canvas.width,
+                        peak_mix=peak_mix,
+                    )
+                frames = iter_temporal_frames(
+                    samples,
+                    rate,
+                    n_frames=expected_frames,
+                    preset=preset,
+                    fps=job.fps,
+                    glow=glow,
+                    peak=peak,
+                    tau_seconds=tau,
+                    soft_clip=soft,
+                    origin_seconds=origin_seconds,
+                    peak_mix=peak_mix,
+                )
+                analysis = {
+                    "chunk_count": 1,
+                    "preroll_seconds": TEMPORAL_WINDOW_SECONDS / 2.0,
+                    "postroll_seconds": TEMPORAL_WINDOW_SECONDS / 2.0,
+                    "encode_workers": 1,
+                    "visual_geometry": geometry,
+                    "temporal_window_seconds": TEMPORAL_WINDOW_SECONDS,
+                    "temporal_bins": TEMPORAL_BINS,
+                    "temporal_peak_mix": peak_mix,
+                    "spectrum_raster": "contour",
+                }
+            else:
+                span = resolve_frequency_span(decoded, preset.signal)
+                spatial_scale = (
+                    spectrum_spatial_scale
+                    if isinstance(spectrum_spatial_scale, int | float)
+                    and not isinstance(spectrum_spatial_scale, bool)
+                    and spectrum_spatial_scale > 0.0
+                    else 1.0
+                )
+                spatial_filter = _spectrum_spatial_filter(spectrum_spatial_filter)
+                spatial_sigma = _spectrum_spatial_sigma(
+                    preset.canvas.width, tau, float(spatial_scale)
+                )
+                n_bands = (
+                    int(spectrum_n_bands)
+                    if isinstance(spectrum_n_bands, int)
+                    and not isinstance(spectrum_n_bands, bool)
+                    and spectrum_n_bands >= 2
+                    else None
+                )
+                tilt_db = (
+                    float(spectrum_tilt_db_per_octave)
+                    if isinstance(spectrum_tilt_db_per_octave, int | float)
+                    and not isinstance(spectrum_tilt_db_per_octave, bool)
+                    else 0.0
+                )
+                compress = (
+                    float(spectrum_compress)
+                    if isinstance(spectrum_compress, int | float)
+                    and not isinstance(spectrum_compress, bool)
+                    and spectrum_compress > 0.0
+                    else 1.0
+                )
+                recenter = bool(spectrum_recenter)
+                taper = (
+                    float(spectrum_edge_taper)
+                    if isinstance(spectrum_edge_taper, int | float)
+                    and not isinstance(spectrum_edge_taper, bool)
+                    and spectrum_edge_taper > 0.0
+                    else 0.0
+                )
+                if taper > 0.0:
+                    taper = min(taper, 0.49)
+                if norm_mode != "none":
+                    note("spectrum peak scan")
+                    peak = spectrum_peak(
+                        decoded,
+                        n_frames=expected_frames,
+                        fps=job.fps,
+                        width=preset.canvas.width,
+                        span=span,
+                        scale=scale,
+                        smoothing_sigma=spatial_sigma,
+                        spatial_filter=spatial_filter,
+                        n_bands=n_bands,
+                        tilt_db_per_octave=tilt_db,
+                        compress=compress,
+                    )
+                frames = iter_spectrum_frames(
                     decoded,
                     n_frames=expected_frames,
+                    preset=preset,
                     fps=job.fps,
-                    width=preset.canvas.width,
+                    glow=glow,
                     span=span,
+                    peak=peak,
                     scale=scale,
-                    smoothing_sigma=spatial_sigma,
+                    tau_seconds=tau,
+                    soft_clip=soft,
+                    contour=spectrum_contour,
+                    spatial_sigma=spatial_sigma,
                     spatial_filter=spatial_filter,
                     n_bands=n_bands,
                     tilt_db_per_octave=tilt_db,
                     compress=compress,
+                    recenter=recenter,
+                    edge_taper=taper,
                 )
-            frames = iter_spectrum_frames(
-                decoded,
-                n_frames=expected_frames,
-                preset=preset,
-                fps=job.fps,
-                glow=glow,
-                span=span,
-                peak=peak,
-                scale=scale,
-                tau_seconds=tau,
-                soft_clip=soft,
-                contour=spectrum_contour,
-                spatial_sigma=spatial_sigma,
-                spatial_filter=spatial_filter,
-                n_bands=n_bands,
-                tilt_db_per_octave=tilt_db,
-                compress=compress,
-                recenter=recenter,
-                edge_taper=taper,
-            )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
-            note("spectrum encode")
+            encode_label = "temporal" if geometry != "spectrum" else "spectrum"
+            note(f"{encode_label} encode")
             encode_rgba_stream(
                 _tick_frames(
                     frames,
                     n_frames=expected_frames,
                     note=note,
-                    label="spectrum",
+                    label=encode_label,
                 ),
                 width=preset.canvas.width,
                 height=preset.canvas.height,
@@ -804,24 +922,26 @@ def render_job(
                     outputs.append({"path": str(png_dest), "format": "png"})
                 if not producing_mov:
                     validation = png_report
-            analysis = {
-                "chunk_count": 1,
-                "preroll_seconds": 0.0,
-                "postroll_seconds": 0.0,
-                "encode_workers": 1,
-                "fmin_hz": span.fmin_hz,
-                "fmax_hz": span.fmax_hz,
-                "frequency_range": span.source,
-                "spectrum_raster": "contour" if spectrum_contour else "columns",
-                "spectrum_spatial_filter": spatial_filter,
-                "spectrum_spatial_sigma": spatial_sigma,
-                "spectrum_spatial_scale": float(spatial_scale),
-                "spectrum_n_bands": n_bands,
-                "spectrum_tilt_db_per_octave": tilt_db,
-                "spectrum_compress": compress,
-                "spectrum_recenter": recenter,
-                "spectrum_edge_taper": taper,
-            }
+            if geometry == "spectrum":
+                analysis = {
+                    "chunk_count": 1,
+                    "preroll_seconds": 0.0,
+                    "postroll_seconds": 0.0,
+                    "encode_workers": 1,
+                    "visual_geometry": "spectrum",
+                    "fmin_hz": span.fmin_hz,
+                    "fmax_hz": span.fmax_hz,
+                    "frequency_range": span.source,
+                    "spectrum_raster": "contour" if spectrum_contour else "columns",
+                    "spectrum_spatial_filter": spatial_filter,
+                    "spectrum_spatial_sigma": spatial_sigma,
+                    "spectrum_spatial_scale": float(spatial_scale),
+                    "spectrum_n_bands": n_bands,
+                    "spectrum_tilt_db_per_octave": tilt_db,
+                    "spectrum_compress": compress,
+                    "spectrum_recenter": recenter,
+                    "spectrum_edge_taper": taper,
+                }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
             note(

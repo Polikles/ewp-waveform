@@ -97,4 +97,21 @@ uv run python scripts/spectrum_layout_abc.py "/path/to/file.wav" \
   --output-dir "/path/to/output-test-spectrum-layout" --duration 8
 ```
 
+Operator: keep **B recentered 64-band spectrum** as the spectrum baseline. The target look is a designed amplitude ribbon, so the next test is a **centered temporal envelope** (X is time in a local window, not frequency).
+
+## Centered temporal envelope experiment (not a preset/schema change)
+
+Offline window around the current frame: `t ± 0.75 s` (1.5 s), 64 equal-time bins, RMS (C blends 30% peak-abs), compress 0.75, Gaussian σ=1 on the 64 bins, PCHIP contour, same glow/gain/EMA. No frequency tilt, no edge taper.
+
+| | Dir | Source |
+|---|---|---|
+| A | `a-recentered-spectrum/` | B recentered spectrum (control) |
+| B | `b-temporal-rms/` | centered RMS envelope |
+| C | `c-temporal-rms-peak/` | centered RMS + peak mix |
+
+```bash
+uv run python scripts/spectrum_envelope_abc.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-envelope" --duration 8
+```
+
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).
