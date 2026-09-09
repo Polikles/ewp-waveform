@@ -6,6 +6,7 @@ import math
 from collections.abc import Sequence
 
 from ewp_waveform.analysis.envelope import sample_bin
+from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
 
 # 12x covers the 1/3-pixel phase cycle at 1400/5s/60fps (~4.67 px/frame).
 SCROLL_SUPERSAMPLE = 12
@@ -65,71 +66,6 @@ def _mirrored_metrics(
         max_half = max(1, round(max(1, usable) * min(max(amplitude, 0.0), 1.0)))
     cap = max(1.0, float(min(center - margin, height - center - 1 - margin)))
     return center, max_half, margin, cap
-
-
-def _pchip_end_slope(slope: float, delta: float) -> float:
-    if delta == 0.0:
-        return 0.0
-    if (slope > 0.0) != (delta > 0.0):
-        return 0.0
-    limit = 3.0 * delta
-    if abs(slope) > abs(limit):
-        return limit
-    return slope
-
-
-def pchip_slopes(values: Sequence[float]) -> list[float]:
-    """Fritsch-Carlson PCHIP slopes on unit-spaced knots. No overshoot of local peaks."""
-    n = len(values)
-    if n == 0:
-        return []
-    if n == 1:
-        return [0.0]
-    delta = [values[i + 1] - values[i] for i in range(n - 1)]
-    slopes = [0.0] * n
-    slopes[0] = delta[0]
-    slopes[-1] = delta[-1]
-    for i in range(1, n - 1):
-        left = delta[i - 1]
-        right = delta[i]
-        if left == 0.0 or right == 0.0 or (left > 0.0) != (right > 0.0):
-            slopes[i] = 0.0
-        else:
-            slopes[i] = 2.0 / (1.0 / left + 1.0 / right)
-    slopes[0] = _pchip_end_slope(slopes[0], delta[0])
-    slopes[-1] = _pchip_end_slope(slopes[-1], delta[-1])
-    return slopes
-
-
-def pchip_eval(values: Sequence[float], slopes: Sequence[float], x: float) -> float:
-    """Hermite cubic on unit-spaced knots. Clamped to [0, 1] and the local knot pair."""
-    n = len(values)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return min(max(values[0], 0.0), 1.0)
-    if x <= 0.0:
-        return min(max(values[0], 0.0), 1.0)
-    last = float(n - 1)
-    if x >= last:
-        return min(max(values[-1], 0.0), 1.0)
-    i = min(n - 2, math.floor(x))
-    t = x - i
-    y0 = values[i]
-    y1 = values[i + 1]
-    d0 = slopes[i]
-    d1 = slopes[i + 1]
-    t2 = t * t
-    t3 = t2 * t
-    y = (
-        y0 * (2.0 * t3 - 3.0 * t2 + 1.0)
-        + d0 * (t3 - 2.0 * t2 + t)
-        + y1 * (-2.0 * t3 + 3.0 * t2)
-        + d1 * (t3 - t2)
-    )
-    lo = min(y0, y1)
-    hi = max(y0, y1)
-    return min(max(y, lo, 0.0), hi, 1.0)
 
 
 def _draw_center_line(

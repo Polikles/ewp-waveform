@@ -54,4 +54,26 @@ uv run python scripts/spectrum_spatial_abc.py "/path/to/file.wav" \
 
 JSON: `spectrum_spatial_filter`, `spectrum_spatial_sigma`, `spectrum_spatial_scale`. Peak scan uses the same spatial settings as the encode so auto-gain is not a hidden amplitude change.
 
+Operator: C (Gaussian 3.5×, σ≈24.5) made the contour smooth enough. The remaining problem is the **mapping**: a conventional LF mass on the left and a long HF tail, not a designed waveform of broad forms.
+
+## Spectral mapping experiment (not a preset/schema change)
+
+Keep contour raster, Gaussian 1× spatial, temporal EMA, glow, and 95th-percentile gain. Change how FFT energy becomes the silhouette:
+
+- log-spaced bands with **RMS energy** (not per-pixel magnitude lerp);
+- tilt pivoted at the log-mid of the span (highs stay visible, not equally tall);
+- power compression on band amplitudes;
+- PCHIP upsample into the existing contour.
+
+| | Dir | Mapping |
+|---|---|---|
+| A | `a-mapping-current/` | current pixel log-resample |
+| B | `b-mapping-64-tilt/` | 64 RMS bands, +3 dB/oct, compress 0.75 |
+| C | `c-mapping-32-tilt/` | 32 RMS bands, +5 dB/oct, compress 0.55 |
+
+```bash
+uv run python scripts/spectrum_mapping_abc.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-mapping" --duration 8
+```
+
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).

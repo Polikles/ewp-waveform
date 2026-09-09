@@ -1,13 +1,12 @@
 from itertools import pairwise
 
+from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
 from ewp_waveform.ffmpeg.draw import (
     bar_metrics,
     draw_envelope_frame,
     draw_spectrum_frame,
     glow_overscan,
     glow_vertical_margin,
-    pchip_eval,
-    pchip_slopes,
     peak_half_height,
 )
 from ewp_waveform.ffmpeg.encode import _glow_crop_graph, shutter_sigma

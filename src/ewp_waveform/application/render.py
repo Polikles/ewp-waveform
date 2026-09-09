@@ -255,6 +255,9 @@ def iter_spectrum_frames(
     contour: bool = False,
     spatial_sigma: float = 0.0,
     spatial_filter: str = "box",
+    n_bands: int | None = None,
+    tilt_db_per_octave: float = 0.0,
+    compress: float = 1.0,
 ) -> Iterator[bytes]:
     """Fixed-axis frames: X is log-Hz, motion is vertical only.
 
@@ -282,6 +285,9 @@ def iter_spectrum_frames(
             scale=scale,
             smoothing_sigma=spatial_sigma,
             spatial_filter=filt,
+            n_bands=n_bands,
+            tilt_db_per_octave=tilt_db_per_octave,
+            compress=compress,
         )
         if peak is not None and peak > 0.0:
             raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
@@ -503,6 +509,9 @@ def render_job(
     spectrum_contour: bool = False,
     spectrum_spatial_scale: float = 1.0,
     spectrum_spatial_filter: str = "box",
+    spectrum_n_bands: int | None = None,
+    spectrum_tilt_db_per_octave: float = 0.0,
+    spectrum_compress: float = 1.0,
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -646,6 +655,26 @@ def render_job(
             )
             spatial_filter = _spectrum_spatial_filter(spectrum_spatial_filter)
             spatial_sigma = _spectrum_spatial_sigma(preset.canvas.width, tau, float(spatial_scale))
+            n_bands = (
+                int(spectrum_n_bands)
+                if isinstance(spectrum_n_bands, int)
+                and not isinstance(spectrum_n_bands, bool)
+                and spectrum_n_bands >= 2
+                else None
+            )
+            tilt_db = (
+                float(spectrum_tilt_db_per_octave)
+                if isinstance(spectrum_tilt_db_per_octave, int | float)
+                and not isinstance(spectrum_tilt_db_per_octave, bool)
+                else 0.0
+            )
+            compress = (
+                float(spectrum_compress)
+                if isinstance(spectrum_compress, int | float)
+                and not isinstance(spectrum_compress, bool)
+                and spectrum_compress > 0.0
+                else 1.0
+            )
             peak = None
             if norm_mode != "none":
                 note("spectrum peak scan")
@@ -658,6 +687,9 @@ def render_job(
                     scale=scale,
                     smoothing_sigma=spatial_sigma,
                     spatial_filter=spatial_filter,
+                    n_bands=n_bands,
+                    tilt_db_per_octave=tilt_db,
+                    compress=compress,
                 )
             frames = iter_spectrum_frames(
                 decoded,
@@ -673,6 +705,9 @@ def render_job(
                 contour=spectrum_contour,
                 spatial_sigma=spatial_sigma,
                 spatial_filter=spatial_filter,
+                n_bands=n_bands,
+                tilt_db_per_octave=tilt_db,
+                compress=compress,
             )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
@@ -729,6 +764,9 @@ def render_job(
                 "spectrum_spatial_filter": spatial_filter,
                 "spectrum_spatial_sigma": spatial_sigma,
                 "spectrum_spatial_scale": float(spatial_scale),
+                "spectrum_n_bands": n_bands,
+                "spectrum_tilt_db_per_octave": tilt_db,
+                "spectrum_compress": compress,
             }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

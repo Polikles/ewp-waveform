@@ -277,6 +277,9 @@ def render(
     spectrum_contour: bool = False,
     spectrum_spatial_scale: float = 1.0,
     spectrum_spatial_filter: str = "box",
+    spectrum_n_bands: int | None = None,
+    spectrum_tilt_db_per_octave: float = 0.0,
+    spectrum_compress: float = 1.0,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -341,6 +344,9 @@ def render(
             spectrum_contour=spectrum_contour,
             spectrum_spatial_scale=spectrum_spatial_scale,
             spectrum_spatial_filter=spectrum_spatial_filter,
+            spectrum_n_bands=spectrum_n_bands,
+            spectrum_tilt_db_per_octave=spectrum_tilt_db_per_octave,
+            spectrum_compress=spectrum_compress,
         )
         if extra_space:
             existing = payload.get("warnings")

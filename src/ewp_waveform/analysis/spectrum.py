@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ewp_waveform.analysis.envelope import bin_peak, scale_amplitude, smooth_bins
+from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
 
 FFT_SIZE = 2048
 AUTO_FALLBACK_FMIN = 80.0
@@ -18,6 +19,7 @@ MIN_SPAN_RATIO = 8.0
 ENERGY_LO = 0.05
 ENERGY_HI = 0.95
 ANALYSIS_HOP_SECONDS = 0.05
+DB_PER_OCTAVE_EXP = 20.0 * math.log10(2.0)
 
 
 @dataclass(frozen=True)
@@ -219,6 +221,95 @@ def resolve_frequency_span(path: Path, signal: dict[str, object]) -> FrequencySp
     return auto_frequency_span(path)
 
 
+def _integrate_power(magnitudes: Sequence[float], k0: float, k1: float) -> float:
+    """Integrate mag^2 over fractional FFT-bin coordinate [k0, k1)."""
+    if k1 <= k0:
+        return 0.0
+    i0 = math.floor(k0)
+    i1 = math.ceil(k1)
+    acc = 0.0
+    n_spec = len(magnitudes)
+    for index in range(i0, i1):
+        lo = max(float(index), k0)
+        hi = min(float(index + 1), k1)
+        if hi <= lo:
+            continue
+        mag = float(magnitudes[index]) if 0 <= index < n_spec else 0.0
+        acc += mag * mag * (hi - lo)
+    return acc
+
+
+def log_band_rms(
+    magnitudes: Sequence[float],
+    *,
+    sample_rate: int,
+    fmin_hz: float,
+    fmax_hz: float,
+    n_bands: int,
+) -> list[float]:
+    """RMS energy in log-spaced bands. Empty bands stay 0."""
+    count = max(2, int(n_bands))
+    if sample_rate < 1 or fmax_hz <= fmin_hz or len(magnitudes) < 2:
+        return [0.0] * count
+    n_fft = (len(magnitudes) - 1) * 2
+    ratio = fmax_hz / fmin_hz
+    out = [0.0] * count
+    for i in range(count):
+        lo = fmin_hz * (ratio ** (i / count))
+        hi = fmin_hz * (ratio ** ((i + 1) / count))
+        k0 = lo * n_fft / float(sample_rate)
+        k1 = hi * n_fft / float(sample_rate)
+        width = max(k1 - k0, 1e-12)
+        out[i] = math.sqrt(_integrate_power(magnitudes, k0, k1) / width)
+    return out
+
+
+def tilt_gains(
+    n_bands: int,
+    *,
+    fmin_hz: float,
+    fmax_hz: float,
+    db_per_octave: float,
+) -> list[float]:
+    """Gains pivoted at the log-mid of the span. 0 dB/oct is all ones."""
+    count = max(1, int(n_bands))
+    if db_per_octave == 0.0 or fmax_hz <= fmin_hz:
+        return [1.0] * count
+    ratio = fmax_hz / fmin_hz
+    fref = math.sqrt(fmin_hz * fmax_hz)
+    exp = db_per_octave / DB_PER_OCTAVE_EXP
+    gains = [0.0] * count
+    for i in range(count):
+        center = fmin_hz * (ratio ** ((i + 0.5) / count))
+        gains[i] = (center / fref) ** exp
+    return gains
+
+
+def compress_bands(values: Sequence[float], exponent: float) -> list[float]:
+    """Power compressor on non-negative amplitudes. 1.0 is a no-op."""
+    if exponent >= 1.0:
+        return [max(0.0, float(v)) for v in values]
+    exp = max(0.05, float(exponent))
+    return [float(v) ** exp if v > 0.0 else 0.0 for v in values]
+
+
+def upsample_bands(bands: Sequence[float], width: int) -> list[float]:
+    """PCHIP the coarse log-band envelope onto the output X axis."""
+    if width < 1:
+        return []
+    n = len(bands)
+    if n == 0:
+        return [0.0] * width
+    if n == 1:
+        value = max(0.0, float(bands[0]))
+        return [value] * width
+    knots = [max(0.0, float(v)) for v in bands]
+    slopes = pchip_slopes(knots)
+    denom = max(width - 1, 1)
+    last = float(n - 1)
+    return [pchip_eval(knots, slopes, (x / denom) * last, unit=False) for x in range(width)]
+
+
 def log_resample(
     magnitudes: Sequence[float],
     *,
@@ -247,6 +338,18 @@ def log_resample(
         b = max(0.0, float(magnitudes[i0 + 1])) if 0 <= i0 + 1 < n_spec else 0.0
         out[x] = a * (1.0 - frac) + b * frac
     return out
+
+
+def _scale_open(value: float, scale: str) -> float:
+    """Amplitude map without clamping to 1 so tilt can exceed unit mag."""
+    v = max(0.0, value)
+    if scale == "sqrt":
+        return math.sqrt(v)
+    if scale == "cbrt":
+        return float(v ** (1.0 / 3.0))
+    if scale == "log":
+        return math.log10(1.0 + 9.0 * v)
+    return v
 
 
 def gaussian_kernel(sigma: float) -> list[float]:
@@ -307,6 +410,9 @@ def spectrum_columns(
     scale: str,
     smoothing_sigma: float,
     spatial_filter: str = "box",
+    n_bands: int | None = None,
+    tilt_db_per_octave: float = 0.0,
+    compress: float = 1.0,
 ) -> list[float]:
     with wave.open(str(path), "rb") as wav:
         rate = wav.getframerate()
@@ -314,14 +420,33 @@ def spectrum_columns(
     start = center - FFT_SIZE // 2
     samples, rate, _total = _read_window(path, start=start, count=FFT_SIZE)
     mags = rfft_magnitudes(samples)
-    columns = log_resample(
-        mags,
-        sample_rate=rate,
-        fmin_hz=span.fmin_hz,
-        fmax_hz=span.fmax_hz,
-        width=width,
-    )
-    columns = [scale_amplitude(v, scale) for v in columns]
+    bands = None if n_bands is None else max(2, int(n_bands))
+    if bands is not None:
+        rms = log_band_rms(
+            mags,
+            sample_rate=rate,
+            fmin_hz=span.fmin_hz,
+            fmax_hz=span.fmax_hz,
+            n_bands=bands,
+        )
+        gains = tilt_gains(
+            bands,
+            fmin_hz=span.fmin_hz,
+            fmax_hz=span.fmax_hz,
+            db_per_octave=tilt_db_per_octave,
+        )
+        tilted = [rms[i] * gains[i] for i in range(bands)]
+        scaled = [_scale_open(v, scale) for v in tilted]
+        columns = upsample_bands(compress_bands(scaled, compress), width)
+    else:
+        columns = log_resample(
+            mags,
+            sample_rate=rate,
+            fmin_hz=span.fmin_hz,
+            fmax_hz=span.fmax_hz,
+            width=width,
+        )
+        columns = [scale_amplitude(v, scale) for v in columns]
     return apply_spectrum_spatial(columns, sigma=smoothing_sigma, kind=spatial_filter)
 
 
@@ -335,6 +460,9 @@ def spectrum_peak(
     scale: str,
     smoothing_sigma: float,
     spatial_filter: str = "box",
+    n_bands: int | None = None,
+    tilt_db_per_octave: float = 0.0,
+    compress: float = 1.0,
 ) -> float:
     collected: list[float] = []
     step = 1 if n_frames <= 240 else max(1, n_frames // 120)
@@ -349,6 +477,9 @@ def spectrum_peak(
                 scale=scale,
                 smoothing_sigma=smoothing_sigma,
                 spatial_filter=spatial_filter,
+                n_bands=n_bands,
+                tilt_db_per_octave=tilt_db_per_octave,
+                compress=compress,
             )
         )
     return bin_peak(collected)
