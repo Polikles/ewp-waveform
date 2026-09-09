@@ -249,6 +249,54 @@ def log_resample(
     return out
 
 
+def gaussian_kernel(sigma: float) -> list[float]:
+    """Normalized Gaussian taps. ``sigma`` is in log-Hz axis pixels."""
+    if sigma <= 0.0:
+        return [1.0]
+    radius = max(1, math.ceil(3.0 * sigma))
+    denom = 2.0 * sigma * sigma
+    taps = [math.exp(-(float(k) * float(k)) / denom) for k in range(-radius, radius + 1)]
+    total = sum(taps)
+    if total <= 0.0:
+        return [1.0]
+    return [tap / total for tap in taps]
+
+
+def gaussian_smooth(values: Sequence[float], *, sigma: float) -> list[float]:
+    """True Gaussian along the log-frequency axis. Edges clamp (no zero-pad fade)."""
+    n = len(values)
+    if sigma <= 0.0 or n < 2:
+        return list(values)
+    kernel = gaussian_kernel(sigma)
+    radius = len(kernel) // 2
+    out = [0.0] * n
+    for i in range(n):
+        acc = 0.0
+        for k, weight in enumerate(kernel):
+            j = i + k - radius
+            if j < 0:
+                j = 0
+            elif j >= n:
+                j = n - 1
+            acc += float(values[j]) * weight
+        out[i] = acc
+    return out
+
+
+def apply_spectrum_spatial(
+    columns: Sequence[float],
+    *,
+    sigma: float,
+    kind: str = "box",
+) -> list[float]:
+    """Spatial LPF on already log-resampled magnitudes. ``box`` is the production default."""
+    if sigma <= 0.0:
+        return list(columns)
+    if kind == "gaussian":
+        return gaussian_smooth(columns, sigma=sigma)
+    return smooth_bins(columns, sigma=sigma)
+
+
 def spectrum_columns(
     path: Path,
     *,
@@ -258,6 +306,7 @@ def spectrum_columns(
     span: FrequencySpan,
     scale: str,
     smoothing_sigma: float,
+    spatial_filter: str = "box",
 ) -> list[float]:
     with wave.open(str(path), "rb") as wav:
         rate = wav.getframerate()
@@ -273,9 +322,7 @@ def spectrum_columns(
         width=width,
     )
     columns = [scale_amplitude(v, scale) for v in columns]
-    if smoothing_sigma > 0.0:
-        columns = smooth_bins(columns, sigma=smoothing_sigma)
-    return columns
+    return apply_spectrum_spatial(columns, sigma=smoothing_sigma, kind=spatial_filter)
 
 
 def spectrum_peak(
@@ -287,6 +334,7 @@ def spectrum_peak(
     span: FrequencySpan,
     scale: str,
     smoothing_sigma: float,
+    spatial_filter: str = "box",
 ) -> float:
     collected: list[float] = []
     step = 1 if n_frames <= 240 else max(1, n_frames // 120)
@@ -300,6 +348,7 @@ def spectrum_peak(
                 span=span,
                 scale=scale,
                 smoothing_sigma=smoothing_sigma,
+                spatial_filter=spatial_filter,
             )
         )
     return bin_peak(collected)

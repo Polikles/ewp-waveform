@@ -275,6 +275,8 @@ def render(
     fail_after_chunk: int | None = None,
     progress: Callable[[str], None] | None = None,
     spectrum_contour: bool = False,
+    spectrum_spatial_scale: float = 1.0,
+    spectrum_spatial_filter: str = "box",
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -337,6 +339,8 @@ def render(
             fail_after_chunk=fail_after_chunk,
             progress=progress,
             spectrum_contour=spectrum_contour,
+            spectrum_spatial_scale=spectrum_spatial_scale,
+            spectrum_spatial_filter=spectrum_spatial_filter,
         )
         if extra_space:
             existing = payload.get("warnings")

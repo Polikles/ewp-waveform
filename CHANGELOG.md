@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Spectrum log-Hz spatial-scale experiment: true Gaussian LPF at 1× / 2× / 3.5× current σ, contour raster on. Production still uses 3-box spatial smoothing. Script: `scripts/spectrum_spatial_abc.py`.
 - Spectrum contour raster experiment (`draw_spectrum_frame`, PCHIP, no peak overshoot) behind an internal flag; production spectrum stays column raster. A/B script: `scripts/spectrum_contour_ab.py`.
 - Wall time and real-time factor are first-class performance requirements (`NFR-PERF-005`, `FR-BENCH-016`). The custom renderer must be designed to use available CPU, and later GPU (`NFR-PERF-006`, `FR-BENCH-017`).
 - Scroll chunk encode uses `jobs` as a process pool after the global peak is stored. Concat order is unchanged. `jobs=1` and `jobs=2` PNG sequences match. Spectrum remains a single encode.

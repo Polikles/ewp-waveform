@@ -227,6 +227,19 @@ def iter_scroll_frames(
         )
 
 
+def _spectrum_spatial_sigma(width: int, tau_seconds: float, scale: float) -> float:
+    """Log-Hz spatial sigma in output pixels. 0 when temporal smoothing is off."""
+    if tau_seconds <= 0.0 or scale <= 0.0:
+        return 0.0
+    return max(1.0, float(width) / 200.0) * scale
+
+
+def _spectrum_spatial_filter(kind: str) -> str:
+    if kind == "gaussian":
+        return "gaussian"
+    return "box"
+
+
 def iter_spectrum_frames(
     path: Path,
     *,
@@ -240,11 +253,14 @@ def iter_spectrum_frames(
     tau_seconds: float,
     soft_clip: bool,
     contour: bool = False,
+    spatial_sigma: float = 0.0,
+    spatial_filter: str = "box",
 ) -> Iterator[bytes]:
     """Fixed-axis frames: X is log-Hz, motion is vertical only.
 
     ``contour`` is a visual-target experiment: PCHIP filled silhouette instead
-    of independent column spans. Analysis/FFT/EMA/span are unchanged.
+    of independent column spans. ``spatial_sigma`` / ``spatial_filter`` are
+    log-Hz LPF experiments; FFT, span, EMA, and gain are unchanged.
     """
     width = preset.canvas.width
     height = preset.canvas.height
@@ -255,9 +271,7 @@ def iter_spectrum_frames(
     draw_h = height + 2 * pad
     alpha = ema_alpha(fps, tau_seconds)
     previous: list[float] | None = None
-    spatial = 0.0
-    if tau_seconds > 0.0:
-        spatial = max(1.0, width / 200.0)
+    filt = _spectrum_spatial_filter(spatial_filter)
     for i in range(n_frames):
         raw = spectrum_columns(
             path,
@@ -266,7 +280,8 @@ def iter_spectrum_frames(
             width=draw_w,
             span=span,
             scale=scale,
-            smoothing_sigma=spatial,
+            smoothing_sigma=spatial_sigma,
+            spatial_filter=filt,
         )
         if peak is not None and peak > 0.0:
             raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
@@ -486,6 +501,8 @@ def render_job(
     fail_after_chunk: int | None = None,
     progress: Callable[[str], None] | None = None,
     spectrum_contour: bool = False,
+    spectrum_spatial_scale: float = 1.0,
+    spectrum_spatial_filter: str = "box",
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -620,6 +637,15 @@ def render_job(
             if isinstance(norm, dict):
                 norm_mode = str(norm.get("mode") or "auto")
                 soft = bool(norm.get("soft_clip", True))
+            spatial_scale = (
+                spectrum_spatial_scale
+                if isinstance(spectrum_spatial_scale, int | float)
+                and not isinstance(spectrum_spatial_scale, bool)
+                and spectrum_spatial_scale > 0.0
+                else 1.0
+            )
+            spatial_filter = _spectrum_spatial_filter(spectrum_spatial_filter)
+            spatial_sigma = _spectrum_spatial_sigma(preset.canvas.width, tau, float(spatial_scale))
             peak = None
             if norm_mode != "none":
                 note("spectrum peak scan")
@@ -630,7 +656,8 @@ def render_job(
                     width=preset.canvas.width,
                     span=span,
                     scale=scale,
-                    smoothing_sigma=max(1.0, preset.canvas.width / 200.0) if tau > 0 else 0.0,
+                    smoothing_sigma=spatial_sigma,
+                    spatial_filter=spatial_filter,
                 )
             frames = iter_spectrum_frames(
                 decoded,
@@ -644,6 +671,8 @@ def render_job(
                 tau_seconds=tau,
                 soft_clip=soft,
                 contour=spectrum_contour,
+                spatial_sigma=spatial_sigma,
+                spatial_filter=spatial_filter,
             )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
@@ -697,6 +726,9 @@ def render_job(
                 "fmax_hz": span.fmax_hz,
                 "frequency_range": span.source,
                 "spectrum_raster": "contour" if spectrum_contour else "columns",
+                "spectrum_spatial_filter": spatial_filter,
+                "spectrum_spatial_sigma": spatial_sigma,
+                "spectrum_spatial_scale": float(spatial_scale),
             }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

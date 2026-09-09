@@ -1,15 +1,20 @@
 import math
 import struct
 import wave
+from itertools import pairwise
 from pathlib import Path
 
 from ewp_waveform.analysis.spectrum import (
     FFT_SIZE,
+    FrequencySpan,
     auto_frequency_span,
     ema_alpha,
+    gaussian_kernel,
+    gaussian_smooth,
     log_resample,
     resolve_frequency_span,
     rfft_magnitudes,
+    spectrum_columns,
 )
 
 
@@ -74,3 +79,54 @@ def test_explicit_span_wins_over_auto(tmp_path: Path) -> None:
 def test_ema_alpha_is_one_when_tau_is_zero() -> None:
     assert ema_alpha(60.0, 0.0) == 1.0
     assert 0.0 < ema_alpha(60.0, 0.15) < 1.0
+
+
+def _total_variation(values: list[float]) -> float:
+    return sum(abs(later - earlier) for earlier, later in pairwise(values))
+
+
+def test_gaussian_kernel_is_normalized_and_symmetric() -> None:
+    taps = gaussian_kernel(4.0)
+    assert abs(sum(taps) - 1.0) < 1e-12
+    assert taps == list(reversed(taps))
+    assert max(taps) == taps[len(taps) // 2]
+
+
+def test_gaussian_smooth_does_not_raise_peaks_or_darken_dc() -> None:
+    dc = gaussian_smooth([0.4] * 32, sigma=5.0)
+    assert all(abs(value - 0.4) < 1e-12 for value in dc)
+    impulse = [0.0] * 31
+    impulse[15] = 1.0
+    blurred = gaussian_smooth(impulse, sigma=3.0)
+    assert max(blurred) <= 1.0 + 1e-12
+    assert blurred.index(max(blurred)) == 15
+    wider = gaussian_smooth(impulse, sigma=6.0)
+    assert _total_variation(wider) < _total_variation(blurred)
+
+
+def test_stronger_gaussian_spatial_reduces_loghz_lumpiness(tmp_path: Path) -> None:
+    path = tmp_path / "tone.wav"
+    _sine_wav(path, hz=1000.0, rate=8000)
+    span = FrequencySpan(200.0, 2000.0, "explicit")
+    mild = spectrum_columns(
+        path,
+        frame_index=2,
+        fps=10.0,
+        width=80,
+        span=span,
+        scale="sqrt",
+        smoothing_sigma=1.0,
+        spatial_filter="gaussian",
+    )
+    strong = spectrum_columns(
+        path,
+        frame_index=2,
+        fps=10.0,
+        width=80,
+        span=span,
+        scale="sqrt",
+        smoothing_sigma=3.5,
+        spatial_filter="gaussian",
+    )
+    assert _total_variation(strong) < _total_variation(mild)
+    assert max(strong) <= max(mild) + 1e-12

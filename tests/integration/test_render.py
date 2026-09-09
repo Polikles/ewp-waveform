@@ -464,6 +464,7 @@ def test_spectrum_render_records_hz_span(tmp_path: Path) -> None:
     assert isinstance(analysis, dict)
     assert analysis["frequency_range"] == "explicit"
     assert analysis["spectrum_raster"] == "columns"
+    assert analysis["spectrum_spatial_filter"] == "box"
     assert isinstance(analysis["fmin_hz"], int | float)
     assert isinstance(analysis["fmax_hz"], int | float)
     assert abs(float(analysis["fmin_hz"]) - 200.0) < 1.0

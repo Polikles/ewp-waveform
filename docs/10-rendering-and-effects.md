@@ -53,7 +53,7 @@ Default production identity is **60 fps**. At 1400×280 / 5 s that is ~4.7 px/fr
 
 Vertical-only motion belongs to **frequency+fixed-axis**, not to the scrolling envelope.
 
-FFmpeg MVP **frequency+fixed-axis** path (experimental): application FFT mapped onto a log-Hz axis, then mirrored draw/encode. Production still uses column rasterization (`draw_envelope_frame`). A visual-target experiment (`draw_spectrum_frame`, PCHIP contour, `scripts/spectrum_contour_ab.py`) compares a filled smooth silhouette without changing FFT, span, EMA, or preset schema. `signal.frequency.range = "auto"` fits a span around source energy so typical speech sits near the log-midpoint; explicit `fmin_hz` / `fmax_hz` override. Stock `showfreqs` is no longer the encode path (this FFmpeg build has no `fmin`/`fmax` zoom). Not a pixel match to the brand spectrum.
+FFmpeg MVP **frequency+fixed-axis** path (experimental): application FFT mapped onto a log-Hz axis, then mirrored draw/encode. Production still uses column rasterization (`draw_envelope_frame`) and a 3-box spatial blur at `width/200`. Visual-target experiments (not schema): PCHIP contour (`draw_spectrum_frame`) and a true Gaussian log-Hz LPF at 1×/2×/3.5× (`scripts/spectrum_spatial_abc.py`). `signal.frequency.range = "auto"` fits a span around source energy so typical speech sits near the log-midpoint; explicit `fmin_hz` / `fmax_hz` override. Stock `showfreqs` is no longer the encode path (this FFmpeg build has no `fmin`/`fmax` zoom). Not a pixel match to the brand spectrum.
 
 Default preset **`iuris-default`** (locked to operator pick `*ad0c99b500c0.mov`): mirrored, glow medium, 60 fps, 5 s window, oversample 4, motion sinc LOD, shutter 0, color `#C7E6EC`.
 

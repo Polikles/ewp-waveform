@@ -35,4 +35,23 @@ uv run python scripts/spectrum_contour_ab.py "/path/to/file.wav" \
 
 Results JSON `analysis.spectrum_raster` is `columns` or `contour`. Render signature is unchanged (do not SKIP A onto B).
 
+Operator: contour removed some faceting but the silhouette stayed lumpy/scalloped. Next lever is **spatial scale on the log-Hz axis**, not more temporal EMA and not more contour interpolation.
+
+## Spatial Gaussian scale experiment (not a preset/schema change)
+
+Production still uses three stacked box blurs at `sigma = width/200` (~7 px at 1400). The experiment keeps contour raster, FFT, span, sqrt scale, temporal EMA, glow, and PCHIP, and replaces the spatial LPF with a true Gaussian (edge-clamp, 3σ support):
+
+| | Dir | Spatial |
+|---|---|---|
+| A | `a-spatial-1x/` | Gaussian at current σ |
+| B | `b-spatial-2x/` | Gaussian at 2× σ |
+| C | `c-spatial-3p5x/` | Gaussian at 3.5× σ |
+
+```bash
+uv run python scripts/spectrum_spatial_abc.py "/path/to/file.wav" \
+  --output-dir "/path/to/output-test-spectrum-spatial" --duration 8
+```
+
+JSON: `spectrum_spatial_filter`, `spectrum_spatial_sigma`, `spectrum_spatial_scale`. Peak scan uses the same spatial settings as the encode so auto-gain is not a hidden amplitude change.
+
 Playhead envelope remains **later** (full-file shape + cursor / GUI scrubber).
