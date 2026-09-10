@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 authors = [{ name = "Damian Szczech", email = "szczech.dam+ewpwaveform@gmail.com" }]
 dependencies = [
+  "numpy==2.5.3",
   "pydantic==2.13.4",
   "typer==0.27.1",
 ]

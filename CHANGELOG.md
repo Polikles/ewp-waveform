@@ -4,8 +4,16 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ## Unreleased
 
+### Changed
+
+- Fixed-axis ribbon default supersample is 2× (`RIBBON_SUPERSAMPLE`). Scroll raster stays 12×. Restore the 12× ribbon with `ribbon_supersample=12` or `RIBBON_SUPERSAMPLE_BASELINE`.
+- Spectrum analysis uses NumPy `rfft` on PCM loaded once (batched windows, precomputed band/tilt weights). Runtime dependency: `numpy==2.5.3`.
+
 ### Added
 
+- Phase timers on the field-ribbon path (`decode`, `frequency_span`, `spectral_analysis`, `visual_field`, `raster`, `ffmpeg_feed`, `ffmpeg_wait`). Bench script: `scripts/perf_ribbon.py`.
+- Deterministic analysis cache keyed by source identity and analysis settings only (not VisualField mapping, glow, or ribbon style). Override directory with `EWP_ANALYSIS_CACHE`.
+- Field-ribbon process-pool encode for clips of at least 1800 frames (~30 s at 60 fps). Shorter clips stay on the fused single-process generator; `jobs=2` was slower on an 8 s preview.
 - Center-out shoulders: the central Gaussian continues under the first side slots as a floor so the ribbon does not neck between center and side lobes.
 - Center-out VisualField: 11-slot broadband unimodal core; side spectral lobes scaled to stay under 0.9× the center apex.
 - Center-out VisualField uses a 7-slot unimodal core from one shared RMS mix; side bands start outside the core so the center is one apex, not two shoulders.

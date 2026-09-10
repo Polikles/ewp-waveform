@@ -285,6 +285,7 @@ def render(
     visual_geometry: str = "spectrum",
     spectrum_layout: str = "linear",
     spectrum_slot_sigma: float = 0.0,
+    ribbon_supersample: int | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -357,6 +358,7 @@ def render(
             visual_geometry=visual_geometry,
             spectrum_layout=spectrum_layout,
             spectrum_slot_sigma=spectrum_slot_sigma,
+            ribbon_supersample=ribbon_supersample,
         )
         if extra_space:
             existing = payload.get("warnings")

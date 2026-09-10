@@ -1,7 +1,9 @@
 from itertools import pairwise
 
-from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
+from ewp_waveform.analysis.interp import pchip_eval, pchip_eval_many, pchip_slopes
 from ewp_waveform.ffmpeg.draw import (
+    RIBBON_SUPERSAMPLE,
+    SCROLL_SUPERSAMPLE,
     bar_metrics,
     draw_envelope_frame,
     draw_spectrum_frame,
@@ -303,3 +305,42 @@ def test_spectrum_contour_differs_from_column_raster() -> None:
     assert _column_opaque_span(columns_frame, out_w, height, peak_x) == _column_opaque_span(
         contour_frame, out_w, height, peak_x
     )
+
+
+def test_pchip_eval_many_matches_scalar_eval() -> None:
+    knots = [0.1, 0.25, 0.8, 1.0, 0.7, 0.2, 0.0]
+    slopes = pchip_slopes(knots)
+    xs = [i / 4.0 for i in range(25)]
+    vector = pchip_eval_many(knots, slopes, xs, unit=True)
+    scalar = [pchip_eval(knots, slopes, x, unit=True) for x in xs]
+    assert max(abs(float(left) - right) for left, right in zip(vector, scalar, strict=True)) < 1e-12
+
+
+def test_ribbon_supersample_is_a_separate_knob_from_scroll() -> None:
+    assert RIBBON_SUPERSAMPLE >= 1
+    assert SCROLL_SUPERSAMPLE >= 1
+    width, height = 8, 16
+    columns = [0.4] * width
+    ribbon = draw_spectrum_frame(
+        columns,
+        width=width,
+        height=height,
+        color="#C7E6EC",
+        amplitude=1.0,
+        center_line=False,
+        supersample=2,
+    )
+    scroll = draw_envelope_frame(
+        columns,
+        width=width,
+        height=height,
+        color="#C7E6EC",
+        amplitude=1.0,
+        stroke_width=3.0,
+        style="mirrored",
+        center_line=False,
+        supersample=SCROLL_SUPERSAMPLE,
+    )
+    assert len(ribbon) == width * 2 * height * 4
+    assert len(scroll) == width * SCROLL_SUPERSAMPLE * height * 4
+    assert len(ribbon) != len(scroll)

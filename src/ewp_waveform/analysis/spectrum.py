@@ -8,8 +8,19 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+from numpy.typing import NDArray
+
 from ewp_waveform.analysis.envelope import bin_peak, scale_amplitude, smooth_bins
-from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
+from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
+from ewp_waveform.analysis.interp import pchip_eval_many, pchip_slopes
+
+Float64 = NDArray[np.float64]
+
+
+def _float_list(values: np.ndarray) -> list[float]:
+    return [float(v) for v in np.asarray(values, dtype=np.float64).ravel()]
+
 
 FFT_SIZE = 2048
 AUTO_FALLBACK_FMIN = 80.0
@@ -55,54 +66,74 @@ def _positive_hz(raw: object) -> float | None:
     return value
 
 
-def _fft_inplace(buf: list[complex]) -> None:
-    n = len(buf)
-    j = 0
-    for i in range(1, n):
-        bit = n >> 1
-        while j & bit:
-            j ^= bit
-            bit >>= 1
-        j ^= bit
-        if i < j:
-            buf[i], buf[j] = buf[j], buf[i]
-    length = 2
-    while length <= n:
-        ang = -2.0 * math.pi / length
-        wlen = complex(math.cos(ang), math.sin(ang))
-        half = length // 2
-        for i in range(0, n, length):
-            w = 1 + 0j
-            for k in range(half):
-                u = buf[i + k]
-                v = buf[i + k + half] * w
-                buf[i + k] = u + v
-                buf[i + k + half] = u - v
-                w *= wlen
-        length <<= 1
+_HANN: dict[int, Float64] = {}
 
 
 def hann(n: int) -> list[float]:
+    return _float_list(_hann_array(n))
+
+
+def _hann_array(n: int) -> Float64:
+    cached = _HANN.get(n)
+    if cached is not None:
+        return cached
     if n <= 1:
-        return [1.0] * n
-    return [0.5 - 0.5 * math.cos(2.0 * math.pi * i / (n - 1)) for i in range(n)]
+        window = np.ones(max(n, 0), dtype=np.float64)
+    else:
+        window = 0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(n, dtype=np.float64) / (n - 1))
+    _HANN[n] = window
+    return window
 
 
 def rfft_magnitudes(samples: Sequence[float]) -> list[float]:
     """Real FFT magnitudes for a power-of-two window. DC..Nyquist inclusive."""
-    n = len(samples)
+    array = np.asarray(samples, dtype=np.float64)
+    if array.ndim != 1:
+        msg = "FFT window must be a 1-D real sequence"
+        raise ValueError(msg)
+    return _float_list(_rfft_magnitudes_array(array[np.newaxis, :])[0])
+
+
+def _rfft_magnitudes_array(windows: Float64) -> Float64:
+    """Hann-windowed rFFT magnitudes. ``windows`` is (n_windows, n_fft)."""
+    if windows.ndim != 2:
+        msg = "FFT windows must be a 2-D array"
+        raise ValueError(msg)
+    n = windows.shape[1]
     if n < 2 or n & (n - 1):
         msg = "FFT window must be a power of two"
         raise ValueError(msg)
-    window = hann(n)
-    buf = [complex(samples[i] * window[i], 0.0) for i in range(n)]
-    _fft_inplace(buf)
-    scale = 2.0 / n
-    nyquist = n // 2
-    mags = [abs(buf[k]) * scale for k in range(nyquist + 1)]
-    mags[0] *= 0.5
-    mags[-1] *= 0.5
-    return mags
+    spec = np.fft.rfft(windows * _hann_array(n), axis=1)
+    mags = np.abs(spec).astype(np.float64, copy=False) * (2.0 / n)
+    mags[:, 0] *= 0.5
+    mags[:, -1] *= 0.5
+    return np.asarray(mags, dtype=np.float64)
+
+
+def load_mono_pcm(path: Path) -> tuple[Float64, int]:
+    """Load a mono s16le WAV as float64 samples in [-1, 1]."""
+    with wave.open(str(path), "rb") as wav:
+        if wav.getnchannels() != 1 or wav.getsampwidth() != 2:
+            msg = "spectrum expects mono 16-bit WAV"
+            raise ValueError(msg)
+        rate = wav.getframerate()
+        raw = wav.readframes(wav.getnframes())
+    pcm = np.frombuffer(raw, dtype="<i2").astype(np.float64) * (1.0 / 32768.0)
+    return pcm, rate
+
+
+def gather_windows(pcm: Float64, starts: NDArray[np.int64], count: int) -> Float64:
+    """Slice ``count`` samples at each start. Out-of-range samples are 0."""
+    n_windows = int(starts.shape[0])
+    if count < 1 or n_windows < 1:
+        return np.zeros((n_windows, max(count, 0)), dtype=np.float64)
+    if pcm.shape[0] < 1:
+        return np.zeros((n_windows, count), dtype=np.float64)
+    idx = starts.astype(np.int64, copy=False)[:, np.newaxis] + np.arange(count, dtype=np.int64)
+    valid = (idx >= 0) & (idx < pcm.shape[0])
+    clipped = np.clip(idx, 0, int(pcm.shape[0]) - 1)
+    gathered = pcm[clipped]
+    return np.where(valid, gathered, 0.0)
 
 
 def _read_window(path: Path, *, start: int, count: int) -> tuple[list[float], int, int]:
@@ -112,22 +143,21 @@ def _read_window(path: Path, *, start: int, count: int) -> tuple[list[float], in
             raise ValueError(msg)
         total = wav.getnframes()
         rate = wav.getframerate()
-        samples = [0.0] * count
         if count < 1:
-            return samples, rate, total
+            return [], rate, total
+        samples = np.zeros(count, dtype=np.float64)
         i0 = max(0, start)
-        n = min(count, total - i0) if i0 < total else 0
+        dest = i0 - start
+        if dest >= count or i0 >= total:
+            return _float_list(samples), rate, total
+        n = min(count - dest, total - i0)
         if n <= 0:
-            return samples, rate, total
+            return _float_list(samples), rate, total
         wav.setpos(i0)
         raw = wav.readframes(n)
-        dest = i0 - start
-        for j in range(n):
-            sample = int.from_bytes(raw[j * 2 : j * 2 + 2], "little", signed=True)
-            idx = dest + j
-            if 0 <= idx < count:
-                samples[idx] = float(sample) / 32768.0
-        return samples, rate, total
+        pcm = np.frombuffer(raw, dtype="<i2").astype(np.float64) * (1.0 / 32768.0)
+        samples[dest : dest + n] = pcm[:n]
+        return _float_list(samples), rate, total
 
 
 def power_spectrum(samples: Sequence[float]) -> list[float]:
@@ -185,26 +215,18 @@ def clamp_span(fmin: float, fmax: float, nyquist: float) -> tuple[float, float]:
     return lo, hi
 
 
-def auto_frequency_span(path: Path) -> FrequencySpan:
-    with wave.open(str(path), "rb") as wav:
-        total = wav.getnframes()
-        rate = wav.getframerate()
+def auto_frequency_span_from_pcm(pcm: Float64, rate: int) -> FrequencySpan:
     nyquist = float(rate) / 2.0
-    hop = max(FFT_SIZE, round(rate * ANALYSIS_HOP_SECONDS))
-    acc: list[float] | None = None
-    start = 0
-    while start < total:
-        samples, _, _ = _read_window(path, start=start, count=FFT_SIZE)
-        power = power_spectrum(samples)
-        if acc is None:
-            acc = power
-        else:
-            for i, value in enumerate(power):
-                acc[i] += value
-        start += hop
-    if acc is None:
+    total = int(pcm.shape[0])
+    if total < 1 or rate < 1:
         return FrequencySpan(AUTO_FALLBACK_FMIN, min(AUTO_FALLBACK_FMAX, nyquist), "auto")
-    lo, hi, centroid = _energy_percentiles(acc, rate)
+    hop = max(FFT_SIZE, round(rate * ANALYSIS_HOP_SECONDS))
+    starts = np.arange(0, total, hop, dtype=np.int64)
+    if starts.size == 0:
+        return FrequencySpan(AUTO_FALLBACK_FMIN, min(AUTO_FALLBACK_FMAX, nyquist), "auto")
+    windows = gather_windows(pcm, starts, FFT_SIZE)
+    acc = np.sum(_rfft_magnitudes_array(windows) ** 2, axis=0)
+    lo, hi, centroid = _energy_percentiles(acc.tolist(), rate)
     lo = lo / math.sqrt(2.0)
     hi = hi * math.sqrt(2.0)
     if hi / max(lo, HEARING_FMIN) < MIN_SPAN_RATIO:
@@ -214,14 +236,25 @@ def auto_frequency_span(path: Path) -> FrequencySpan:
     return FrequencySpan(fmin, fmax, "auto")
 
 
-def resolve_frequency_span(path: Path, signal: dict[str, object]) -> FrequencySpan:
+def auto_frequency_span(path: Path) -> FrequencySpan:
+    pcm, rate = load_mono_pcm(path)
+    return auto_frequency_span_from_pcm(pcm, rate)
+
+
+def resolve_frequency_span_from_pcm(
+    pcm: Float64, rate: int, signal: dict[str, object]
+) -> FrequencySpan:
     _mode, explicit_min, explicit_max = frequency_config_from_signal(signal)
-    with wave.open(str(path), "rb") as wav:
-        nyquist = float(wav.getframerate()) / 2.0
+    nyquist = float(rate) / 2.0
     if explicit_min is not None and explicit_max is not None and explicit_max > explicit_min:
         fmin, fmax = clamp_span(explicit_min, explicit_max, nyquist)
         return FrequencySpan(fmin, fmax, "explicit")
-    return auto_frequency_span(path)
+    return auto_frequency_span_from_pcm(pcm, rate)
+
+
+def resolve_frequency_span(path: Path, signal: dict[str, object]) -> FrequencySpan:
+    pcm, rate = load_mono_pcm(path)
+    return resolve_frequency_span_from_pcm(pcm, rate, signal)
 
 
 def _integrate_power(magnitudes: Sequence[float], k0: float, k1: float) -> float:
@@ -242,6 +275,38 @@ def _integrate_power(magnitudes: Sequence[float], k0: float, k1: float) -> float
     return acc
 
 
+def band_weight_matrix(
+    n_spec: int,
+    *,
+    sample_rate: int,
+    fmin_hz: float,
+    fmax_hz: float,
+    n_bands: int,
+) -> Float64:
+    """Rows are log-band RMS weights over mag^2 bins. Static for a given FFT geometry."""
+    count = max(2, int(n_bands))
+    weights = np.zeros((count, max(n_spec, 0)), dtype=np.float64)
+    if sample_rate < 1 or fmax_hz <= fmin_hz or n_spec < 2:
+        return weights
+    n_fft = (n_spec - 1) * 2
+    ratio = fmax_hz / fmin_hz
+    for i in range(count):
+        lo = fmin_hz * (ratio ** (i / count))
+        hi = fmin_hz * (ratio ** ((i + 1) / count))
+        k0 = lo * n_fft / float(sample_rate)
+        k1 = hi * n_fft / float(sample_rate)
+        width = max(k1 - k0, 1e-12)
+        i0 = math.floor(k0)
+        i1 = math.ceil(k1)
+        for index in range(i0, i1):
+            bin_lo = max(float(index), k0)
+            bin_hi = min(float(index + 1), k1)
+            if bin_hi <= bin_lo or index < 0 or index >= n_spec:
+                continue
+            weights[i, index] = (bin_hi - bin_lo) / width
+    return weights
+
+
 def log_band_rms(
     magnitudes: Sequence[float],
     *,
@@ -251,20 +316,16 @@ def log_band_rms(
     n_bands: int,
 ) -> list[float]:
     """RMS energy in log-spaced bands. Empty bands stay 0."""
-    count = max(2, int(n_bands))
-    if sample_rate < 1 or fmax_hz <= fmin_hz or len(magnitudes) < 2:
-        return [0.0] * count
-    n_fft = (len(magnitudes) - 1) * 2
-    ratio = fmax_hz / fmin_hz
-    out = [0.0] * count
-    for i in range(count):
-        lo = fmin_hz * (ratio ** (i / count))
-        hi = fmin_hz * (ratio ** ((i + 1) / count))
-        k0 = lo * n_fft / float(sample_rate)
-        k1 = hi * n_fft / float(sample_rate)
-        width = max(k1 - k0, 1e-12)
-        out[i] = math.sqrt(_integrate_power(magnitudes, k0, k1) / width)
-    return out
+    mags = np.asarray(magnitudes, dtype=np.float64)
+    weights = band_weight_matrix(
+        int(mags.shape[0]),
+        sample_rate=sample_rate,
+        fmin_hz=fmin_hz,
+        fmax_hz=fmax_hz,
+        n_bands=n_bands,
+    )
+    rms = np.sqrt(np.maximum(mags * mags @ weights.T, 0.0))
+    return _float_list(rms)
 
 
 def tilt_gains(
@@ -375,10 +436,8 @@ def upsample_bands(
     knots = [max(0.0, float(v)) for v in bands]
     slopes = pchip_slopes(knots)
     denom = max(width - 1, 1)
-    return [
-        pchip_eval(knots, slopes, remap_band_index(x / denom, n_bands=n, pivot=pivot), unit=False)
-        for x in range(width)
-    ]
+    xs = [remap_band_index(x / denom, n_bands=n, pivot=pivot) for x in range(width)]
+    return _float_list(pchip_eval_many(knots, slopes, xs, unit=False))
 
 
 def apply_edge_taper(
@@ -451,6 +510,105 @@ def _scale_open(value: float, scale: str) -> float:
     return v
 
 
+def _scale_open_array(values: Float64, scale: str) -> Float64:
+    v = np.maximum(values, 0.0)
+    if scale == "sqrt":
+        return np.sqrt(v)
+    if scale == "cbrt":
+        return np.cbrt(v)
+    if scale == "log":
+        return np.log10(1.0 + 9.0 * v)
+    return v
+
+
+def compress_array(values: Float64, exponent: float) -> Float64:
+    if exponent >= 1.0:
+        return np.maximum(values, 0.0)
+    exp = max(0.05, float(exponent))
+    out = np.zeros_like(values)
+    positive = values > 0.0
+    out[positive] = values[positive] ** exp
+    return out
+
+
+def frame_window_starts(n_frames: int, *, sample_rate: int, fps: float) -> NDArray[np.int64]:
+    """Center-timestamp window origins. Matches per-frame ``round(i * rate / fps)``."""
+    if n_frames < 1:
+        return np.zeros(0, dtype=np.int64)
+    if fps <= 0.0:
+        centers = np.zeros(n_frames, dtype=np.int64)
+    else:
+        centers = np.fromiter(
+            (round(i * sample_rate / fps) for i in range(n_frames)),
+            dtype=np.int64,
+            count=n_frames,
+        )
+    return centers - FFT_SIZE // 2
+
+
+def bands_from_windows(
+    windows: Float64,
+    *,
+    sample_rate: int,
+    span: FrequencySpan,
+    scale: str,
+    n_bands: int,
+    tilt_db_per_octave: float,
+    compress: float,
+) -> Float64:
+    """Tilted, compressed log-RMS bands for a batch of Hann-windowed frames."""
+    count = max(2, int(n_bands))
+    if windows.shape[0] < 1:
+        return np.zeros((0, count), dtype=np.float64)
+    mags = _rfft_magnitudes_array(windows)
+    weights = band_weight_matrix(
+        int(mags.shape[1]),
+        sample_rate=sample_rate,
+        fmin_hz=span.fmin_hz,
+        fmax_hz=span.fmax_hz,
+        n_bands=count,
+    )
+    rms = np.sqrt(np.maximum((mags * mags) @ weights.T, 0.0))
+    gains = np.asarray(
+        tilt_gains(
+            count,
+            fmin_hz=span.fmin_hz,
+            fmax_hz=span.fmax_hz,
+            db_per_octave=tilt_db_per_octave,
+        ),
+        dtype=np.float64,
+    )
+    return compress_array(_scale_open_array(rms * gains, scale), compress)
+
+
+def build_analysis_sequence(
+    pcm: Float64,
+    sample_rate: int,
+    *,
+    n_frames: int,
+    fps: float,
+    span: FrequencySpan,
+    scale: str,
+    n_bands: int,
+    tilt_db_per_octave: float,
+    compress: float,
+) -> AnalysisSequence:
+    """One AnalysisFrame per video frame. FFT size, Hann, timestamps, and bands unchanged."""
+    starts = frame_window_starts(n_frames, sample_rate=sample_rate, fps=fps)
+    windows = gather_windows(pcm, starts, FFT_SIZE)
+    matrix = bands_from_windows(
+        windows,
+        sample_rate=sample_rate,
+        span=span,
+        scale=scale,
+        n_bands=n_bands,
+        tilt_db_per_octave=tilt_db_per_octave,
+        compress=compress,
+    )
+    frames = tuple(AnalysisFrame.from_bands(row.tolist()) for row in matrix)
+    return AnalysisSequence(frames=frames)
+
+
 def gaussian_kernel(sigma: float) -> list[float]:
     """Normalized Gaussian taps. ``sigma`` is in log-Hz axis pixels."""
     if sigma <= 0.0:
@@ -469,20 +627,10 @@ def gaussian_smooth(values: Sequence[float], *, sigma: float) -> list[float]:
     n = len(values)
     if sigma <= 0.0 or n < 2:
         return list(values)
-    kernel = gaussian_kernel(sigma)
-    radius = len(kernel) // 2
-    out = [0.0] * n
-    for i in range(n):
-        acc = 0.0
-        for k, weight in enumerate(kernel):
-            j = i + k - radius
-            if j < 0:
-                j = 0
-            elif j >= n:
-                j = n - 1
-            acc += float(values[j]) * weight
-        out[i] = acc
-    return out
+    kernel = np.asarray(gaussian_kernel(sigma), dtype=np.float64)
+    radius = int(kernel.shape[0]) // 2
+    padded = np.pad(np.asarray(values, dtype=np.float64), (radius, radius), mode="edge")
+    return _float_list(np.convolve(padded, kernel, mode="valid"))
 
 
 def apply_spectrum_spatial(
@@ -516,24 +664,18 @@ def spectrum_bands(
     center = round(frame_index * rate / fps) if fps > 0 else 0
     start = center - FFT_SIZE // 2
     samples, rate, _total = _read_window(path, start=start, count=FFT_SIZE)
-    mags = rfft_magnitudes(samples)
-    count = max(2, int(n_bands))
-    rms = log_band_rms(
-        mags,
-        sample_rate=rate,
-        fmin_hz=span.fmin_hz,
-        fmax_hz=span.fmax_hz,
-        n_bands=count,
+    windows = np.asarray(samples, dtype=np.float64)[np.newaxis, :]
+    return _float_list(
+        bands_from_windows(
+            windows,
+            sample_rate=rate,
+            span=span,
+            scale=scale,
+            n_bands=n_bands,
+            tilt_db_per_octave=tilt_db_per_octave,
+            compress=compress,
+        )[0]
     )
-    gains = tilt_gains(
-        count,
-        fmin_hz=span.fmin_hz,
-        fmax_hz=span.fmax_hz,
-        db_per_octave=tilt_db_per_octave,
-    )
-    tilted = [rms[i] * gains[i] for i in range(count)]
-    scaled = [_scale_open(v, scale) for v in tilted]
-    return compress_bands(scaled, compress)
 
 
 def spectrum_columns(

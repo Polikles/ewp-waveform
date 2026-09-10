@@ -6,6 +6,7 @@ import math
 import multiprocessing
 import shutil
 import sys
+import time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -13,7 +14,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ewp_waveform import __version__
+from ewp_waveform.analysis.cache import (
+    analysis_cache_digest,
+    analysis_cache_payload,
+    load_analysis_cache,
+    store_analysis_cache,
+)
 from ewp_waveform.analysis.envelope import (
     bin_peak,
     envelope_aa_from_signal,
@@ -30,18 +39,20 @@ from ewp_waveform.analysis.envelope import (
     viewport_left_px,
     window_from_origin,
 )
-from ewp_waveform.analysis.frames import AnalysisFrame
+from ewp_waveform.analysis.frames import AnalysisSequence
 from ewp_waveform.analysis.spectrum import (
     PIVOT_TAU_SECONDS,
     FrequencySpan,
     apply_edge_taper,
     apply_spectrum_spatial,
     blend_columns,
+    build_analysis_sequence,
     dominant_band_pivot,
     ema_alpha,
     fold_bands_center_out,
     gaussian_smooth,
-    resolve_frequency_span,
+    load_mono_pcm,
+    resolve_frequency_span_from_pcm,
     spectrum_bands,
     spectrum_columns,
     spectrum_peak,
@@ -76,12 +87,14 @@ from ewp_waveform.application.chunks import (
     processing_window,
 )
 from ewp_waveform.application.results import elapsed_seconds
+from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.concat import concat_videos
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
 from ewp_waveform.ffmpeg.draw import (
+    RIBBON_SUPERSAMPLE,
     SCROLL_SUPERSAMPLE,
     draw_envelope_frame,
     draw_spectrum_frame,
@@ -281,6 +294,7 @@ def iter_spectrum_frames(
     edge_taper: float = 0.0,
     layout: str = "linear",
     slot_sigma: float = 0.0,
+    supersample: int = RIBBON_SUPERSAMPLE,
 ) -> Iterator[bytes]:
     """Fixed-axis frames: X is log-Hz, motion is vertical only.
 
@@ -303,6 +317,7 @@ def iter_spectrum_frames(
     pivot: float | None = None
     filt = _spectrum_spatial_filter(spatial_filter)
     taper = edge_taper if edge_taper > 0.0 else 0.0
+    ss = max(1, int(supersample))
     for i in range(n_frames):
         if n_bands is not None:
             bands = spectrum_bands(
@@ -362,7 +377,7 @@ def iter_spectrum_frames(
                 amplitude=preset.waveform.amplitude,
                 center_line=center,
                 content_height=height,
-                supersample=SCROLL_SUPERSAMPLE,
+                supersample=ss,
                 glow_sigma=glow,
             )
         else:
@@ -377,42 +392,26 @@ def iter_spectrum_frames(
                 center_line=center,
                 scroll_phase=0.0,
                 content_height=height,
-                supersample=SCROLL_SUPERSAMPLE,
+                supersample=ss,
                 glow_sigma=glow,
                 envelope_oversample=1,
             )
 
 
 def _visual_field_peak(
-    path: Path,
+    sequence: AnalysisSequence,
     *,
-    n_frames: int,
-    fps: float,
     width: int,
-    span: FrequencySpan,
-    scale: str,
-    n_bands: int,
-    tilt_db_per_octave: float,
-    compress: float,
     spatial_sigma: float,
     spatial_filter: str,
     mapping: CenterOutMapping,
 ) -> float:
     collected: list[float] = []
+    n_frames = len(sequence)
     step = 1 if n_frames <= 240 else max(1, n_frames // 120)
     filt = _spectrum_spatial_filter(spatial_filter)
     for i in range(0, n_frames, step):
-        bands = spectrum_bands(
-            path,
-            frame_index=i,
-            fps=fps,
-            span=span,
-            scale=scale,
-            n_bands=n_bands,
-            tilt_db_per_octave=tilt_db_per_octave,
-            compress=compress,
-        )
-        field = mapping.apply(AnalysisFrame.from_bands(bands))
+        field = mapping.apply(sequence[i])
         columns = field_to_columns(field, width)
         columns = apply_spectrum_spatial(columns, sigma=spatial_sigma, kind=filt)
         collected.extend(columns)
@@ -420,23 +419,20 @@ def _visual_field_peak(
 
 
 def iter_field_frames(
-    path: Path,
+    sequence: AnalysisSequence,
     *,
     n_frames: int,
     preset: VisualPreset,
     fps: float,
     glow: float,
-    span: FrequencySpan,
     peak: float | None,
-    scale: str,
     tau_seconds: float,
     soft_clip: bool,
-    n_bands: int,
-    tilt_db_per_octave: float,
-    compress: float,
     spatial_sigma: float,
     spatial_filter: str,
     mapping: CenterOutMapping,
+    supersample: int = RIBBON_SUPERSAMPLE,
+    phases: PhaseTimes | None = None,
 ) -> Iterator[bytes]:
     """AnalysisFrame -> static VisualField -> filled ribbon. X slots never move."""
     height = preset.canvas.height
@@ -447,25 +443,19 @@ def iter_field_frames(
     alpha = ema_alpha(fps, tau_seconds)
     filt = _spectrum_spatial_filter(spatial_filter)
     previous: list[float] | None = None
-    for i in range(n_frames):
-        bands = spectrum_bands(
-            path,
-            frame_index=i,
-            fps=fps,
-            span=span,
-            scale=scale,
-            n_bands=n_bands,
-            tilt_db_per_octave=tilt_db_per_octave,
-            compress=compress,
-        )
-        field = mapping.apply(AnalysisFrame.from_bands(bands))
+    ss = max(1, int(supersample))
+    count = min(n_frames, len(sequence))
+    for i in range(count):
+        t0 = time.perf_counter()
+        field = mapping.apply(sequence[i])
         raw = field_to_columns(field, draw_w)
         raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         if peak is not None and peak > 0.0:
             raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
         blended = blend_columns(previous, raw, alpha)
         previous = blended
-        yield draw_spectrum_frame(
+        t1 = time.perf_counter()
+        frame = draw_spectrum_frame(
             blended,
             width=draw_w,
             height=draw_h,
@@ -473,9 +463,130 @@ def iter_field_frames(
             amplitude=preset.waveform.amplitude,
             center_line=center,
             content_height=preset.canvas.height,
-            supersample=SCROLL_SUPERSAMPLE,
+            supersample=ss,
             glow_sigma=glow,
         )
+        t2 = time.perf_counter()
+        if phases is not None:
+            phases.add("visual_field", t1 - t0)
+            phases.add("raster", t2 - t1)
+        yield frame
+
+
+# Spawn+concat loses to the fused generator on short clips (8 s @ 60 fps).
+_FIELD_POOL_MIN_FRAMES = 1800
+
+
+def _field_frame_ranges(n_frames: int, workers: int) -> list[tuple[int, int]]:
+    """Split ``[0, n_frames)`` into contiguous ranges. Order is concat order."""
+    count = max(1, n_frames)
+    n_workers = min(max(1, workers), count)
+    base, extra = divmod(count, n_workers)
+    ranges: list[tuple[int, int]] = []
+    start = 0
+    for index in range(n_workers):
+        size = base + (1 if index < extra else 0)
+        ranges.append((start, size))
+        start += size
+    return ranges
+
+
+@dataclass(frozen=True)
+class FieldChunkTask:
+    """Pickleable payload for one independent field-ribbon encode range."""
+
+    chunk_index: int
+    n_chunks: int
+    first_frame: int
+    n_frames: int
+    columns_path: str
+    width: int
+    height: int
+    fps: float
+    color: str
+    amplitude: float
+    center_line: bool
+    content_height: int
+    glow: float
+    png_dir: str | None
+    prores_path: str | None
+    ffmpeg_threads: int
+    overscan: int
+    supersample: int
+
+
+def encode_field_chunk(task: FieldChunkTask) -> Path | None:
+    """Raster and encode one precomputed column range. Spawn-pool safe."""
+    columns = np.load(task.columns_path, mmap_mode="r")
+    slc = columns[task.first_frame : task.first_frame + task.n_frames]
+    pad = task.overscan
+    draw_w = task.width + 2 * pad
+    draw_h = task.height + 2 * pad
+
+    def frames() -> Iterator[bytes]:
+        for row in slc:
+            yield draw_spectrum_frame(
+                row.tolist(),
+                width=draw_w,
+                height=draw_h,
+                color=task.color,
+                amplitude=task.amplitude,
+                center_line=task.center_line,
+                content_height=task.content_height,
+                supersample=task.supersample,
+                glow_sigma=task.glow,
+            )
+
+    png_dir = Path(task.png_dir) if task.png_dir is not None else None
+    prores_path = Path(task.prores_path) if task.prores_path is not None else None
+    encode_rgba_stream(
+        frames(),
+        width=task.width,
+        height=task.height,
+        fps=task.fps,
+        glow=task.glow,
+        png_dir=png_dir,
+        prores_path=prores_path,
+        ffmpeg_threads=task.ffmpeg_threads,
+        overscan=task.overscan,
+        supersample=task.supersample,
+        png_start_number=task.first_frame + 1,
+    )
+    return prores_path
+
+
+def _precompute_field_columns(
+    sequence: AnalysisSequence,
+    *,
+    n_frames: int,
+    draw_w: int,
+    peak: float | None,
+    tau_seconds: float,
+    fps: float,
+    soft_clip: bool,
+    spatial_sigma: float,
+    spatial_filter: str,
+    mapping: CenterOutMapping,
+    phases: PhaseTimes | None = None,
+) -> list[list[float]]:
+    alpha = ema_alpha(fps, tau_seconds)
+    filt = _spectrum_spatial_filter(spatial_filter)
+    previous: list[float] | None = None
+    rows: list[list[float]] = []
+    count = min(n_frames, len(sequence))
+    for i in range(count):
+        t0 = time.perf_counter()
+        field = mapping.apply(sequence[i])
+        raw = field_to_columns(field, draw_w)
+        raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
+        if peak is not None and peak > 0.0:
+            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        blended = blend_columns(previous, raw, alpha)
+        previous = blended
+        if phases is not None:
+            phases.add("visual_field", time.perf_counter() - t0)
+        rows.append(blended)
+    return rows
 
 
 def iter_temporal_frames(
@@ -721,6 +832,8 @@ def render_job(
     visual_geometry: str = "spectrum",
     spectrum_layout: str = "linear",
     spectrum_slot_sigma: float = 0.0,
+    ribbon_supersample: int | None = None,
+    phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
 
@@ -813,6 +926,10 @@ def render_job(
     normalization: dict[str, Any] = {}
     validation: dict[str, Any] = {"passed": False}
     resume_history: list[dict[str, Any]] = []
+    clock = phases if phases is not None else PhaseTimes()
+    ribbon_ss = (
+        max(1, int(ribbon_supersample)) if ribbon_supersample is not None else RIBBON_SUPERSAMPLE
+    )
     try:
         after_hash = sha256_file(job.path)
         if after_hash != source_sha:
@@ -865,15 +982,11 @@ def render_job(
                     duration=max(pad_end - pad_start, clip_duration),
                 )
                 origin_seconds = clip_start - pad_start
-            else:
-                decode_mono_wav(
-                    job.path,
-                    decoded,
-                    start=clip_start if clip_start > 0 else None,
-                    duration=clip_duration if clip_duration > 0 else None,
-                )
             peak_mix = TEMPORAL_PEAK_MIX if geometry == "temporal_rms_peak" else 0.0
             peak = None
+            field_chunk_movs: list[Path] | None = None
+            field_encoded = False
+            spectrum_encode_workers = 1
             if geometry != "spectrum":
                 samples, rate = load_mono_f32(decoded)
                 if norm_mode != "none":
@@ -912,7 +1025,6 @@ def render_job(
                     "spectrum_raster": "contour",
                 }
             else:
-                span = resolve_frequency_span(decoded, preset.signal)
                 spatial_scale = (
                     spectrum_spatial_scale
                     if isinstance(spectrum_spatial_scale, int | float)
@@ -970,41 +1082,155 @@ def render_job(
                 if layout == "field_center_out":
                     field_bands = n_bands if n_bands is not None else 64
                     mapping = CenterOutMapping(n_slots=CENTER_OUT_SLOTS, n_bands=field_bands)
+                    cache_payload = analysis_cache_payload(
+                        source_sha256=source_sha,
+                        clip_start=clip_start,
+                        clip_duration=clip_duration,
+                        fps=job.fps,
+                        n_frames=expected_frames,
+                        n_bands=field_bands,
+                        scale=scale,
+                        tilt_db_per_octave=tilt_db,
+                        compress=compress,
+                        signal=preset.signal,
+                    )
+                    cache_digest = analysis_cache_digest(cache_payload)
+                    cached = load_analysis_cache(cache_digest)
+                    if cached is not None:
+                        sequence, span = cached
+                        clock.extras["analysis_cache"] = "hit"
+                        note("spectrum analysis cache hit")
+                    else:
+                        clock.extras["analysis_cache"] = "miss"
+                        with clock.span("decode"):
+                            decode_mono_wav(
+                                job.path,
+                                decoded,
+                                start=clip_start if clip_start > 0 else None,
+                                duration=clip_duration if clip_duration > 0 else None,
+                            )
+                        with clock.span("pcm_load"):
+                            pcm, pcm_rate = load_mono_pcm(decoded)
+                        with clock.span("frequency_span"):
+                            span = resolve_frequency_span_from_pcm(pcm, pcm_rate, preset.signal)
+                        note("spectrum analysis sequence")
+                        with clock.span("spectral_analysis"):
+                            sequence = build_analysis_sequence(
+                                pcm,
+                                pcm_rate,
+                                n_frames=expected_frames,
+                                fps=job.fps,
+                                span=span,
+                                scale=scale,
+                                n_bands=field_bands,
+                                tilt_db_per_octave=tilt_db,
+                                compress=compress,
+                            )
+                        store_analysis_cache(cache_digest, sequence, span)
                     if norm_mode != "none":
                         note("spectrum peak scan")
-                        peak = _visual_field_peak(
-                            decoded,
+                        with clock.span("peak_scan"):
+                            peak = _visual_field_peak(
+                                sequence,
+                                width=preset.canvas.width,
+                                spatial_sigma=spatial_sigma,
+                                spatial_filter=spatial_filter,
+                                mapping=mapping,
+                            )
+                    requested_workers = _job_workers(performance)
+                    use_pool = requested_workers > 1 and expected_frames >= _FIELD_POOL_MIN_FRAMES
+                    if use_pool:
+                        pad = glow_overscan(glow)
+                        draw_w = preset.canvas.width + 2 * pad
+                        with clock.span("visual_field"):
+                            column_rows = _precompute_field_columns(
+                                sequence,
+                                n_frames=expected_frames,
+                                draw_w=draw_w,
+                                peak=peak,
+                                tau_seconds=tau,
+                                fps=job.fps,
+                                soft_clip=soft,
+                                spatial_sigma=spatial_sigma,
+                                spatial_filter=spatial_filter,
+                                mapping=mapping,
+                            )
+                        columns_path = work / "field-columns.npy"
+                        np.save(columns_path, np.asarray(column_rows, dtype=np.float64))
+                        ranges = _field_frame_ranges(len(column_rows), requested_workers)
+                        spectrum_encode_workers = len(ranges)
+                        worker_threads = _encode_worker_threads(threads, spectrum_encode_workers)
+                        png_abs = str((work / "png").resolve()) if producing_png else None
+                        if producing_png:
+                            (work / "png").mkdir(parents=True, exist_ok=True)
+                        tasks = [
+                            FieldChunkTask(
+                                chunk_index=index,
+                                n_chunks=len(ranges),
+                                first_frame=start,
+                                n_frames=size,
+                                columns_path=str(columns_path.resolve()),
+                                width=preset.canvas.width,
+                                height=preset.canvas.height,
+                                fps=job.fps,
+                                color=preset.waveform.color,
+                                amplitude=preset.waveform.amplitude,
+                                center_line=bool(preset.waveform.center_line),
+                                content_height=preset.canvas.height,
+                                glow=glow,
+                                png_dir=png_abs,
+                                prores_path=(
+                                    str((work / f"field-{index:04d}.mov").resolve())
+                                    if producing_mov
+                                    else None
+                                ),
+                                ffmpeg_threads=worker_threads,
+                                overscan=pad,
+                                supersample=ribbon_ss,
+                            )
+                            for index, (start, size) in enumerate(ranges)
+                        ]
+                        note(
+                            f"spectrum encode {len(column_rows)} frames "
+                            f"with {spectrum_encode_workers} process(es)"
+                        )
+                        with clock.span("field_encode_parallel"):
+                            ctx = multiprocessing.get_context("spawn")
+                            with ProcessPoolExecutor(
+                                max_workers=spectrum_encode_workers, mp_context=ctx
+                            ) as pool:
+                                parts = list(pool.map(encode_field_chunk, tasks))
+                        field_chunk_movs = [path for path in parts if path is not None]
+                        field_encoded = True
+                        frames = iter(())
+                    else:
+                        frames = iter_field_frames(
+                            sequence,
                             n_frames=expected_frames,
+                            preset=preset,
                             fps=job.fps,
-                            width=preset.canvas.width,
-                            span=span,
-                            scale=scale,
-                            n_bands=field_bands,
-                            tilt_db_per_octave=tilt_db,
-                            compress=compress,
+                            glow=glow,
+                            peak=peak,
+                            tau_seconds=tau,
+                            soft_clip=soft,
                             spatial_sigma=spatial_sigma,
                             spatial_filter=spatial_filter,
                             mapping=mapping,
+                            supersample=ribbon_ss,
+                            phases=clock,
                         )
-                    frames = iter_field_frames(
-                        decoded,
-                        n_frames=expected_frames,
-                        preset=preset,
-                        fps=job.fps,
-                        glow=glow,
-                        span=span,
-                        peak=peak,
-                        scale=scale,
-                        tau_seconds=tau,
-                        soft_clip=soft,
-                        n_bands=field_bands,
-                        tilt_db_per_octave=tilt_db,
-                        compress=compress,
-                        spatial_sigma=spatial_sigma,
-                        spatial_filter=spatial_filter,
-                        mapping=mapping,
-                    )
                 else:
+                    with clock.span("decode"):
+                        decode_mono_wav(
+                            job.path,
+                            decoded,
+                            start=clip_start if clip_start > 0 else None,
+                            duration=clip_duration if clip_duration > 0 else None,
+                        )
+                    with clock.span("pcm_load"):
+                        pcm, pcm_rate = load_mono_pcm(decoded)
+                    with clock.span("frequency_span"):
+                        span = resolve_frequency_span_from_pcm(pcm, pcm_rate, preset.signal)
                     if norm_mode != "none":
                         note("spectrum peak scan")
                         peak = spectrum_peak(
@@ -1041,28 +1267,40 @@ def render_job(
                         edge_taper=taper,
                         layout=layout,
                         slot_sigma=slot_sigma,
+                        supersample=ribbon_ss,
                     )
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
             encode_label = "temporal" if geometry != "spectrum" else "spectrum"
-            note(f"{encode_label} encode")
-            encode_rgba_stream(
-                _tick_frames(
-                    frames,
-                    n_frames=expected_frames,
-                    note=note,
-                    label=encode_label,
-                ),
-                width=preset.canvas.width,
-                height=preset.canvas.height,
-                fps=job.fps,
-                glow=glow,
-                png_dir=png_work,
-                prores_path=mov_work,
-                ffmpeg_threads=threads,
-                overscan=glow_overscan(glow),
-                supersample=SCROLL_SUPERSAMPLE,
-            )
+            if field_encoded:
+                if mov_work is not None:
+                    note(f"{encode_label} concat {len(field_chunk_movs or [])} chunk(s)")
+                    with clock.span("concat"):
+                        concat_videos(
+                            field_chunk_movs or [],
+                            mov_work,
+                            list_path=work / "field.concat.txt",
+                        )
+            else:
+                note(f"{encode_label} encode")
+                encode_rgba_stream(
+                    _tick_frames(
+                        frames,
+                        n_frames=expected_frames,
+                        note=note,
+                        label=encode_label,
+                    ),
+                    width=preset.canvas.width,
+                    height=preset.canvas.height,
+                    fps=job.fps,
+                    glow=glow,
+                    png_dir=png_work,
+                    prores_path=mov_work,
+                    ffmpeg_threads=threads,
+                    overscan=glow_overscan(glow),
+                    supersample=ribbon_ss if geometry == "spectrum" else SCROLL_SUPERSAMPLE,
+                    phases=clock,
+                )
             if mov_work is not None:
                 validation = _validate_mov(
                     mov_work,
@@ -1088,10 +1326,10 @@ def render_job(
                     validation = png_report
             if geometry == "spectrum":
                 analysis = {
-                    "chunk_count": 1,
+                    "chunk_count": spectrum_encode_workers if field_encoded else 1,
                     "preroll_seconds": 0.0,
                     "postroll_seconds": 0.0,
-                    "encode_workers": 1,
+                    "encode_workers": spectrum_encode_workers,
                     "visual_geometry": "spectrum",
                     "fmin_hz": span.fmin_hz,
                     "fmax_hz": span.fmax_hz,
@@ -1111,6 +1349,7 @@ def render_job(
                         "analysis_field_ribbon" if layout == "field_center_out" else "legacy"
                     ),
                     "visual_slots": CENTER_OUT_SLOTS if layout == "field_center_out" else None,
+                    "ribbon_supersample": ribbon_ss,
                 }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
@@ -1352,6 +1591,7 @@ def render_job(
             analysis=analysis,
             normalization=normalization,
             resume_history=resume_history,
+            phase_report=clock.snapshot(),
         )
         return payload
     else:
@@ -1376,6 +1616,7 @@ def render_job(
             analysis=analysis,
             normalization=normalization,
             resume_history=resume_history,
+            phase_report=clock.snapshot(),
         )
 
 
@@ -1664,6 +1905,7 @@ def _result_payload(
     analysis: dict[str, Any] | None = None,
     normalization: dict[str, Any] | None = None,
     resume_history: list[dict[str, Any]] | None = None,
+    phase_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     glow = preset.effects.get("glow") if isinstance(preset.effects.get("glow"), dict) else {}
     report = validation if validation is not None else {"passed": status == "SUCCEEDED"}
@@ -1725,7 +1967,7 @@ def _result_payload(
         "warnings": [w.model_dump(mode="json") for w in warnings],
         "outputs": outputs,
         "validation": report,
-        "performance": {},
+        "performance": phase_report or {},
         "resume_history": resume_history or [],
         "timestamps": {
             "started_at": started,

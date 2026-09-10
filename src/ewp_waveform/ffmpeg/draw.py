@@ -5,11 +5,17 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+import numpy as np
+
 from ewp_waveform.analysis.envelope import sample_bin
-from ewp_waveform.analysis.interp import pchip_eval, pchip_slopes
+from ewp_waveform.analysis.interp import pchip_eval_many, pchip_slopes
 
 # 12x covers the 1/3-pixel phase cycle at 1400/5s/60fps (~4.67 px/frame).
 SCROLL_SUPERSAMPLE = 12
+# Pre-perf-pass ribbon raster. Pass ribbon_supersample=this to restore 12x.
+RIBBON_SUPERSAMPLE_BASELINE = 12
+# Fixed-axis X does not move. 2x keeps area-downsampled AA; 1x stairs the contour.
+RIBBON_SUPERSAMPLE = 2
 
 
 def parse_rgb(color: str) -> tuple[int, int, int]:
@@ -241,7 +247,6 @@ def draw_spectrum_frame(
     ss = max(1, int(supersample))
     r, g, b = parse_rgb(color)
     out_w = width * ss
-    frame = bytearray(out_w * height * 4)
     center, max_half, _margin, cap = _mirrored_metrics(
         height=height,
         amplitude=amplitude,
@@ -249,26 +254,29 @@ def draw_spectrum_frame(
         vertical_margin=vertical_margin,
         content_height=content_height,
     )
-    if columns:
+    pixels = np.zeros((height, out_w, 4), dtype=np.uint8)
+    if columns and out_w > 0 and height > 0:
         knots = [min(max(float(value), 0.0), 1.0) for value in columns]
         slopes = pchip_slopes(knots)
-        for x in range(out_w):
-            mag = pchip_eval(knots, slopes, x / ss)
-            half = min(float(max_half) * mag, cap)
-            if half <= 0.0:
-                continue
-            _put_span(
-                frame,
-                width=out_w,
-                height=height,
-                x0=float(x),
-                x1=float(x + 1),
-                y0=float(center) - half,
-                y1=float(center) + half + 1.0,
-                r=r,
-                g=g,
-                b=b,
-            )
+        xs = np.arange(out_w, dtype=np.float64) / float(ss)
+        mags = pchip_eval_many(knots, slopes, xs, unit=True)
+        halfs = np.minimum(float(max_half) * mags, cap)
+        y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
+        y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
+        yy = np.arange(height, dtype=np.float64)[:, np.newaxis]
+        cov = np.clip(np.minimum(yy + 1.0, y1) - np.maximum(yy, y0), 0.0, 1.0)
+        alpha = np.rint(255.0 * cov).astype(np.int16)
+        np.clip(alpha, 0, 255, out=alpha)
+        full = cov >= (1.0 - 1e-6)
+        partial = (cov > 0.0) & ~full
+        alpha[full] = 255
+        alpha[partial] = np.maximum(alpha[partial], 1)
+        mask = alpha > 0
+        pixels[..., 0][mask] = r
+        pixels[..., 1][mask] = g
+        pixels[..., 2][mask] = b
+        pixels[..., 3] = alpha.astype(np.uint8, copy=False)
+    frame = bytearray(pixels.tobytes())
     if center_line:
         _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)
     return bytes(frame)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ewp_waveform.analysis.spectrum import upsample_bands
-from ewp_waveform.ffmpeg.draw import SCROLL_SUPERSAMPLE, draw_spectrum_frame
+from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, draw_spectrum_frame
 from ewp_waveform.visual.models import VisualField
 
 
@@ -21,7 +21,7 @@ def render_ribbon_frame(
     amplitude: float,
     center_line: bool,
     content_height: int | None = None,
-    supersample: int = SCROLL_SUPERSAMPLE,
+    supersample: int = RIBBON_SUPERSAMPLE,
     glow_sigma: float = 0.0,
 ) -> bytes:
     """Mirrored filled contour. Vertical symmetry is a draw style, not a field copy."""

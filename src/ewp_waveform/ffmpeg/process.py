@@ -6,8 +6,10 @@ import contextlib
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 
 class ToolNotFoundError(RuntimeError):
@@ -40,7 +42,12 @@ def _drain(stream: object, store: list[bytes]) -> None:
         store.append(block)
 
 
-def run_argv_stdin(argv: list[str], chunks: Iterable[bytes]) -> subprocess.CompletedProcess[bytes]:
+def run_argv_stdin(
+    argv: list[str],
+    chunks: Iterable[bytes],
+    *,
+    phases: Any | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     """Feed binary chunks to stdin.
 
     Stdout/stderr are drained on threads so a chatty child cannot deadlock
@@ -64,17 +71,34 @@ def run_argv_stdin(argv: list[str], chunks: Iterable[bytes]) -> subprocess.Compl
     t_err = threading.Thread(target=_drain, args=(proc.stderr, stderr_parts), daemon=True)
     t_out.start()
     t_err.start()
+    rgba_bytes = 0
     try:
-        for chunk in chunks:
+        iterator = iter(chunks)
+        while True:
+            t0 = time.perf_counter()
+            try:
+                chunk = next(iterator)
+            except StopIteration:
+                break
+            t1 = time.perf_counter()
+            rgba_bytes += len(chunk)
             proc.stdin.write(chunk)
+            t2 = time.perf_counter()
+            if phases is not None:
+                phases.add("generator", t1 - t0)
+                phases.add("ffmpeg_feed", t2 - t1)
     except BrokenPipeError:
         pass
     finally:
+        t_close = time.perf_counter()
         with contextlib.suppress(BrokenPipeError):
             proc.stdin.close()
-    t_out.join()
-    t_err.join()
-    proc.wait()
+        t_out.join()
+        t_err.join()
+        proc.wait()
+        if phases is not None:
+            phases.add("ffmpeg_wait", time.perf_counter() - t_close)
+            phases.extras["rgba_bytes"] = rgba_bytes
     return subprocess.CompletedProcess(
         argv, proc.returncode, b"".join(stdout_parts), b"".join(stderr_parts)
     )

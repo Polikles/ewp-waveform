@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from ewp_waveform.ffmpeg.process import require_tool, run_argv_stdin
 
@@ -87,6 +88,7 @@ def encode_rgba_stream(
     shutter_px: float = 0.0,
     shutter_mix: float = 0.25,
     png_start_number: int = 1,
+    phases: Any | None = None,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
@@ -155,7 +157,7 @@ def encode_rgba_stream(
                 shutter_mix=shutter_mix,
                 png_start_number=png_start,
             )
-            completed = run_argv_stdin(argv, frames)
+            completed = run_argv_stdin(argv, frames, phases=phases)
             if completed.returncode != 0:
                 msg = completed.stderr.decode("utf-8", errors="replace")
                 raise EncodeError(msg.strip() or "ffmpeg encode failed")
@@ -171,7 +173,7 @@ def encode_rgba_stream(
                 str(prores_path),
             ]
         )
-    completed = run_argv_stdin(argv, frames)
+    completed = run_argv_stdin(argv, frames, phases=phases)
     if completed.returncode != 0:
         msg = completed.stderr.decode("utf-8", errors="replace")
         raise EncodeError(msg.strip() or "ffmpeg encode failed")

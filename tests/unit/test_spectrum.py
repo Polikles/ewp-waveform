@@ -9,17 +9,21 @@ from ewp_waveform.analysis.spectrum import (
     FrequencySpan,
     apply_edge_taper,
     auto_frequency_span,
+    auto_frequency_span_from_pcm,
+    build_analysis_sequence,
     compress_bands,
     dominant_band_pivot,
     ema_alpha,
     fold_bands_center_out,
     gaussian_kernel,
     gaussian_smooth,
+    load_mono_pcm,
     log_band_rms,
     log_resample,
     remap_band_index,
     resolve_frequency_span,
     rfft_magnitudes,
+    spectrum_bands,
     spectrum_columns,
     tilt_gains,
     upsample_bands,
@@ -261,6 +265,47 @@ def test_edge_taper_zeros_ends_and_keeps_the_middle() -> None:
     assert faded[-1] == 0.0
     assert abs(faded[40] - 0.8) < 1e-12
     assert faded[4] < faded[20]
+
+
+def test_analysis_sequence_matches_per_frame_spectrum_bands(tmp_path: Path) -> None:
+    path = tmp_path / "tone.wav"
+    _sine_wav(path, hz=1000.0, rate=8000, seconds=0.5)
+    span = FrequencySpan(200.0, 2000.0, "explicit")
+    pcm, rate = load_mono_pcm(path)
+    n_frames = 12
+    sequence = build_analysis_sequence(
+        pcm,
+        rate,
+        n_frames=n_frames,
+        fps=10.0,
+        span=span,
+        scale="sqrt",
+        n_bands=16,
+        tilt_db_per_octave=3.0,
+        compress=0.75,
+    )
+    assert len(sequence) == n_frames
+    for index, frame in enumerate(sequence.frames):
+        expected = spectrum_bands(
+            path,
+            frame_index=index,
+            fps=10.0,
+            span=span,
+            scale="sqrt",
+            n_bands=16,
+            tilt_db_per_octave=3.0,
+            compress=0.75,
+        )
+        assert len(frame.bands) == len(expected)
+        delta = max(abs(left - right) for left, right in zip(frame.bands, expected, strict=True))
+        assert delta < 1e-12
+
+
+def test_auto_span_from_pcm_matches_path_loader(tmp_path: Path) -> None:
+    path = tmp_path / "tone.wav"
+    _sine_wav(path, hz=1000.0, rate=8000)
+    pcm, rate = load_mono_pcm(path)
+    assert auto_frequency_span_from_pcm(pcm, rate) == auto_frequency_span(path)
 
 
 def test_center_out_fold_is_static_and_puts_b0_at_center_left() -> None:
