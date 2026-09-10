@@ -132,6 +132,15 @@ def test_glow_crop_graph_downsamples_supersample() -> None:
     assert "crop=1400:280:26:26" in graph
 
 
+def test_glow_crop_graph_colorizes_gray_mask_before_glow() -> None:
+    graph = _glow_crop_graph(
+        8.0, 1400, 280, 26, supersample=2, pix_fmt="gray", color="#C7E6EC", fps=60.0, n_frames=480
+    )
+    assert "alphamerge" in graph
+    assert graph.find("alphamerge") < graph.find("gblur=sigma=8")
+    assert "scale=1452:332:flags=area" in graph
+
+
 def test_glow_crop_graph_hybrid_shutter_under_sharp_base() -> None:
     graph = _glow_crop_graph(8.0, 1400, 280, 26, supersample=12, shutter_px=0.78, shutter_mix=0.25)
     assert "blend=all_expr='A*0.7500+B*0.2500'" in graph

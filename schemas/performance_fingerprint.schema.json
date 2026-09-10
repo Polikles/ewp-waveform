@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ewp-waveform.local/schemas/performance_fingerprint.schema.json",
+  "title": "PerformanceFingerprint",
+  "description": "Empirical render evidence key. Not a wall-time predictor.",
+  "type": "object",
+  "required": [
+    "renderer",
+    "render_path",
+    "visual_style",
+    "width",
+    "height",
+    "fps",
+    "aa_mode",
+    "codec",
+    "jobs"
+  ],
+  "properties": {
+    "renderer": { "type": "string" },
+    "render_path": { "type": "string", "enum": ["mask_fast", "rgba_2d"] },
+    "visual_style": { "type": "string" },
+    "geometry": { "type": "string" },
+    "glow": { "type": "boolean" },
+    "particles": { "type": "boolean" },
+    "width": { "type": "integer" },
+    "height": { "type": "integer" },
+    "fps": { "type": "number" },
+    "aa_mode": { "type": "string", "enum": ["physical_ss", "coverage_taps"] },
+    "supersample": { "type": "integer" },
+    "pix_fmt": { "type": "string" },
+    "codec": { "type": "string" },
+    "jobs": { "type": "integer" },
+    "ffmpeg_threads": { "type": "integer" },
+    "nproc": { "type": ["integer", "null"] },
+    "machine": { "type": "string" }
+  }
+}

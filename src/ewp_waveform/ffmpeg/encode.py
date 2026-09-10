@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from ewp_waveform.ffmpeg.draw import parse_rgb
 from ewp_waveform.ffmpeg.process import require_tool, run_argv_stdin
 
 GLOW_SIGMA = {"none": 0.0, "low": 4.0, "medium": 8.0, "high": 16.0}
@@ -28,6 +29,24 @@ def shutter_sigma(shutter_px: float) -> float:
     return shutter_px / 2.355
 
 
+def _colorize_gray_prefix(
+    color: str, in_w: int, in_h: int, fps: float, n_frames: int | None
+) -> str:
+    """Turn gray coverage into unassociated RGBA with constant RGB.
+
+    Geometry stays in the Python raster; this only copies luma into alpha.
+    """
+    r, g, b = parse_rgb(color)
+    hex_color = f"{r:02X}{g:02X}{b:02X}"
+    rate = fps if fps > 0 else 1.0
+    seconds = (float(n_frames) / rate) if n_frames and n_frames > 0 else 86400.0
+    return (
+        f"color=c=#{hex_color}:s={in_w}x{in_h}:r={rate}:d={seconds:.6f},format=rgba[csolid];"
+        f"[0:v]format=gray[gmask];"
+        f"[csolid][gmask]alphamerge,format=rgba"
+    )
+
+
 def _glow_crop_graph(
     glow: float,
     width: int,
@@ -36,6 +55,11 @@ def _glow_crop_graph(
     supersample: int = 1,
     shutter_px: float = 0.0,
     shutter_mix: float = 0.25,
+    *,
+    pix_fmt: str = "rgba",
+    color: str | None = None,
+    fps: float = 60.0,
+    n_frames: int | None = None,
 ) -> str:
     """Downsample, optional hybrid temporal mix, glow under a sharp-ish base, crop.
 
@@ -50,6 +74,15 @@ def _glow_crop_graph(
     use_taa = sigma > 0.0 and mix > 0.0
     scale = f"scale={padded_w}:{padded_h}:flags=area" if supersample > 1 else "format=rgba"
     crop = f",crop={width}:{height}:{overscan}:{overscan}" if overscan > 0 else ""
+    if pix_fmt == "gray":
+        if color is None:
+            msg = "gray encode requires waveform color for downstream colorize"
+            raise ValueError(msg)
+        in_w = (width + 2 * overscan) * max(1, int(supersample))
+        in_h = height + 2 * overscan
+        head = _colorize_gray_prefix(color, in_w, in_h, fps, n_frames)
+    else:
+        head = "[0:v]"
     if use_taa:
         taa = (
             f"{scale},split=2[sharp][taa];"
@@ -57,20 +90,23 @@ def _glow_crop_graph(
             f"[sharp][taab]blend=all_expr='A*{sharp_w:.4f}+B*{mix:.4f}'"
             ":shortest=1,format=rgba"
         )
+        body = f"{head},{taa}" if head != "[0:v]" else f"[0:v]{taa}"
         if glow > 0:
             return (
-                f"[0:v]{taa},split=2[base][g];[g]gblur=sigma="
+                f"{body},split=2[base][g];[g]gblur=sigma="
                 f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
                 f"format=rgba{crop}[vout]"
             )
-        return f"[0:v]{taa}{crop}[vout]"
+        return f"{body}{crop}[vout]"
     if glow > 0:
+        body = f"{head},{scale}" if head != "[0:v]" else f"[0:v]{scale}"
         return (
-            f"[0:v]{scale},split=2[base][g];[g]gblur=sigma="
+            f"{body},split=2[base][g];[g]gblur=sigma="
             f"{glow}:steps=3[gb];[gb][base]overlay=format=auto:shortest=1,"
             f"format=rgba{crop}[vout]"
         )
-    return f"[0:v]{scale}{crop}[vout]"
+    body = f"{head},{scale}" if head != "[0:v]" else f"[0:v]{scale}"
+    return f"{body}{crop}[vout]"
 
 
 def encode_rgba_stream(
@@ -89,15 +125,31 @@ def encode_rgba_stream(
     shutter_mix: float = 0.25,
     png_start_number: int = 1,
     phases: Any | None = None,
+    pix_fmt: str = "rgba",
+    color: str | None = None,
+    n_frames: int | None = None,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
         raise ValueError(msg)
     ffmpeg = require_tool("ffmpeg")
     ss = max(1, int(supersample))
+    in_fmt = "gray" if pix_fmt == "gray" else "rgba"
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
-    graph = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
+    graph = _glow_crop_graph(
+        glow,
+        width,
+        height,
+        overscan,
+        ss,
+        shutter_px,
+        shutter_mix,
+        pix_fmt=in_fmt,
+        color=color,
+        fps=fps,
+        n_frames=n_frames,
+    )
     argv: list[str] = [
         str(ffmpeg),
         "-hide_banner",
@@ -108,7 +160,7 @@ def encode_rgba_stream(
         "-f",
         "rawvideo",
         "-pix_fmt",
-        "rgba",
+        in_fmt,
         "-s",
         f"{in_w}x{in_h}",
         "-r",
@@ -124,6 +176,7 @@ def encode_rgba_stream(
         "-r",
         str(fps),
     ]
+
     if ffmpeg_threads > 0:
         argv.extend(["-threads", str(ffmpeg_threads)])
     png_start = max(1, png_start_number)
@@ -156,6 +209,9 @@ def encode_rgba_stream(
                 shutter_px=shutter_px,
                 shutter_mix=shutter_mix,
                 png_start_number=png_start,
+                pix_fmt=in_fmt,
+                color=color,
+                n_frames=n_frames,
             )
             completed = run_argv_stdin(argv, frames, phases=phases)
             if completed.returncode != 0:
@@ -194,9 +250,25 @@ def _dual_output_argv(
     shutter_px: float = 0.0,
     shutter_mix: float = 0.25,
     png_start_number: int = 1,
+    pix_fmt: str = "rgba",
+    color: str | None = None,
+    n_frames: int | None = None,
 ) -> list[str]:
     ss = max(1, int(supersample))
-    core = _glow_crop_graph(glow, width, height, overscan, ss, shutter_px, shutter_mix)
+    in_fmt = "gray" if pix_fmt == "gray" else "rgba"
+    core = _glow_crop_graph(
+        glow,
+        width,
+        height,
+        overscan,
+        ss,
+        shutter_px,
+        shutter_mix,
+        pix_fmt=in_fmt,
+        color=color,
+        fps=fps,
+        n_frames=n_frames,
+    )
     graph = core.replace("[vout]", ",split=2[png][mov]", 1)
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
@@ -210,7 +282,7 @@ def _dual_output_argv(
         "-f",
         "rawvideo",
         "-pix_fmt",
-        "rgba",
+        in_fmt,
         "-s",
         f"{in_w}x{in_h}",
         "-r",

@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Changed
 
+- Field-ribbon encode selects a RenderPlan below VisualField. The current monochrome ribbon uses MASK_FAST (gray coverage + FFmpeg colorize/glow). RGBA_2D remains the reference fallback (`--path rgba_2d`).
 - Fixed-axis ribbon default supersample is 2× (`RIBBON_SUPERSAMPLE`). Scroll raster stays 12×. Restore the 12× ribbon with `ribbon_supersample=12` or `RIBBON_SUPERSAMPLE_BASELINE`.
 - Spectrum analysis uses NumPy `rfft` on PCM loaded once (batched windows, precomputed band/tilt weights). Runtime dependency: `numpy==2.5.3`.
 

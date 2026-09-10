@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -86,6 +86,7 @@ from ewp_waveform.application.chunks import (
     plan_chunks,
     processing_window,
 )
+from ewp_waveform.application.evidence import fingerprint_from_plan
 from ewp_waveform.application.results import elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
@@ -113,7 +114,8 @@ from ewp_waveform.identity import (
     short_signature,
 )
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
-from ewp_waveform.visual.ribbon import field_to_columns
+from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
+from ewp_waveform.visual.ribbon import field_to_columns, raster_ribbon_columns
 
 
 def _glow_sigma(preset: VisualPreset) -> float:
@@ -432,6 +434,7 @@ def iter_field_frames(
     spatial_filter: str,
     mapping: CenterOutMapping,
     supersample: int = RIBBON_SUPERSAMPLE,
+    plan: RenderPlan | None = None,
     phases: PhaseTimes | None = None,
 ) -> Iterator[bytes]:
     """AnalysisFrame -> static VisualField -> filled ribbon. X slots never move."""
@@ -443,7 +446,9 @@ def iter_field_frames(
     alpha = ema_alpha(fps, tau_seconds)
     filt = _spectrum_spatial_filter(spatial_filter)
     previous: list[float] | None = None
-    ss = max(1, int(supersample))
+    resolved = plan or resolve_render_plan(
+        preset, layout="field_center_out", contour=True, ribbon_supersample=supersample
+    )
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = time.perf_counter()
@@ -455,15 +460,15 @@ def iter_field_frames(
         blended = blend_columns(previous, raw, alpha)
         previous = blended
         t1 = time.perf_counter()
-        frame = draw_spectrum_frame(
+        frame = raster_ribbon_columns(
             blended,
+            plan=resolved,
             width=draw_w,
             height=draw_h,
             color=preset.waveform.color,
             amplitude=preset.waveform.amplitude,
             center_line=center,
             content_height=preset.canvas.height,
-            supersample=ss,
             glow_sigma=glow,
         )
         t2 = time.perf_counter()
@@ -513,6 +518,9 @@ class FieldChunkTask:
     ffmpeg_threads: int
     overscan: int
     supersample: int
+    pix_fmt: str
+    aa_taps: int
+    plan_path: str
 
 
 def encode_field_chunk(task: FieldChunkTask) -> Path | None:
@@ -523,17 +531,28 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
     draw_w = task.width + 2 * pad
     draw_h = task.height + 2 * pad
 
+    plan = RenderPlan(
+        path="mask_fast" if task.plan_path == "mask_fast" else "rgba_2d",
+        pix_fmt="gray" if task.pix_fmt == "gray" else "rgba",
+        bytes_per_pixel=1 if task.pix_fmt == "gray" else 4,
+        supersample=task.supersample,
+        aa_mode="coverage_taps" if task.aa_taps > 1 and task.supersample == 1 else "physical_ss",
+        aa_taps=task.aa_taps,
+        colorize=task.pix_fmt == "gray",
+        geometry="ribbon",
+    )
+
     def frames() -> Iterator[bytes]:
         for row in slc:
-            yield draw_spectrum_frame(
+            yield raster_ribbon_columns(
                 row.tolist(),
+                plan=plan,
                 width=draw_w,
                 height=draw_h,
                 color=task.color,
                 amplitude=task.amplitude,
                 center_line=task.center_line,
                 content_height=task.content_height,
-                supersample=task.supersample,
                 glow_sigma=task.glow,
             )
 
@@ -551,6 +570,9 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
         overscan=task.overscan,
         supersample=task.supersample,
         png_start_number=task.first_frame + 1,
+        pix_fmt=task.pix_fmt,
+        color=task.color if task.pix_fmt == "gray" else None,
+        n_frames=task.n_frames,
     )
     return prores_path
 
@@ -833,6 +855,8 @@ def render_job(
     spectrum_layout: str = "linear",
     spectrum_slot_sigma: float = 0.0,
     ribbon_supersample: int | None = None,
+    render_path: str | None = None,
+    render_aa: str | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
@@ -987,6 +1011,7 @@ def render_job(
             field_chunk_movs: list[Path] | None = None
             field_encoded = False
             spectrum_encode_workers = 1
+            field_plan: RenderPlan | None = None
             if geometry != "spectrum":
                 samples, rate = load_mono_f32(decoded)
                 if norm_mode != "none":
@@ -1082,6 +1107,24 @@ def render_job(
                 if layout == "field_center_out":
                     field_bands = n_bands if n_bands is not None else 64
                     mapping = CenterOutMapping(n_slots=CENTER_OUT_SLOTS, n_bands=field_bands)
+                    forced_path: Literal["mask_fast", "rgba_2d"] | None = None
+                    if render_path == "mask_fast":
+                        forced_path = "mask_fast"
+                    elif render_path == "rgba_2d":
+                        forced_path = "rgba_2d"
+                    aa_mode: Literal["physical_ss", "coverage_taps"] | None = None
+                    if render_aa == "physical_ss":
+                        aa_mode = "physical_ss"
+                    elif render_aa == "coverage_taps":
+                        aa_mode = "coverage_taps"
+                    field_plan = resolve_render_plan(
+                        preset,
+                        layout=layout,
+                        contour=True,
+                        ribbon_supersample=ribbon_ss,
+                        force_path=forced_path,
+                        aa_mode=aa_mode,
+                    )
                     cache_payload = analysis_cache_payload(
                         source_sha256=source_sha,
                         clip_start=clip_start,
@@ -1186,7 +1229,10 @@ def render_job(
                                 ),
                                 ffmpeg_threads=worker_threads,
                                 overscan=pad,
-                                supersample=ribbon_ss,
+                                supersample=field_plan.supersample if field_plan else ribbon_ss,
+                                pix_fmt=field_plan.pix_fmt if field_plan else "rgba",
+                                aa_taps=field_plan.aa_taps if field_plan else 1,
+                                plan_path=field_plan.path if field_plan else "rgba_2d",
                             )
                             for index, (start, size) in enumerate(ranges)
                         ]
@@ -1217,6 +1263,7 @@ def render_job(
                             spatial_filter=spatial_filter,
                             mapping=mapping,
                             supersample=ribbon_ss,
+                            plan=field_plan,
                             phases=clock,
                         )
                 else:
@@ -1272,6 +1319,28 @@ def render_job(
             png_work: Path | None = work / "png" if producing_png else None
             mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
             encode_label = "temporal" if geometry != "spectrum" else "spectrum"
+            if field_plan is not None:
+                overscan = glow_overscan(glow)
+                clock.extras["render_path"] = field_plan.path
+                clock.extras["bytes_per_frame"] = field_plan.bytes_per_frame(
+                    preset.canvas.width, preset.canvas.height, overscan
+                )
+                clock.extras["fingerprint"] = fingerprint_from_plan(
+                    plan_path=field_plan.path,
+                    geometry=field_plan.geometry,
+                    style=preset.waveform.style,
+                    glow=glow > 0.0,
+                    particles=False,
+                    width=preset.canvas.width,
+                    height=preset.canvas.height,
+                    fps=job.fps,
+                    aa_mode=field_plan.aa_mode,
+                    supersample=field_plan.supersample,
+                    pix_fmt=field_plan.pix_fmt,
+                    codec="prores4444" if producing_mov else "png",
+                    jobs=spectrum_encode_workers,
+                    ffmpeg_threads=threads,
+                ).as_dict()
             if field_encoded:
                 if mov_work is not None:
                     note(f"{encode_label} concat {len(field_chunk_movs or [])} chunk(s)")
@@ -1283,6 +1352,11 @@ def render_job(
                         )
             else:
                 note(f"{encode_label} encode")
+                encode_ss = (
+                    field_plan.supersample
+                    if field_plan is not None
+                    else (ribbon_ss if geometry == "spectrum" else SCROLL_SUPERSAMPLE)
+                )
                 encode_rgba_stream(
                     _tick_frames(
                         frames,
@@ -1298,8 +1372,15 @@ def render_job(
                     prores_path=mov_work,
                     ffmpeg_threads=threads,
                     overscan=glow_overscan(glow),
-                    supersample=ribbon_ss if geometry == "spectrum" else SCROLL_SUPERSAMPLE,
+                    supersample=encode_ss,
                     phases=clock,
+                    pix_fmt=field_plan.pix_fmt if field_plan is not None else "rgba",
+                    color=(
+                        preset.waveform.color
+                        if field_plan is not None and field_plan.colorize
+                        else None
+                    ),
+                    n_frames=expected_frames,
                 )
             if mov_work is not None:
                 validation = _validate_mov(
@@ -1350,6 +1431,11 @@ def render_job(
                     ),
                     "visual_slots": CENTER_OUT_SLOTS if layout == "field_center_out" else None,
                     "ribbon_supersample": ribbon_ss,
+                    "render_path": field_plan.path if field_plan is not None else "rgba_2d",
+                    "render_pix_fmt": field_plan.pix_fmt if field_plan is not None else "rgba",
+                    "render_aa_mode": (
+                        field_plan.aa_mode if field_plan is not None else "physical_ss"
+                    ),
                 }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:

@@ -13,7 +13,7 @@ ffmpeg -version
 ffprobe -version
 ```
 
-You need `prores_ks` and `png` encoders and the `gblur`, `overlay`, and `scale` filters. `waveform doctor` checks these. Do not vendor FFmpeg into the repo.
+You need `prores_ks` and `png` encoders and the `gblur`, `overlay`, `scale`, `alphamerge`, and `color` filters. `waveform doctor` checks these. Do not vendor FFmpeg into the repo.
 
 ## 2. `uv` and Python 3.12
 

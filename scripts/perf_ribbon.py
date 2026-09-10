@@ -100,20 +100,35 @@ def _extract_frames(mov: Path, dest: Path, indices: tuple[int, ...]) -> list[Pat
     return paths
 
 
-def _mae(left: Path, right: Path) -> tuple[float, int]:
+def _mae(left: Path, right: Path) -> dict[str, float | int]:
     a = left.read_bytes()
     b = right.read_bytes()
     n = min(len(a), len(b))
-    if n == 0 or len(a) != len(b):
-        return 1.0, abs(len(a) - len(b))
+    if n == 0 or len(a) != len(b) or n % 4:
+        return {"mae": 1.0, "nbytes_diff": abs(len(a) - len(b)), "alpha_mae": 1.0, "rgb_mae": 1.0}
     acc = 0
     diff = 0
-    for i in range(n):
-        d = abs(a[i] - b[i])
-        acc += d
-        if d:
-            diff += 1
-    return acc / (n * 255.0), diff
+    alpha_acc = 0
+    rgb_acc = 0
+    rgb_n = 0
+    for i in range(0, n, 4):
+        for c in range(4):
+            d = abs(a[i + c] - b[i + c])
+            acc += d
+            if d:
+                diff += 1
+        da = abs(a[i + 3] - b[i + 3])
+        alpha_acc += da
+        if a[i + 3] or b[i + 3]:
+            rgb_acc += abs(a[i] - b[i]) + abs(a[i + 1] - b[i + 1]) + abs(a[i + 2] - b[i + 2])
+            rgb_n += 3
+    px = n // 4
+    return {
+        "mae": acc / (n * 255.0),
+        "nbytes_diff": diff,
+        "alpha_mae": alpha_acc / (px * 255.0),
+        "rgb_mae": (rgb_acc / (rgb_n * 255.0)) if rgb_n else 0.0,
+    }
 
 
 def _cpu_times() -> tuple[float, float]:
@@ -155,6 +170,8 @@ def _run_once(
     jobs: int,
     start: float,
     duration: float | None,
+    render_path: str | None,
+    render_aa: str | None,
 ) -> dict[str, object]:
     user0, sys0 = _cpu_times()
     wall0 = time.perf_counter()
@@ -179,6 +196,8 @@ def _run_once(
         visual_geometry="spectrum",
         spectrum_layout="field_center_out",
         ribbon_supersample=ss,
+        render_path=render_path,
+        render_aa=render_aa,
         progress=_progress,
     )
     wall = time.perf_counter() - wall0
@@ -215,6 +234,8 @@ def main() -> int:
     parser.add_argument("--output-root", default="/tmp/ewp-ribbon-perf")
     parser.add_argument("--ss", type=int, default=RIBBON_SUPERSAMPLE)
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--path", dest="render_path", default=None, help="mask_fast or rgba_2d")
+    parser.add_argument("--aa", dest="render_aa", default=None, help="physical_ss or coverage_taps")
     parser.add_argument("--start", type=float, default=START)
     parser.add_argument(
         "--duration",
@@ -237,7 +258,18 @@ def main() -> int:
             f"duration={duration or 'full'} run {i + 1}/{args.repeats} -> {out}",
             flush=True,
         )
-        runs.append(_run_once(audio, out, args.ss, args.jobs, args.start, duration))
+        runs.append(
+            _run_once(
+                audio,
+                out,
+                args.ss,
+                args.jobs,
+                args.start,
+                duration,
+                args.render_path,
+                args.render_aa,
+            )
+        )
         print(
             json.dumps(
                 {
@@ -270,8 +302,7 @@ def main() -> int:
             diffs = []
             for path in extracted:
                 other = base / path.name
-                mae, ndiff = _mae(path, other)
-                diffs.append({"frame": path.name, "mae": mae, "nbytes_diff": ndiff})
+                diffs.append({"frame": path.name, **_mae(path, other)})
             summary["vs_baseline"] = diffs
     print("SUMMARY", json.dumps(summary, indent=2))
     return 0

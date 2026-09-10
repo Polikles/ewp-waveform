@@ -226,6 +226,71 @@ def draw_envelope_frame(
     return bytes(frame)
 
 
+def _coverage_to_alpha(cov: np.ndarray) -> np.ndarray:
+    alpha = np.rint(255.0 * cov).astype(np.int16)
+    np.clip(alpha, 0, 255, out=alpha)
+    full = cov >= (1.0 - 1e-6)
+    partial = (cov > 0.0) & ~full
+    alpha[full] = 255
+    alpha[partial] = np.maximum(alpha[partial], 1)
+    return alpha.astype(np.uint8, copy=False)
+
+
+def mirrored_contour_alpha(
+    columns: Sequence[float],
+    *,
+    width: int,
+    height: int,
+    amplitude: float,
+    center_line: bool,
+    content_height: int | None = None,
+    supersample: int = 1,
+    glow_sigma: float = 0.0,
+    vertical_margin: int = 1,
+    aa_taps: int = 1,
+) -> np.ndarray:
+    """Coverage/alpha for a mirrored filled contour. Shape is (height, out_w)."""
+    ss = max(1, int(supersample))
+    taps = max(1, int(aa_taps))
+    out_w = width if taps > 1 and ss == 1 else width * ss
+    center, max_half, _margin, cap = _mirrored_metrics(
+        height=height,
+        amplitude=amplitude,
+        glow_sigma=glow_sigma,
+        vertical_margin=vertical_margin,
+        content_height=content_height,
+    )
+    alpha = np.zeros((max(height, 0), max(out_w, 0)), dtype=np.uint8)
+    if not columns or out_w < 1 or height < 1:
+        return alpha
+    knots = [min(max(float(value), 0.0), 1.0) for value in columns]
+    slopes = pchip_slopes(knots)
+    yy = np.arange(height, dtype=np.float64)[:, np.newaxis]
+    if taps > 1 and ss == 1:
+        offsets = np.arange(taps, dtype=np.float64) / float(taps)
+        xs = np.arange(out_w, dtype=np.float64)[:, np.newaxis] + offsets[np.newaxis, :]
+        mags = pchip_eval_many(knots, slopes, xs.ravel(), unit=True).reshape(out_w, taps)
+        halfs = np.minimum(float(max_half) * mags, cap)[np.newaxis, :, :]
+        y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
+        y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
+        yy3 = yy[:, :, np.newaxis]
+        cov = np.clip(np.minimum(yy3 + 1.0, y1) - np.maximum(yy3, y0), 0.0, 1.0).mean(axis=2)
+        alpha = _coverage_to_alpha(cov)
+    else:
+        xs = np.arange(out_w, dtype=np.float64) / float(ss)
+        mags = pchip_eval_many(knots, slopes, xs, unit=True)
+        halfs = np.minimum(float(max_half) * mags, cap)
+        y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
+        y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
+        cov = np.clip(np.minimum(yy + 1.0, y1) - np.maximum(yy, y0), 0.0, 1.0)
+        alpha = _coverage_to_alpha(cov)
+    if center_line:
+        y = min(height - 1, max(0, center))
+        empty = alpha[y] == 0
+        alpha[y, empty] = 140
+    return alpha
+
+
 def draw_spectrum_frame(
     columns: Sequence[float],
     *,
@@ -238,45 +303,60 @@ def draw_spectrum_frame(
     supersample: int = 1,
     glow_sigma: float = 0.0,
     vertical_margin: int = 1,
+    aa_taps: int = 1,
 ) -> bytes:
     """Mirrored filled contour from per-X amplitudes (PCHIP, no peak overshoot).
 
     Knots are one amplitude per output pixel. Rasterization is a filled region
     under the reconstructed upper contour, mirrored through the center line.
     """
-    ss = max(1, int(supersample))
     r, g, b = parse_rgb(color)
-    out_w = width * ss
-    center, max_half, _margin, cap = _mirrored_metrics(
+    alpha = mirrored_contour_alpha(
+        columns,
+        width=width,
         height=height,
         amplitude=amplitude,
+        center_line=center_line,
+        content_height=content_height,
+        supersample=supersample,
         glow_sigma=glow_sigma,
         vertical_margin=vertical_margin,
-        content_height=content_height,
+        aa_taps=aa_taps,
     )
-    pixels = np.zeros((height, out_w, 4), dtype=np.uint8)
-    if columns and out_w > 0 and height > 0:
-        knots = [min(max(float(value), 0.0), 1.0) for value in columns]
-        slopes = pchip_slopes(knots)
-        xs = np.arange(out_w, dtype=np.float64) / float(ss)
-        mags = pchip_eval_many(knots, slopes, xs, unit=True)
-        halfs = np.minimum(float(max_half) * mags, cap)
-        y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
-        y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
-        yy = np.arange(height, dtype=np.float64)[:, np.newaxis]
-        cov = np.clip(np.minimum(yy + 1.0, y1) - np.maximum(yy, y0), 0.0, 1.0)
-        alpha = np.rint(255.0 * cov).astype(np.int16)
-        np.clip(alpha, 0, 255, out=alpha)
-        full = cov >= (1.0 - 1e-6)
-        partial = (cov > 0.0) & ~full
-        alpha[full] = 255
-        alpha[partial] = np.maximum(alpha[partial], 1)
-        mask = alpha > 0
-        pixels[..., 0][mask] = r
-        pixels[..., 1][mask] = g
-        pixels[..., 2][mask] = b
-        pixels[..., 3] = alpha.astype(np.uint8, copy=False)
-    frame = bytearray(pixels.tobytes())
-    if center_line:
-        _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)
-    return bytes(frame)
+    out_h, out_w = alpha.shape
+    pixels = np.zeros((out_h, out_w, 4), dtype=np.uint8)
+    mask = alpha > 0
+    pixels[..., 0][mask] = r
+    pixels[..., 1][mask] = g
+    pixels[..., 2][mask] = b
+    pixels[..., 3] = alpha
+    return bytes(pixels.tobytes())
+
+
+def draw_spectrum_alpha(
+    columns: Sequence[float],
+    *,
+    width: int,
+    height: int,
+    amplitude: float,
+    center_line: bool,
+    content_height: int | None = None,
+    supersample: int = 1,
+    glow_sigma: float = 0.0,
+    vertical_margin: int = 1,
+    aa_taps: int = 1,
+) -> bytes:
+    """Coverage-only ribbon. Constant color is applied downstream."""
+    alpha = mirrored_contour_alpha(
+        columns,
+        width=width,
+        height=height,
+        amplitude=amplitude,
+        center_line=center_line,
+        content_height=content_height,
+        supersample=supersample,
+        glow_sigma=glow_sigma,
+        vertical_margin=vertical_margin,
+        aa_taps=aa_taps,
+    )
+    return bytes(alpha.tobytes())
