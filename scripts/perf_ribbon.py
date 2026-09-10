@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Time the fixed-axis VisualField ribbon path on a short speech clip.
+"""Time the fixed-axis VisualField ribbon path.
+
+Short clip (default start=25, duration=8):
 
     uv run python scripts/perf_ribbon.py \\
-      --audio /home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav \\
-      --ss 12 --repeats 1 --extract-frames
+      --audio /path/to/s0e00-Damian.wav \\
+      --ss 2 --jobs 1 --repeats 1 --extract-frames
+
+Full file after --start (duration 0):
+
+    uv run python scripts/perf_ribbon.py \\
+      --audio /path/to/s0e00-Damian.wav \\
+      --start 0 --duration 0 --ss 2 --jobs 8 --extract-frames
 """
 
 from __future__ import annotations
@@ -23,10 +31,10 @@ from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
 from ewp_waveform.paths import normalize_user_path
 
 AUDIO = Path("/home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav")
-# First continuous speech on this track; 0-8s is near-silence.
+# Short-clip default: first continuous speech on Damian; 0-8s is near-silence.
 START = 25.0
 DURATION = 8.0
-COMPARE_FRAMES = (0, 239, 479)
+FPS = 60.0
 
 
 def _progress(message: str) -> None:
@@ -60,10 +68,33 @@ def _extract_one(mov: Path, index: int, dest: Path, *, png: bool) -> Path:
     return out
 
 
-def _extract_frames(mov: Path, dest: Path) -> list[Path]:
+def _probe_duration(path: Path) -> float:
+    argv = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nw=1:nk=1",
+        str(path),
+    ]
+    completed = subprocess.run(argv, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or f"ffprobe failed for {path}")
+    return float(completed.stdout.strip())
+
+
+def _compare_frame_indices(n_frames: int) -> tuple[int, ...]:
+    last = max(0, n_frames - 1)
+    mid = last // 2
+    return tuple(dict.fromkeys((0, mid, last)))
+
+
+def _extract_frames(mov: Path, dest: Path, indices: tuple[int, ...]) -> list[Path]:
     png_dir = dest / "png"
     paths: list[Path] = []
-    for index in COMPARE_FRAMES:
+    for index in indices:
         paths.append(_extract_one(mov, index, dest, png=False))
         _extract_one(mov, index, png_dir, png=True)
     return paths
@@ -117,7 +148,14 @@ def _performance_toml(jobs: int, dest: Path) -> Path:
     return dest
 
 
-def _run_once(audio: Path, out_dir: Path, ss: int, jobs: int) -> dict[str, object]:
+def _run_once(
+    audio: Path,
+    out_dir: Path,
+    ss: int,
+    jobs: int,
+    start: float,
+    duration: float | None,
+) -> dict[str, object]:
     user0, sys0 = _cpu_times()
     wall0 = time.perf_counter()
     perf_toml = _performance_toml(jobs, out_dir / "performance.toml")
@@ -128,8 +166,8 @@ def _run_once(audio: Path, out_dir: Path, ss: int, jobs: int) -> dict[str, objec
         performance_name=str(perf_toml),
         formats=["prores4444"],
         force=True,
-        start=START,
-        duration=DURATION,
+        start=start if start > 0 else None,
+        duration=duration,
         spectrum_contour=True,
         spectrum_spatial_scale=1.0,
         spectrum_spatial_filter="gaussian",
@@ -177,20 +215,29 @@ def main() -> int:
     parser.add_argument("--output-root", default="/tmp/ewp-ribbon-perf")
     parser.add_argument("--ss", type=int, default=RIBBON_SUPERSAMPLE)
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--start", type=float, default=START)
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=DURATION,
+        help="Clip length in seconds. 0 means the remainder of the file after --start.",
+    )
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--extract-frames", action="store_true")
     parser.add_argument("--compare-dir", default="")
     args = parser.parse_args()
     audio = normalize_user_path(args.audio)
+    duration = None if args.duration == 0 else args.duration
     root = Path(args.output_root)
     runs: list[dict[str, object]] = []
     for i in range(max(1, args.repeats)):
-        out = root / f"ss{args.ss}" / f"run{i + 1}"
+        out = root / f"ss{args.ss}" / f"j{args.jobs}" / f"run{i + 1}"
         print(
-            f"=== ss={args.ss} jobs={args.jobs} run {i + 1}/{args.repeats} -> {out}",
+            f"=== ss={args.ss} jobs={args.jobs} start={args.start} "
+            f"duration={duration or 'full'} run {i + 1}/{args.repeats} -> {out}",
             flush=True,
         )
-        runs.append(_run_once(audio, out, args.ss, args.jobs))
+        runs.append(_run_once(audio, out, args.ss, args.jobs, args.start, duration))
         print(
             json.dumps(
                 {
@@ -205,14 +252,18 @@ def main() -> int:
     summary = {
         "ss": args.ss,
         "jobs": args.jobs,
+        "start": args.start,
+        "duration": duration,
         "repeats": len(runs),
         "wall_s": {"min": min(walls), "median": statistics.median(walls), "max": max(walls)},
         "runs": runs,
     }
     if args.extract_frames:
         last_mov = Path(str(runs[-1]["mov"]))
-        frames_dir = root / f"ss{args.ss}" / "frames"
-        extracted = _extract_frames(last_mov, frames_dir)
+        n_frames = max(1, round(_probe_duration(last_mov) * FPS))
+        indices = _compare_frame_indices(n_frames)
+        frames_dir = root / f"ss{args.ss}" / f"j{args.jobs}" / "frames"
+        extracted = _extract_frames(last_mov, frames_dir, indices)
         summary["frames"] = [str(path) for path in extracted]
         if args.compare_dir:
             base = Path(args.compare_dir)
