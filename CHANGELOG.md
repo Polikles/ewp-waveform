@@ -6,6 +6,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Center-out shoulders: the central Gaussian continues under the first side slots as a floor so the ribbon does not neck between center and side lobes.
 - Center-out VisualField: 11-slot broadband unimodal core; side spectral lobes scaled to stay under 0.9× the center apex.
 - Center-out VisualField uses a 7-slot unimodal core from one shared RMS mix; side bands start outside the core so the center is one apex, not two shoulders.
 - Visual pipeline split: AnalysisFrame → static VisualField → filled-ribbon renderer. 65-slot center-out mapping (one visual center). Script: `scripts/spectrum_field_ribbon.py`. Old recentered/fold modes remain.

@@ -122,7 +122,7 @@ uv run python scripts/spectrum_fold_abc.py "/path/to/file.wav" \
 
 ## VisualField architecture (not a preset/schema change)
 
-Pipeline: **AnalysisFrame** (64 RMS bands) → static **VisualField** (`amplitude[N]`, N need not equal 64) → filled-ribbon renderer. X slots never move. Mapping weights are fixed; left and right are not copies of each other. Default center-out field is **65** slots. An 11-slot central core is broadband frame RMS times a unimodal Gaussian gain (one apex at center). Spectral detail starts outside the core; side lobes are scaled so they stay at or below 0.9× the center apex. Old recentered and even/odd fold paths remain as regression modes.
+Pipeline: **AnalysisFrame** (64 RMS bands) → static **VisualField** (`amplitude[N]`, N need not equal 64) → filled-ribbon renderer. X slots never move. Mapping weights are fixed; left and right are not copies of each other. Default center-out field is **65** slots. An 11-slot central core is broadband frame RMS times a unimodal Gaussian gain (one apex at center). The same Gaussian continues under the first side slots as a floor so the ribbon has broad shoulders instead of a thin neck. Spectral detail starts outside the core; side lobes are scaled so they stay at or below 0.9× the center apex. Old recentered and even/odd fold paths remain as regression modes.
 
 ```bash
 uv run python scripts/spectrum_field_ribbon.py "/path/to/file.wav" \

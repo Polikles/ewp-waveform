@@ -10,6 +10,7 @@ from ewp_waveform.visual.models import VisualField
 
 CENTER_OUT_SLOTS = 65
 CORE_RADIUS = 5
+SHOULDER_EXTENT = 6
 SIDE_TO_CENTER = 0.9
 
 
@@ -27,31 +28,44 @@ def _broadband(frame: AnalysisFrame) -> float:
     return math.sqrt(sum(v * v for v in values) / float(len(values)))
 
 
+def _gaussian(offset: int, sigma: float) -> float:
+    if sigma <= 0.0:
+        return 1.0 if offset == 0 else 0.0
+    return math.exp(-(float(offset) ** 2) / (2.0 * sigma * sigma))
+
+
 def _core_kernel(radius: int) -> tuple[float, ...]:
-    """Gaussian-like unimodal gains for offsets -radius..radius. Unique max at 0."""
+    """Wide unimodal Gaussian for offsets -radius..radius. Unique max at 0."""
     span = max(1, radius)
-    sigma = span / 2.0
-    denom = 2.0 * sigma * sigma
-    return tuple(math.exp(-(float(offset) ** 2) / denom) for offset in range(-span, span + 1))
+    sigma = span * 1.1
+    return tuple(_gaussian(offset, sigma) for offset in range(-span, span + 1))
 
 
 def center_out_layout(
     n_slots: int, n_bands: int
-) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...], int]:
-    """Return (side_mix, visual_gain, core_radius).
+) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...], tuple[float, ...], int]:
+    """Return (side_mix, visual_gain, shoulder_gain, core_radius).
 
-    Core slots use visual_gain only. Side mix is a static band combination
-    assigned outside the core. No independent bands inside the core.
+    Core slots use visual_gain only. Shoulder gain continues the same
+    Gaussian under the first side slots as a floor so the ribbon does not
+    neck. Independent bands start outside the core.
     """
     slots = _odd_at_least(n_slots, 3)
     bands = max(2, int(n_bands))
     center = slots // 2
     radius = min(CORE_RADIUS, max(1, center - 1))
+    sigma = float(radius) * 1.1
+    shoulder_span = radius + min(SHOULDER_EXTENT, max(0, center - radius - 1))
     side_mix = [[0.0] * bands for _ in range(slots)]
     visual_gain = [1.0] * slots
+    shoulder_gain = [0.0] * slots
     kernel = _core_kernel(radius)
     for i, gain in enumerate(kernel):
         visual_gain[center - radius + i] = gain
+    for i in range(slots):
+        distance = abs(i - center)
+        if distance <= shoulder_span:
+            shoulder_gain[i] = _gaussian(distance, sigma)
     side_slots: list[int] = []
     for distance in range(radius + 1, center + 1):
         for slot in (center + distance, center - distance):
@@ -71,7 +85,7 @@ def center_out_layout(
         if row_sum > 0.0:
             side_mix[slot] = [value / row_sum for value in side_mix[slot]]
     frozen_sides = tuple(tuple(row) for row in side_mix)
-    return frozen_sides, tuple(visual_gain), radius
+    return frozen_sides, tuple(visual_gain), tuple(shoulder_gain), radius
 
 
 class CenterOutMapping:
@@ -80,13 +94,14 @@ class CenterOutMapping:
     def __init__(self, n_slots: int = CENTER_OUT_SLOTS, n_bands: int = 64) -> None:
         slots = _odd_at_least(n_slots, 3)
         bands = max(2, int(n_bands))
-        side_mix, visual_gain, radius = center_out_layout(slots, bands)
+        side_mix, visual_gain, shoulder_gain, radius = center_out_layout(slots, bands)
         self.n_slots = slots
         self.n_bands = bands
         self.center = slots // 2
         self.core_radius = radius
         self.side_mix = side_mix
         self.visual_gain = visual_gain
+        self.shoulder_gain = shoulder_gain
         self.side_to_center = SIDE_TO_CENTER
 
     def apply(self, frame: AnalysisFrame) -> VisualField:
@@ -117,6 +132,12 @@ class CenterOutMapping:
             for i in range(self.n_slots):
                 if i < lo or i > hi:
                     amplitudes[i] *= factor
+        for i in range(self.n_slots):
+            if lo <= i <= hi:
+                continue
+            floor = self.shoulder_gain[i] * center_amplitude
+            if floor > amplitudes[i]:
+                amplitudes[i] = floor
         return VisualField.from_amplitudes(amplitudes)
 
 

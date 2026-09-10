@@ -44,6 +44,8 @@ def test_center_out_has_one_center_peak_not_a_split() -> None:
     hi = center + mapping.core_radius
     side_peak = max(amps[i] for i in range(len(amps)) if i < lo or i > hi)
     assert side_peak <= mapping.side_to_center * amps[center] + 1e-12
+    shoulder = amps[center + mapping.core_radius : center + mapping.core_radius + 3]
+    assert min(shoulder) >= 0.45 * amps[center]
 
 
 def test_left_and_right_are_not_mirrors() -> None:
