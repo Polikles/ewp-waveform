@@ -7,7 +7,7 @@ and even/odd fold modes remain available as reference scripts.
     uv run python scripts/spectrum_field_ribbon.py \\
       /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
       --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-field \\
-      --duration 8
+      --duration 2.5
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def main() -> int:
     parser.add_argument("input_path")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--start", type=float, default=0.0)
-    parser.add_argument("--duration", type=float, default=8.0)
+    parser.add_argument("--duration", type=float, default=2.5)
     parser.add_argument("--preset", default="iuris-spectrum")
     args = parser.parse_args()
     source = normalize_user_path(args.input_path)

@@ -1,5 +1,5 @@
 from ewp_waveform.analysis.frames import AnalysisFrame
-from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping, center_out_weights
+from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
 from ewp_waveform.visual.ribbon import field_to_columns, render_ribbon_frame
 
 
@@ -16,31 +16,40 @@ def test_center_out_mapping_is_static_and_odd_width() -> None:
     assert mapping.center == 32
     frame = AnalysisFrame.from_bands([0.2] * 64)
     assert mapping.apply(frame) == mapping.apply(frame)
-    assert mapping.weights == center_out_weights(65, 64)
+    assert mapping.core_radius == 3
+    assert mapping.visual_gain[32] == 1.0
+    assert mapping.visual_gain[32] > mapping.visual_gain[31] > mapping.visual_gain[29]
 
 
 def test_center_out_has_one_center_peak_not_a_split() -> None:
-    bands = [0.0] * 64
-    bands[0] = 1.0
-    field = CenterOutMapping().apply(AnalysisFrame.from_bands(bands))
-    amps = field.amplitude
+    bands = [0.15] * 64
+    bands[0] = 0.6
+    bands[1] = 1.0
+    bands[2] = 1.0
+    mapping = CenterOutMapping()
+    amps = mapping.apply(AnalysisFrame.from_bands(bands)).amplitude
+    center = mapping.center
     peak_at = amps.index(max(amps))
-    assert peak_at == 32
-    assert amps[32] > amps[31]
-    assert amps[32] > amps[33]
-    assert amps[31] > amps[30]
-    assert amps[33] > amps[34]
+    assert peak_at == center
+    for offset in range(mapping.core_radius):
+        assert amps[center - offset] > amps[center - offset - 1]
+        assert amps[center + offset] > amps[center + offset + 1]
+    for offset in range(1, mapping.core_radius + 1):
+        assert abs(amps[center - offset] - amps[center + offset]) < 1e-12
+        expected = mapping.visual_gain[center - offset]
+        assert abs(amps[center - offset] / amps[center] - expected) < 1e-9
 
 
 def test_left_and_right_are_not_mirrors() -> None:
     bands = [0.0] * 64
-    bands[1] = 1.0
-    bands[2] = 0.2
-    amps = CenterOutMapping().apply(AnalysisFrame.from_bands(bands)).amplitude
-    center = 32
-    assert amps[center + 1] > amps[center - 1]
-    mirrored = tuple(reversed(amps))
-    assert amps != mirrored
+    bands[6] = 1.0
+    bands[7] = 0.2
+    mapping = CenterOutMapping()
+    amps = mapping.apply(AnalysisFrame.from_bands(bands)).amplitude
+    first_right = mapping.center + mapping.core_radius + 1
+    first_left = mapping.center - mapping.core_radius - 1
+    assert amps[first_right] > amps[first_left]
+    assert amps != tuple(reversed(amps))
 
 
 def test_visual_field_width_is_independent_of_band_count() -> None:
