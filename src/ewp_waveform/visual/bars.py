@@ -39,6 +39,11 @@ class BarStyle:
 # T1 thin + G2 open gap + C1 alternate + L2 center line.
 MIRRORED_LINE_DEFAULT = BarStyle()
 
+# Board `2 mówców.png`: speaker 1 pale/white-cyan, speaker 2 periwinkle blue.
+SPEAKER_WHITE = "#FFFFFF"
+SPEAKER_PALE_CYAN = "#C7E6EC"
+SPEAKER_BLUE = "#6E7BA7"
+
 
 def bar_spans(width: int, style: BarStyle) -> tuple[tuple[float, float], ...]:
     """Left/right edges of each bar. Stationary; no scroll phase."""

@@ -857,6 +857,18 @@ def _validate_png(directory: Path, *, expected_frames: int) -> dict[str, Any]:
     return {"passed": passed, "frames": count, "format": "png"}
 
 
+def _with_waveform_color(preset: VisualPreset, color: str | None) -> VisualPreset:
+    """Override stroke/glow color without editing the preset file."""
+    if color is None or color == preset.waveform.color:
+        return preset
+    wave = preset.waveform.model_copy(update={"color": color})
+    effects = dict(preset.effects)
+    glow = effects.get("glow")
+    if isinstance(glow, dict):
+        effects["glow"] = {**glow, "color": color}
+    return preset.model_copy(update={"waveform": wave, "effects": effects})
+
+
 def render_job(
     job: PlannedJob,
     media: SourceMedia,
@@ -894,9 +906,11 @@ def render_job(
     bar_alternate: bool | None = None,
     bar_color_b: str | None = None,
     bar_center_line_width: float | None = None,
+    waveform_color: str | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
+    preset = _with_waveform_color(preset, waveform_color)
 
     def note(message: str) -> None:
         if progress is not None:

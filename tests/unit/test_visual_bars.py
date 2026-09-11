@@ -7,6 +7,14 @@ from ewp_waveform.visual.bars import (
 )
 
 
+def test_speaker_board_colors() -> None:
+    from ewp_waveform.visual.bars import SPEAKER_BLUE, SPEAKER_PALE_CYAN, SPEAKER_WHITE
+
+    assert SPEAKER_WHITE == "#FFFFFF"
+    assert SPEAKER_PALE_CYAN == "#C7E6EC"
+    assert SPEAKER_BLUE == "#6E7BA7"
+
+
 def test_mirrored_line_default_is_thin_open_alternate_with_center_line() -> None:
     style = MIRRORED_LINE_DEFAULT
     assert style.width == 5.0
