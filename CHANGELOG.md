@@ -6,12 +6,14 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Changed
 
-- Field-ribbon encode selects a RenderPlan below VisualField. The current monochrome ribbon uses MASK_FAST (gray coverage + FFmpeg colorize/glow). RGBA_2D remains the reference fallback (`--path rgba_2d`).
+- Field-ribbon encode selects a RenderPlan below VisualField. Monochrome ribbon and mirrored bars both use MASK_FAST when effects allow; RGBA_2D remains the reference fallback (`--path rgba_2d`).
+- Fixed-axis VisualField can draw stationary mirrored bars (`field_geometry=mirrored_bars`) from the same analysis as the filled ribbon. Default bar width 5 / gap 3.
 - Fixed-axis ribbon default supersample is 2× (`RIBBON_SUPERSAMPLE`). Scroll raster stays 12×. Restore the 12× ribbon with `ribbon_supersample=12` or `RIBBON_SUPERSAMPLE_BASELINE`.
 - Spectrum analysis uses NumPy `rfft` on PCM loaded once (batched windows, precomputed band/tilt weights). Runtime dependency: `numpy==2.5.3`.
 
 ### Added
 
+- Fixed-axis mirrored bars from the same VisualField as the filled ribbon (`field_geometry=mirrored_bars`, default width 5 / gap 3). A/B script: `scripts/spectrum_field_ab.py`.
 - Phase timers on the field-ribbon path (`decode`, `frequency_span`, `spectral_analysis`, `visual_field`, `raster`, `ffmpeg_feed`, `ffmpeg_wait`). Bench script: `scripts/perf_ribbon.py`.
 - Deterministic analysis cache keyed by source identity and analysis settings only (not VisualField mapping, glow, or ribbon style). Override directory with `EWP_ANALYSIS_CACHE`.
 - Field-ribbon process-pool encode for clips of at least 1800 frames (~30 s at 60 fps). Shorter clips stay on the fused single-process generator; `jobs=2` was slower on an 8 s preview.

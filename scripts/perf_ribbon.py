@@ -172,6 +172,9 @@ def _run_once(
     duration: float | None,
     render_path: str | None,
     render_aa: str | None,
+    field_geometry: str,
+    bar_width: float | None,
+    bar_gap: float | None,
 ) -> dict[str, object]:
     user0, sys0 = _cpu_times()
     wall0 = time.perf_counter()
@@ -198,6 +201,9 @@ def _run_once(
         ribbon_supersample=ss,
         render_path=render_path,
         render_aa=render_aa,
+        field_geometry=field_geometry,
+        bar_width=bar_width,
+        bar_gap=bar_gap,
         progress=_progress,
     )
     wall = time.perf_counter() - wall0
@@ -236,6 +242,14 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--path", dest="render_path", default=None, help="mask_fast or rgba_2d")
     parser.add_argument("--aa", dest="render_aa", default=None, help="physical_ss or coverage_taps")
+    parser.add_argument(
+        "--geometry",
+        dest="field_geometry",
+        default="ribbon",
+        help="ribbon or mirrored_bars",
+    )
+    parser.add_argument("--bar-width", type=float, default=None)
+    parser.add_argument("--bar-gap", type=float, default=None)
     parser.add_argument("--start", type=float, default=START)
     parser.add_argument(
         "--duration",
@@ -268,6 +282,9 @@ def main() -> int:
                 duration,
                 args.render_path,
                 args.render_aa,
+                args.field_geometry,
+                args.bar_width,
+                args.bar_gap,
             )
         )
         print(

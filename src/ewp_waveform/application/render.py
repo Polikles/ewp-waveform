@@ -113,9 +113,11 @@ from ewp_waveform.identity import (
     sha256_file,
     short_signature,
 )
+from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
 from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
-from ewp_waveform.visual.ribbon import field_to_columns, raster_ribbon_columns
+from ewp_waveform.visual.raster import raster_field_columns
+from ewp_waveform.visual.ribbon import field_to_columns
 
 
 def _glow_sigma(preset: VisualPreset) -> float:
@@ -435,9 +437,10 @@ def iter_field_frames(
     mapping: CenterOutMapping,
     supersample: int = RIBBON_SUPERSAMPLE,
     plan: RenderPlan | None = None,
+    bar_style: BarStyle | None = None,
     phases: PhaseTimes | None = None,
 ) -> Iterator[bytes]:
-    """AnalysisFrame -> static VisualField -> filled ribbon. X slots never move."""
+    """AnalysisFrame -> static VisualField -> style geometry. X slots never move."""
     height = preset.canvas.height
     center = bool(preset.waveform.center_line)
     pad = glow_overscan(glow)
@@ -447,7 +450,10 @@ def iter_field_frames(
     filt = _spectrum_spatial_filter(spatial_filter)
     previous: list[float] | None = None
     resolved = plan or resolve_render_plan(
-        preset, layout="field_center_out", contour=True, ribbon_supersample=supersample
+        preset,
+        layout="field_center_out",
+        field_geometry="ribbon",
+        ribbon_supersample=supersample,
     )
     count = min(n_frames, len(sequence))
     for i in range(count):
@@ -460,7 +466,7 @@ def iter_field_frames(
         blended = blend_columns(previous, raw, alpha)
         previous = blended
         t1 = time.perf_counter()
-        frame = raster_ribbon_columns(
+        frame = raster_field_columns(
             blended,
             plan=resolved,
             width=draw_w,
@@ -470,6 +476,7 @@ def iter_field_frames(
             center_line=center,
             content_height=preset.canvas.height,
             glow_sigma=glow,
+            bar_style=bar_style,
         )
         t2 = time.perf_counter()
         if phases is not None:
@@ -521,6 +528,9 @@ class FieldChunkTask:
     pix_fmt: str
     aa_taps: int
     plan_path: str
+    geometry: str
+    bar_width: float
+    bar_gap: float
 
 
 def encode_field_chunk(task: FieldChunkTask) -> Path | None:
@@ -539,12 +549,13 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
         aa_mode="coverage_taps" if task.aa_taps > 1 and task.supersample == 1 else "physical_ss",
         aa_taps=task.aa_taps,
         colorize=task.pix_fmt == "gray",
-        geometry="ribbon",
+        geometry=task.geometry,
     )
+    bars = BarStyle(width=task.bar_width, gap=task.bar_gap)
 
     def frames() -> Iterator[bytes]:
         for row in slc:
-            yield raster_ribbon_columns(
+            yield raster_field_columns(
                 row.tolist(),
                 plan=plan,
                 width=draw_w,
@@ -554,6 +565,7 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
                 center_line=task.center_line,
                 content_height=task.content_height,
                 glow_sigma=task.glow,
+                bar_style=bars,
             )
 
     png_dir = Path(task.png_dir) if task.png_dir is not None else None
@@ -857,6 +869,9 @@ def render_job(
     ribbon_supersample: int | None = None,
     render_path: str | None = None,
     render_aa: str | None = None,
+    field_geometry: str = "ribbon",
+    bar_width: float | None = None,
+    bar_gap: float | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
@@ -1012,6 +1027,7 @@ def render_job(
             field_encoded = False
             spectrum_encode_workers = 1
             field_plan: RenderPlan | None = None
+            bars: BarStyle | None = None
             if geometry != "spectrum":
                 samples, rate = load_mono_f32(decoded)
                 if norm_mode != "none":
@@ -1117,10 +1133,17 @@ def render_job(
                         aa_mode = "physical_ss"
                     elif render_aa == "coverage_taps":
                         aa_mode = "coverage_taps"
+                    resolved_field_geometry = "ribbon"
+                    if field_geometry in {"ribbon", "mirrored_bars"}:
+                        resolved_field_geometry = field_geometry
+                    bars = BarStyle(
+                        width=5.0 if bar_width is None else float(bar_width),
+                        gap=3.0 if bar_gap is None else float(bar_gap),
+                    )
                     field_plan = resolve_render_plan(
                         preset,
                         layout=layout,
-                        contour=True,
+                        field_geometry=resolved_field_geometry,
                         ribbon_supersample=ribbon_ss,
                         force_path=forced_path,
                         aa_mode=aa_mode,
@@ -1233,6 +1256,9 @@ def render_job(
                                 pix_fmt=field_plan.pix_fmt if field_plan else "rgba",
                                 aa_taps=field_plan.aa_taps if field_plan else 1,
                                 plan_path=field_plan.path if field_plan else "rgba_2d",
+                                geometry=field_plan.geometry if field_plan else "ribbon",
+                                bar_width=bars.width,
+                                bar_gap=bars.gap,
                             )
                             for index, (start, size) in enumerate(ranges)
                         ]
@@ -1264,6 +1290,7 @@ def render_job(
                             mapping=mapping,
                             supersample=ribbon_ss,
                             plan=field_plan,
+                            bar_style=bars,
                             phases=clock,
                         )
                 else:
@@ -1429,6 +1456,9 @@ def render_job(
                     "visual_pipeline": (
                         "analysis_field_ribbon" if layout == "field_center_out" else "legacy"
                     ),
+                    "field_geometry": (field_plan.geometry if field_plan is not None else "legacy"),
+                    "bar_width": bars.width if bars is not None else None,
+                    "bar_gap": bars.gap if bars is not None else None,
                     "visual_slots": CENTER_OUT_SLOTS if layout == "field_center_out" else None,
                     "ribbon_supersample": ribbon_ss,
                     "render_path": field_plan.path if field_plan is not None else "rgba_2d",

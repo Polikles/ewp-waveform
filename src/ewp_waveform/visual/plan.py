@@ -8,6 +8,8 @@ from typing import Literal
 from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
 
+MASK_GEOMETRIES = frozenset({"ribbon", "mirrored_bars"})
+
 RenderPath = Literal["mask_fast", "rgba_2d"]
 AAMode = Literal["physical_ss", "coverage_taps"]
 PixFmt = Literal["gray", "rgba"]
@@ -22,7 +24,7 @@ class RenderCapabilities:
     independent_segment_color: bool
     particles: bool
     glow: bool
-    ribbon_geometry: bool
+    mask_renderable_geometry: bool
 
 
 @dataclass(frozen=True)
@@ -53,7 +55,7 @@ def inspect_capabilities(
     preset: VisualPreset,
     *,
     layout: str = "linear",
-    contour: bool = False,
+    field_geometry: str = "ribbon",
 ) -> RenderCapabilities:
     particles = preset.effects.get("particles")
     particles_on = isinstance(particles, dict) and bool(particles.get("enabled"))
@@ -64,14 +66,18 @@ def inspect_capabilities(
         and str(glow.get("level") or "none") != "none"
     )
     palette_gradient = "gradient" in {str(k).lower() for k in preset.palette}
-    ribbon = str(preset.waveform.domain) == "frequency" and layout == "field_center_out" and contour
+    mask_ok = (
+        str(preset.waveform.domain) == "frequency"
+        and layout == "field_center_out"
+        and field_geometry in MASK_GEOMETRIES
+    )
     return RenderCapabilities(
         per_pixel_color=False,
         gradient=palette_gradient,
         independent_segment_color=False,
         particles=particles_on,
         glow=glow_on,
-        ribbon_geometry=ribbon,
+        mask_renderable_geometry=mask_ok,
     )
 
 
@@ -79,18 +85,19 @@ def resolve_render_plan(
     preset: VisualPreset,
     *,
     layout: str = "linear",
-    contour: bool = False,
+    field_geometry: str = "ribbon",
     ribbon_supersample: int | None = None,
     force_path: RenderPath | None = None,
     aa_mode: AAMode | None = None,
 ) -> RenderPlan:
     """Select MASK_FAST or RGBA_2D from required capabilities, not style name alone."""
-    caps = inspect_capabilities(preset, layout=layout, contour=contour)
+    geometry = field_geometry if field_geometry in MASK_GEOMETRIES else str(preset.waveform.style)
+    caps = inspect_capabilities(preset, layout=layout, field_geometry=field_geometry)
     ss = max(1, int(ribbon_supersample) if ribbon_supersample is not None else RIBBON_SUPERSAMPLE)
     needs_rgba = (
         caps.per_pixel_color or caps.gradient or caps.independent_segment_color or caps.particles
     )
-    if force_path == "rgba_2d" or needs_rgba or not caps.ribbon_geometry:
+    if force_path == "rgba_2d" or needs_rgba or not caps.mask_renderable_geometry:
         return RenderPlan(
             path="rgba_2d",
             pix_fmt="rgba",
@@ -99,8 +106,8 @@ def resolve_render_plan(
             aa_mode="physical_ss",
             aa_taps=1,
             colorize=False,
-            geometry="ribbon" if caps.ribbon_geometry else str(preset.waveform.style),
-            fallback_from=None if not caps.ribbon_geometry else "mask_fast",
+            geometry=geometry,
+            fallback_from="mask_fast" if caps.mask_renderable_geometry else None,
         )
     mode: AAMode = aa_mode if aa_mode is not None else "physical_ss"
     if mode == "coverage_taps":
@@ -112,7 +119,7 @@ def resolve_render_plan(
             aa_mode="coverage_taps",
             aa_taps=max(2, ss),
             colorize=True,
-            geometry="ribbon",
+            geometry=geometry,
         )
     return RenderPlan(
         path="mask_fast",
@@ -122,5 +129,5 @@ def resolve_render_plan(
         aa_mode="physical_ss",
         aa_taps=1,
         colorize=True,
-        geometry="ribbon",
+        geometry=geometry,
     )
