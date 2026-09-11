@@ -113,7 +113,7 @@ from ewp_waveform.identity import (
     sha256_file,
     short_signature,
 )
-from ewp_waveform.visual.bars import BarStyle
+from ewp_waveform.visual.bars import MIRRORED_LINE_DEFAULT, BarStyle
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
 from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
 from ewp_waveform.visual.raster import raster_field_columns
@@ -891,7 +891,7 @@ def render_job(
     bar_count: int | None = None,
     bar_fill: float | None = None,
     bar_align: str | None = None,
-    bar_alternate: bool = False,
+    bar_alternate: bool | None = None,
     bar_color_b: str | None = None,
     bar_center_line_width: float | None = None,
     phases: PhaseTimes | None = None,
@@ -1158,17 +1158,33 @@ def render_job(
                     resolved_field_geometry = "ribbon"
                     if field_geometry in {"ribbon", "mirrored_bars"}:
                         resolved_field_geometry = field_geometry
-                    align = bar_align if bar_align in {"period", "count", "slots"} else "period"
+                    align = (
+                        bar_align
+                        if bar_align in {"period", "count", "slots"}
+                        else MIRRORED_LINE_DEFAULT.align
+                    )
                     bars = BarStyle(
-                        width=5.0 if bar_width is None else float(bar_width),
-                        gap=3.0 if bar_gap is None else float(bar_gap),
+                        width=(
+                            MIRRORED_LINE_DEFAULT.width if bar_width is None else float(bar_width)
+                        ),
+                        gap=MIRRORED_LINE_DEFAULT.gap if bar_gap is None else float(bar_gap),
                         count=None if bar_count is None else max(1, int(bar_count)),
-                        fill=0.62 if bar_fill is None else float(bar_fill),
+                        fill=(MIRRORED_LINE_DEFAULT.fill if bar_fill is None else float(bar_fill)),
                         align=align,
-                        alternate=bool(bar_alternate),
-                        color_b="#6E7BA7" if bar_color_b is None else str(bar_color_b),
+                        alternate=(
+                            MIRRORED_LINE_DEFAULT.alternate
+                            if bar_alternate is None
+                            else bool(bar_alternate)
+                        ),
+                        color_b=(
+                            MIRRORED_LINE_DEFAULT.color_b
+                            if bar_color_b is None
+                            else str(bar_color_b)
+                        ),
                         center_line_width=(
-                            0.0 if bar_center_line_width is None else float(bar_center_line_width)
+                            MIRRORED_LINE_DEFAULT.center_line_width
+                            if bar_center_line_width is None
+                            else float(bar_center_line_width)
                         ),
                     )
                     field_plan = resolve_render_plan(

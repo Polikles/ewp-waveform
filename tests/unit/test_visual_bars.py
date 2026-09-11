@@ -1,9 +1,20 @@
 from ewp_waveform.visual.bars import (
+    MIRRORED_LINE_DEFAULT,
     BarStyle,
     bar_spans,
     draw_mirrored_bars_alpha,
     draw_mirrored_bars_rgba,
 )
+
+
+def test_mirrored_line_default_is_thin_open_alternate_with_center_line() -> None:
+    style = MIRRORED_LINE_DEFAULT
+    assert style.width == 5.0
+    assert style.gap == 7.0
+    assert style.align == "period"
+    assert style.alternate is True
+    assert style.color_b == "#6E7BA7"
+    assert style.center_line_width == 2.0
 
 
 def test_bar_spans_are_stationary_and_centered() -> None:
@@ -27,7 +38,7 @@ def test_bars_leave_horizontal_gaps() -> None:
         columns,
         width=80,
         height=40,
-        style=BarStyle(width=4, gap=4),
+        style=BarStyle(width=4, gap=4, center_line_width=0.0, alternate=False),
         amplitude=1.0,
         center_line=False,
         supersample=1,
@@ -66,7 +77,7 @@ def test_bar_height_follows_field_amplitude() -> None:
         columns,
         width=80,
         height=48,
-        style=BarStyle(width=4, gap=2),
+        style=BarStyle(width=4, gap=2, center_line_width=0.0, alternate=False),
         amplitude=1.0,
         center_line=False,
         supersample=1,

@@ -294,7 +294,7 @@ def render(
     bar_count: int | None = None,
     bar_fill: float | None = None,
     bar_align: str | None = None,
-    bar_alternate: bool = False,
+    bar_alternate: bool | None = None,
     bar_color_b: str | None = None,
     bar_center_line_width: float | None = None,
 ) -> list[dict[str, object]]:

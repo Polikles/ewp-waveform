@@ -8,6 +8,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 - MASK_FAST colorize writes RGB 0 on transparent pixels so ProRes playback is not a solid fill when a player ignores alpha.
 - Field-ribbon encode selects a RenderPlan below VisualField. Monochrome ribbon and mirrored bars both use MASK_FAST when effects allow; RGBA_2D remains the reference fallback (`--path rgba_2d`).
+- Default mirrored-line combo is thin bars (5 px), open gap (7 px), alternating `#C7E6EC`/`#6E7BA7`, and a 2 px center stroke. Other combinations remain selectable via bar_* kwargs.
 - Mirrored bars support thickness/gap, optional alternating colors (RGBA_2D), and a full-width center stroke. Monochrome stays MASK_FAST.
 - Fixed-axis VisualField can draw stationary mirrored bars (`field_geometry=mirrored_bars`) from the same analysis as the filled ribbon. Bar layout can be period, equal-count, or one bar per VisualField slot.
 - Fixed-axis ribbon default supersample is 2× (`RIBBON_SUPERSAMPLE`). Scroll raster stays 12×. Restore the 12× ribbon with `ribbon_supersample=12` or `RIBBON_SUPERSAMPLE_BASELINE`.

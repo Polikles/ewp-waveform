@@ -26,14 +26,18 @@ class BarStyle:
     """
 
     width: float = 5.0
-    gap: float = 3.0
+    gap: float = 7.0
     count: int | None = None
     fill: float = 0.62
     align: str = "period"
     n_slots: int = 65
-    alternate: bool = False
+    alternate: bool = True
     color_b: str = "#6E7BA7"
-    center_line_width: float = 0.0
+    center_line_width: float = 2.0
+
+
+# T1 thin + G2 open gap + C1 alternate + L2 center line.
+MIRRORED_LINE_DEFAULT = BarStyle()
 
 
 def bar_spans(width: int, style: BarStyle) -> tuple[tuple[float, float], ...]:
