@@ -291,6 +291,9 @@ def render(
     field_geometry: str = "ribbon",
     bar_width: float | None = None,
     bar_gap: float | None = None,
+    bar_count: int | None = None,
+    bar_fill: float | None = None,
+    bar_align: str | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -369,6 +372,9 @@ def render(
             field_geometry=field_geometry,
             bar_width=bar_width,
             bar_gap=bar_gap,
+            bar_count=bar_count,
+            bar_fill=bar_fill,
+            bar_align=bar_align,
         )
         if extra_space:
             existing = payload.get("warnings")

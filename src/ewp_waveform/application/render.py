@@ -442,7 +442,6 @@ def iter_field_frames(
 ) -> Iterator[bytes]:
     """AnalysisFrame -> static VisualField -> style geometry. X slots never move."""
     height = preset.canvas.height
-    center = bool(preset.waveform.center_line)
     pad = glow_overscan(glow)
     draw_w = preset.canvas.width + 2 * pad
     draw_h = height + 2 * pad
@@ -455,6 +454,8 @@ def iter_field_frames(
         field_geometry="ribbon",
         ribbon_supersample=supersample,
     )
+    # Bars: no decorative center line until that styling pass.
+    center = bool(preset.waveform.center_line) and resolved.geometry != "mirrored_bars"
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = time.perf_counter()
@@ -531,6 +532,9 @@ class FieldChunkTask:
     geometry: str
     bar_width: float
     bar_gap: float
+    bar_count: int
+    bar_fill: float
+    bar_align: str
 
 
 def encode_field_chunk(task: FieldChunkTask) -> Path | None:
@@ -551,7 +555,13 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
         colorize=task.pix_fmt == "gray",
         geometry=task.geometry,
     )
-    bars = BarStyle(width=task.bar_width, gap=task.bar_gap)
+    bars = BarStyle(
+        width=task.bar_width,
+        gap=task.bar_gap,
+        count=task.bar_count if task.bar_count > 0 else None,
+        fill=task.bar_fill,
+        align=task.bar_align,
+    )
 
     def frames() -> Iterator[bytes]:
         for row in slc:
@@ -872,6 +882,9 @@ def render_job(
     field_geometry: str = "ribbon",
     bar_width: float | None = None,
     bar_gap: float | None = None,
+    bar_count: int | None = None,
+    bar_fill: float | None = None,
+    bar_align: str | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
@@ -1136,9 +1149,13 @@ def render_job(
                     resolved_field_geometry = "ribbon"
                     if field_geometry in {"ribbon", "mirrored_bars"}:
                         resolved_field_geometry = field_geometry
+                    align = bar_align if bar_align in {"period", "count", "slots"} else "period"
                     bars = BarStyle(
                         width=5.0 if bar_width is None else float(bar_width),
                         gap=3.0 if bar_gap is None else float(bar_gap),
+                        count=None if bar_count is None else max(1, int(bar_count)),
+                        fill=0.62 if bar_fill is None else float(bar_fill),
+                        align=align,
                     )
                     field_plan = resolve_render_plan(
                         preset,
@@ -1241,7 +1258,10 @@ def render_job(
                                 fps=job.fps,
                                 color=preset.waveform.color,
                                 amplitude=preset.waveform.amplitude,
-                                center_line=bool(preset.waveform.center_line),
+                                center_line=(
+                                    bool(preset.waveform.center_line)
+                                    and (field_plan.geometry != "mirrored_bars")
+                                ),
                                 content_height=preset.canvas.height,
                                 glow=glow,
                                 png_dir=png_abs,
@@ -1259,6 +1279,9 @@ def render_job(
                                 geometry=field_plan.geometry if field_plan else "ribbon",
                                 bar_width=bars.width,
                                 bar_gap=bars.gap,
+                                bar_count=0 if bars.count is None else bars.count,
+                                bar_fill=bars.fill,
+                                bar_align=bars.align,
                             )
                             for index, (start, size) in enumerate(ranges)
                         ]

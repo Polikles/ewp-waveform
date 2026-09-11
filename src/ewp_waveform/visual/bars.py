@@ -17,29 +17,62 @@ from ewp_waveform.ffmpeg.draw import (
 
 @dataclass(frozen=True)
 class BarStyle:
-    """Stationary bar metrics in output pixels. Independent of analysis."""
+    """Stationary bar metrics. Independent of analysis.
+
+    ``align``:
+    - ``period`` — walk ``width``/``gap`` from the field midline;
+    - ``count`` — ``count`` equal-spaced bars across the frame;
+    - ``slots`` — one bar per VisualField slot, centers on slot knots.
+    """
 
     width: float = 5.0
     gap: float = 3.0
+    count: int | None = None
+    fill: float = 0.62
+    align: str = "period"
+    n_slots: int = 65
 
 
 def bar_spans(width: int, style: BarStyle) -> tuple[tuple[float, float], ...]:
-    """Left/right edges of each bar, centered on the field midline. No scroll."""
+    """Left/right edges of each bar. Stationary; no scroll phase."""
+    if width < 1:
+        return ()
+    align = style.align
+    if align == "slots":
+        n = max(1, int(style.count) if style.count is not None else int(style.n_slots))
+        fill = min(max(float(style.fill), 0.05), 0.95)
+        bar_w = max(1.0, (float(width) / float(n)) * fill)
+        last = max(n - 1, 1)
+        slot_spans: list[tuple[float, float]] = []
+        for i in range(n):
+            center = (float(i) / float(last)) * float(width - 1)
+            slot_spans.append((center - bar_w / 2.0, center + bar_w / 2.0))
+        return tuple(slot_spans)
+    if align == "count" or style.count is not None:
+        n = max(1, int(style.count) if style.count is not None else 1)
+        fill = min(max(float(style.fill), 0.05), 0.95)
+        period = float(width) / float(n)
+        bar_w = max(1.0, period * fill)
+        count_spans: list[tuple[float, float]] = []
+        for i in range(n):
+            center = (float(i) + 0.5) * period
+            count_spans.append((center - bar_w / 2.0, center + bar_w / 2.0))
+        return tuple(count_spans)
     bar_w = max(1.0, float(style.width))
     gap = max(0.0, float(style.gap))
     period = bar_w + gap
-    if width < 1 or period <= 0.0:
+    if period <= 0.0:
         return ()
     origin = (float(width) / 2.0) - (bar_w / 2.0)
     x0 = origin
     while x0 + bar_w > 0.0:
         x0 -= period
     x0 += period
-    spans: list[tuple[float, float]] = []
+    period_spans: list[tuple[float, float]] = []
     while x0 < float(width):
-        spans.append((x0, x0 + bar_w))
+        period_spans.append((x0, x0 + bar_w))
         x0 += period
-    return tuple(spans)
+    return tuple(period_spans)
 
 
 def _sample_column(columns: Sequence[float], x: float) -> float:

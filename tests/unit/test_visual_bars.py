@@ -36,6 +36,25 @@ def test_bars_leave_horizontal_gaps() -> None:
     assert "10" in joined and "01" in joined
 
 
+def test_count_layout_places_odd_bar_on_midline() -> None:
+    spans = bar_spans(1400, BarStyle(count=117, fill=0.62, align="count"))
+    assert len(spans) == 117
+    mid = 700.0
+    covering = [span for span in spans if span[0] <= mid < span[1]]
+    assert len(covering) == 1
+    left, right = covering[0]
+    assert abs((left + right) / 2.0 - mid) < 0.5
+
+
+def test_slot_layout_puts_one_bar_per_field_knot() -> None:
+    spans = bar_spans(1400, BarStyle(count=65, fill=0.55, align="slots", n_slots=65))
+    assert len(spans) == 65
+    centers = [(a + b) / 2.0 for a, b in spans]
+    assert abs(centers[0] - 0.0) < 1e-6
+    assert abs(centers[-1] - 1399.0) < 1e-6
+    assert abs(centers[32] - 699.5) < 1e-6
+
+
 def test_bar_height_follows_field_amplitude() -> None:
     columns = [0.2] * 20 + [1.0] * 20 + [0.2] * 40
     frame = draw_mirrored_bars_alpha(
