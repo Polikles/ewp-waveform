@@ -29,21 +29,18 @@ def shutter_sigma(shutter_px: float) -> float:
     return shutter_px / 2.355
 
 
-def _colorize_gray_prefix(
-    color: str, in_w: int, in_h: int, fps: float, n_frames: int | None
-) -> str:
-    """Turn gray coverage into unassociated RGBA with constant RGB.
+def _colorize_gray_prefix(color: str) -> str:
+    """Gray coverage -> unassociated RGBA: RGB is the style color only where alpha > 0.
 
-    Geometry stays in the Python raster; this only copies luma into alpha.
+    Transparent pixels stay RGB 0 so players that ignore ProRes alpha do not
+    show a solid fill. Geometry stays in the Python raster.
     """
     r, g, b = parse_rgb(color)
-    hex_color = f"{r:02X}{g:02X}{b:02X}"
-    rate = fps if fps > 0 else 1.0
-    seconds = (float(n_frames) / rate) if n_frames and n_frames > 0 else 86400.0
     return (
-        f"color=c=#{hex_color}:s={in_w}x{in_h}:r={rate}:d={seconds:.6f},format=rgba[csolid];"
-        f"[0:v]format=gray[gmask];"
-        f"[csolid][gmask]alphamerge,format=rgba"
+        "[0:v]format=gray,split=2[gmask][gluma];"
+        f"[gluma]format=gbrp,lut=c0='if(val\\,{r}\\,0)':c1='if(val\\,{g}\\,0)':"
+        f"c2='if(val\\,{b}\\,0)'[rgb];"
+        "[rgb][gmask]alphamerge,format=rgba"
     )
 
 
@@ -78,9 +75,7 @@ def _glow_crop_graph(
         if color is None:
             msg = "gray encode requires waveform color for downstream colorize"
             raise ValueError(msg)
-        in_w = (width + 2 * overscan) * max(1, int(supersample))
-        in_h = height + 2 * overscan
-        head = _colorize_gray_prefix(color, in_w, in_h, fps, n_frames)
+        head = _colorize_gray_prefix(color)
     else:
         head = "[0:v]"
     if use_taa:

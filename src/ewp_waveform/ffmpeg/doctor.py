@@ -10,7 +10,7 @@ from pathlib import Path
 from ewp_waveform.ffmpeg.process import ToolNotFoundError, require_tool, run_argv
 
 REQUIRED_ENCODERS = ("prores_ks", "png")
-REQUIRED_FILTERS = ("gblur", "overlay", "scale", "alphamerge", "color")
+REQUIRED_FILTERS = ("gblur", "overlay", "scale", "alphamerge", "lut")
 MIN_TEMP_FREE_BYTES = 256 * 1024 * 1024
 
 

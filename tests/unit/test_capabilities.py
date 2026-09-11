@@ -13,6 +13,6 @@ def test_particles_unsupported() -> None:
 
 def test_doctor_requires_encode_path_not_stock_showwaves() -> None:
     assert REQUIRED_ENCODERS == ("prores_ks", "png")
-    assert REQUIRED_FILTERS == ("gblur", "overlay", "scale", "alphamerge", "color")
+    assert REQUIRED_FILTERS == ("gblur", "overlay", "scale", "alphamerge", "lut")
     assert "showwaves" not in REQUIRED_FILTERS
     assert "showfreqs" not in REQUIRED_FILTERS

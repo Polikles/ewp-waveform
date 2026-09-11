@@ -65,7 +65,7 @@ Reports source/grouping metadata without rendering.
 
 ## Doctor
 
-Checks FFmpeg/ffprobe, `prores_ks` and PNG encoders, `gblur`/`overlay`/`scale`/`alphamerge`/`color`, writable temp dir, and a minimum of 256 MiB free there. GPU checks are deferred. Canonical application config is validated when `--config` is passed to other commands.
+Checks FFmpeg/ffprobe, `prores_ks` and PNG encoders, `gblur`/`overlay`/`scale`/`alphamerge`/`lut`, writable temp dir, and a minimum of 256 MiB free there. GPU checks are deferred. Canonical application config is validated when `--config` is passed to other commands.
 
 ## Capabilities
 
