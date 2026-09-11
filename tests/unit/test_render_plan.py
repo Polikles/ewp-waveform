@@ -46,6 +46,18 @@ def test_monochrome_bars_with_glow_select_mask_fast() -> None:
     assert plan.pix_fmt == "gray"
 
 
+def test_alternating_bar_colors_select_rgba_2d() -> None:
+    plan = resolve_render_plan(
+        _preset(),
+        layout="field_center_out",
+        field_geometry="mirrored_bars",
+        alternate_bars=True,
+    )
+    assert plan.path == "rgba_2d"
+    assert plan.pix_fmt == "rgba"
+    assert plan.fallback_from == "mask_fast"
+
+
 def test_particles_force_rgba_2d_fallback() -> None:
     plan = resolve_render_plan(
         _preset(particles=True), layout="field_center_out", field_geometry="ribbon"

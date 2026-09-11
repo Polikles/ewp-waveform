@@ -294,6 +294,9 @@ def render(
     bar_count: int | None = None,
     bar_fill: float | None = None,
     bar_align: str | None = None,
+    bar_alternate: bool = False,
+    bar_color_b: str | None = None,
+    bar_center_line_width: float | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -375,6 +378,9 @@ def render(
             bar_count=bar_count,
             bar_fill=bar_fill,
             bar_align=bar_align,
+            bar_alternate=bar_alternate,
+            bar_color_b=bar_color_b,
+            bar_center_line_width=bar_center_line_width,
         )
         if extra_space:
             existing = payload.get("warnings")

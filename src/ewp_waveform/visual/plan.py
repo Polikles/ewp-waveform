@@ -56,6 +56,7 @@ def inspect_capabilities(
     *,
     layout: str = "linear",
     field_geometry: str = "ribbon",
+    alternate_bars: bool = False,
 ) -> RenderCapabilities:
     particles = preset.effects.get("particles")
     particles_on = isinstance(particles, dict) and bool(particles.get("enabled"))
@@ -74,7 +75,7 @@ def inspect_capabilities(
     return RenderCapabilities(
         per_pixel_color=False,
         gradient=palette_gradient,
-        independent_segment_color=False,
+        independent_segment_color=bool(alternate_bars),
         particles=particles_on,
         glow=glow_on,
         mask_renderable_geometry=mask_ok,
@@ -89,10 +90,16 @@ def resolve_render_plan(
     ribbon_supersample: int | None = None,
     force_path: RenderPath | None = None,
     aa_mode: AAMode | None = None,
+    alternate_bars: bool = False,
 ) -> RenderPlan:
     """Select MASK_FAST or RGBA_2D from required capabilities, not style name alone."""
     geometry = field_geometry if field_geometry in MASK_GEOMETRIES else str(preset.waveform.style)
-    caps = inspect_capabilities(preset, layout=layout, field_geometry=field_geometry)
+    caps = inspect_capabilities(
+        preset,
+        layout=layout,
+        field_geometry=field_geometry,
+        alternate_bars=alternate_bars,
+    )
     ss = max(1, int(ribbon_supersample) if ribbon_supersample is not None else RIBBON_SUPERSAMPLE)
     needs_rgba = (
         caps.per_pixel_color or caps.gradient or caps.independent_segment_color or caps.particles

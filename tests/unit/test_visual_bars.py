@@ -1,4 +1,9 @@
-from ewp_waveform.visual.bars import BarStyle, bar_spans, draw_mirrored_bars_alpha
+from ewp_waveform.visual.bars import (
+    BarStyle,
+    bar_spans,
+    draw_mirrored_bars_alpha,
+    draw_mirrored_bars_rgba,
+)
 
 
 def test_bar_spans_are_stationary_and_centered() -> None:
@@ -74,3 +79,40 @@ def test_bar_height_follows_field_amplitude() -> None:
     peak_x = 28
     side_x = 8
     assert column_mass(peak_x) > column_mass(side_x) * 2
+
+
+def test_alternate_bars_use_two_rgb_colors() -> None:
+    columns = [1.0] * 64
+    frame = draw_mirrored_bars_rgba(
+        columns,
+        width=64,
+        height=32,
+        style=BarStyle(count=8, fill=0.5, align="count", alternate=True, color_b="#112233"),
+        color="#C7E6EC",
+        amplitude=1.0,
+        center_line=False,
+        supersample=1,
+        glow_sigma=0.0,
+    )
+    colors = {
+        (frame[i], frame[i + 1], frame[i + 2]) for i in range(0, len(frame), 4) if frame[i + 3] > 0
+    }
+    assert (0xC7, 0xE6, 0xEC) in colors
+    assert (0x11, 0x22, 0x33) in colors
+
+
+def test_center_line_width_spans_full_row() -> None:
+    columns = [0.2] * 40
+    frame = draw_mirrored_bars_alpha(
+        columns,
+        width=40,
+        height=24,
+        style=BarStyle(count=5, fill=0.4, align="count", center_line_width=2.0),
+        amplitude=1.0,
+        center_line=False,
+        supersample=1,
+        glow_sigma=0.0,
+    )
+    mid = 12
+    row = [frame[mid * 40 + x] for x in range(40)]
+    assert min(row) > 0

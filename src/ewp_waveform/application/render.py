@@ -535,6 +535,9 @@ class FieldChunkTask:
     bar_count: int
     bar_fill: float
     bar_align: str
+    bar_alternate: bool
+    bar_color_b: str
+    bar_center_line_width: float
 
 
 def encode_field_chunk(task: FieldChunkTask) -> Path | None:
@@ -561,6 +564,9 @@ def encode_field_chunk(task: FieldChunkTask) -> Path | None:
         count=task.bar_count if task.bar_count > 0 else None,
         fill=task.bar_fill,
         align=task.bar_align,
+        alternate=task.bar_alternate,
+        color_b=task.bar_color_b,
+        center_line_width=task.bar_center_line_width,
     )
 
     def frames() -> Iterator[bytes]:
@@ -885,6 +891,9 @@ def render_job(
     bar_count: int | None = None,
     bar_fill: float | None = None,
     bar_align: str | None = None,
+    bar_alternate: bool = False,
+    bar_color_b: str | None = None,
+    bar_center_line_width: float | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
@@ -1156,6 +1165,11 @@ def render_job(
                         count=None if bar_count is None else max(1, int(bar_count)),
                         fill=0.62 if bar_fill is None else float(bar_fill),
                         align=align,
+                        alternate=bool(bar_alternate),
+                        color_b="#6E7BA7" if bar_color_b is None else str(bar_color_b),
+                        center_line_width=(
+                            0.0 if bar_center_line_width is None else float(bar_center_line_width)
+                        ),
                     )
                     field_plan = resolve_render_plan(
                         preset,
@@ -1164,6 +1178,7 @@ def render_job(
                         ribbon_supersample=ribbon_ss,
                         force_path=forced_path,
                         aa_mode=aa_mode,
+                        alternate_bars=bars.alternate,
                     )
                     cache_payload = analysis_cache_payload(
                         source_sha256=source_sha,
@@ -1282,6 +1297,9 @@ def render_job(
                                 bar_count=0 if bars.count is None else bars.count,
                                 bar_fill=bars.fill,
                                 bar_align=bars.align,
+                                bar_alternate=bars.alternate,
+                                bar_color_b=bars.color_b,
+                                bar_center_line_width=bars.center_line_width,
                             )
                             for index, (start, size) in enumerate(ranges)
                         ]
