@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Two-speaker mirrored-line color test (board ``2 mówców.png``).
 
-Speaker 1 (Damian): all white. Speaker 2 (Szymon): all blue.
+Damian: all blue. Szymon: all white.
 Same T1+G2+L2 geometry; no intra-bar alternate (solid speaker color).
 
     uv run python scripts/spectrum_field_speakers.py --duration 8
@@ -27,16 +27,16 @@ FRAME = 239
 
 SPEAKERS: tuple[dict[str, object], ...] = (
     {
-        "name": "Damian-white",
+        "name": "Damian-blue",
         "audio": AUDIO_DIR / "s0e00-Damian.wav",
-        "color": SPEAKER_WHITE,
+        "color": SPEAKER_BLUE,
         "alternate": False,
         "color_b": None,
     },
     {
-        "name": "Szymon-blue",
+        "name": "Szymon-white",
         "audio": AUDIO_DIR / "s0e00-Szymon.wav",
-        "color": SPEAKER_BLUE,
+        "color": SPEAKER_WHITE,
         "alternate": False,
         "color_b": None,
     },
