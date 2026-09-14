@@ -1,18 +1,32 @@
 from ewp_waveform.visual.bars import (
-    MIRRORED_LINE_DEFAULT,
     BarStyle,
     bar_spans,
     draw_mirrored_bars_alpha,
     draw_mirrored_bars_rgba,
 )
+from ewp_waveform.visual.style_defaults import (
+    BLUE,
+    CLASSIC_TICKS_DEFAULT,
+    MIRRORED_LINE_DEFAULT,
+    PALE_CYAN,
+    WHITE,
+    default_glow_level,
+)
 
 
-def test_speaker_board_colors() -> None:
-    from ewp_waveform.visual.bars import SPEAKER_BLUE, SPEAKER_PALE_CYAN, SPEAKER_WHITE
+def test_palette_tokens() -> None:
+    assert WHITE == "#FFFFFF"
+    assert PALE_CYAN == "#C7E6EC"
+    assert BLUE == "#6E7BA7"
 
-    assert SPEAKER_WHITE == "#FFFFFF"
-    assert SPEAKER_PALE_CYAN == "#C7E6EC"
-    assert SPEAKER_BLUE == "#6E7BA7"
+
+def test_classic_ticks_pack_is_thin_sparse_low_glow() -> None:
+    style = CLASSIC_TICKS_DEFAULT
+    assert style.width <= 2.0
+    assert style.gap >= 10.0
+    assert style.alternate is False
+    assert style.center_line_width == 0.0
+    assert default_glow_level("classic_ticks") == "low"
 
 
 def test_mirrored_line_default_is_thin_open_alternate_with_center_line() -> None:

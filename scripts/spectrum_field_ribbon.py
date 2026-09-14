@@ -5,8 +5,8 @@ Stationary 65-slot center-out mapping (one visual center). Old recentered
 and even/odd fold modes remain available as reference scripts.
 
     uv run python scripts/spectrum_field_ribbon.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-field \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 2.5
 """
 

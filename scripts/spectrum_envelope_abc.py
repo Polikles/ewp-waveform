@@ -11,8 +11,8 @@ C = centered temporal RMS+peak (mix 0.3), 1.5 s window, 64 bins
 Example:
 
     uv run python scripts/spectrum_envelope_abc.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-envelope \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 8
 """
 

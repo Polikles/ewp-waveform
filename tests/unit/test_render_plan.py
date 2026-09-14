@@ -35,6 +35,13 @@ def test_monochrome_ribbon_with_glow_selects_mask_fast() -> None:
     assert plan.bytes_per_pixel == 1
 
 
+def test_classic_ticks_select_mask_fast() -> None:
+    plan = resolve_render_plan(_preset(), layout="field_center_out", field_geometry="classic_ticks")
+    assert plan.path == "mask_fast"
+    assert plan.geometry == "classic_ticks"
+    assert plan.pix_fmt == "gray"
+
+
 def test_monochrome_bars_with_glow_select_mask_fast() -> None:
     plan = resolve_render_plan(_preset(), layout="field_center_out", field_geometry="mirrored_bars")
     caps = inspect_capabilities(

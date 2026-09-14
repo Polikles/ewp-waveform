@@ -7,8 +7,8 @@ Default production spectrum path stays columns (A).
 Example (same 8 s clip as the operator preview):
 
     uv run python scripts/spectrum_contour_ab.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-ab \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 8
 """
 

@@ -2,7 +2,7 @@
 """A/B locked ribbon vs VisualField mirrored bars on the 8 s diagnostic clip.
 
     uv run python scripts/spectrum_field_ab.py \\
-      --audio /home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav
+      --audio /path/to/input.wav
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from pathlib import Path
 from ewp_waveform.application.service import render
 from ewp_waveform.paths import normalize_user_path
 
-AUDIO = Path("/home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav")
 START = 25.0
 DURATION = 8.0
 COMPARE = (0, 239, 479)
@@ -99,7 +98,7 @@ def _render(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--audio", default=str(AUDIO))
+    parser.add_argument("--audio", required=True)
     parser.add_argument("--output-root", default="/tmp/ewp-field-ab")
     parser.add_argument("--bar-width", type=float, default=None)
     parser.add_argument("--bar-gap", type=float, default=None)

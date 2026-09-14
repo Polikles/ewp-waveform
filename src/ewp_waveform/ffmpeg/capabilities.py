@@ -36,7 +36,7 @@ def ffmpeg_capabilities() -> list[CapabilityItem]:
         CapabilityItem(
             name="style:classic",
             level=CapabilityLevel.LIMITED,
-            notes="Classic line: phrase-length thin ticks. Not 33 ms PCM.",
+            notes="Classic ticks: thin sparse VisualField bars, low glow. Experimental vs brand.",
         ),
         CapabilityItem(
             name="style:mirrored",

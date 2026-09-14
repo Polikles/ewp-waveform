@@ -11,6 +11,7 @@ from ewp_waveform.visual.bars import (
 )
 from ewp_waveform.visual.plan import RenderPlan
 from ewp_waveform.visual.ribbon import raster_ribbon_columns
+from ewp_waveform.visual.style_defaults import BAR_GEOMETRIES
 
 
 def raster_field_columns(
@@ -26,7 +27,7 @@ def raster_field_columns(
     glow_sigma: float = 0.0,
     bar_style: BarStyle | None = None,
 ) -> bytes:
-    if plan.geometry == "mirrored_bars":
+    if plan.geometry in BAR_GEOMETRIES:
         style = bar_style or BarStyle()
         if plan.path == "mask_fast":
             return draw_mirrored_bars_alpha(

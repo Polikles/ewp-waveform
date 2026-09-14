@@ -12,8 +12,8 @@ C = 3.5x that sigma (in the 3-4x range)
 Example (same 8 s clip as the contour A/B):
 
     uv run python scripts/spectrum_spatial_abc.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-spatial \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 8
 """
 

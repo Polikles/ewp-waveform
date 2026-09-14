@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Two-speaker mirrored-line color test (board ``2 mówców.png``).
+"""Per-track solid colors on the default mirrored-line geometry.
 
-Damian: all blue. Szymon: all white.
-Same T1+G2+L2 geometry; no intra-bar alternate (solid speaker color).
-
-    uv run python scripts/spectrum_field_speakers.py --duration 8
-    uv run python scripts/spectrum_field_speakers.py --duration 0
+    uv run python scripts/spectrum_field_speakers.py \\
+      --audio /path/to/speaker-a.wav --color '#6E7BA7' \\
+      --audio /path/to/speaker-b.wav --color '#FFFFFF' \\
+      --output-root /path/to/output --duration 0
 """
 
 from __future__ import annotations
@@ -19,28 +18,11 @@ from pathlib import Path
 
 from ewp_waveform.application.service import render
 from ewp_waveform.paths import normalize_user_path
-from ewp_waveform.visual.bars import SPEAKER_BLUE, SPEAKER_WHITE
+from ewp_waveform.visual.style_defaults import BLUE, WHITE
 
-AUDIO_DIR = Path("/home/linuch/waveform-rendering/zz-audio-samples/s0e00")
 START = 0.0
 FRAME = 239
-
-SPEAKERS: tuple[dict[str, object], ...] = (
-    {
-        "name": "Damian-blue",
-        "audio": AUDIO_DIR / "s0e00-Damian.wav",
-        "color": SPEAKER_BLUE,
-        "alternate": False,
-        "color_b": None,
-    },
-    {
-        "name": "Szymon-white",
-        "audio": AUDIO_DIR / "s0e00-Szymon.wav",
-        "color": SPEAKER_WHITE,
-        "alternate": False,
-        "color_b": None,
-    },
-)
+DEFAULT_COLORS = (BLUE, WHITE)
 
 
 def _progress(message: str) -> None:
@@ -96,8 +78,14 @@ def _preview(mov: Path, dest: Path, index: int) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--audio-dir", default=str(AUDIO_DIR))
-    parser.add_argument("--output-root", default="/tmp/ewp-speakers")
+    parser.add_argument("--audio", action="append", required=True, help="Repeat per track")
+    parser.add_argument(
+        "--color",
+        action="append",
+        default=[],
+        help="Repeat per track. Defaults: blue then white.",
+    )
+    parser.add_argument("--output-root", required=True)
     parser.add_argument("--start", type=float, default=START)
     parser.add_argument(
         "--duration",
@@ -107,18 +95,17 @@ def main() -> int:
     )
     parser.add_argument("--preview-frame", type=int, default=FRAME)
     args = parser.parse_args()
-    audio_dir = Path(args.audio_dir)
     root = Path(args.output_root)
     duration = None if args.duration == 0 else args.duration
     perf = _performance_toml(root / "performance.toml")
     rows = []
-    for spec in SPEAKERS:
-        name = str(spec["name"])
-        audio = audio_dir / Path(str(spec["audio"])).name
-        print(f"=== {name} {audio} ===", flush=True)
+    for index, audio in enumerate(args.audio):
+        color = args.color[index] if index < len(args.color) else DEFAULT_COLORS[index % 2]
+        name = Path(audio).stem
+        print(f"=== {name} {color} ===", flush=True)
         wall0 = time.perf_counter()
         results = render(
-            normalize_user_path(str(audio)),
+            normalize_user_path(audio),
             output_dir=root / name,
             preset_name="iuris-spectrum",
             performance_name=str(perf),
@@ -135,9 +122,8 @@ def main() -> int:
             visual_geometry="spectrum",
             spectrum_layout="field_center_out",
             field_geometry="mirrored_bars",
-            bar_alternate=bool(spec["alternate"]),
-            bar_color_b=str(spec["color_b"]) if spec["color_b"] is not None else None,
-            waveform_color=str(spec["color"]),
+            bar_alternate=False,
+            waveform_color=color,
             progress=_progress,
         )
         wall = time.perf_counter() - wall0
@@ -148,8 +134,7 @@ def main() -> int:
         rows.append(
             {
                 "name": name,
-                "color": spec["color"],
-                "alternate": spec["alternate"],
+                "color": color,
                 "wall_s": wall,
                 "mov": str(mov) if mov else "",
                 "size_bytes": mov.stat().st_size if mov and mov.is_file() else 0,

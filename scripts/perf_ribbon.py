@@ -4,13 +4,13 @@
 Short clip (default start=25, duration=8):
 
     uv run python scripts/perf_ribbon.py \\
-      --audio /path/to/s0e00-Damian.wav \\
+      --audio /path/to/input.wav \\
       --ss 2 --jobs 1 --repeats 1 --extract-frames
 
 Full file after --start (duration 0):
 
     uv run python scripts/perf_ribbon.py \\
-      --audio /path/to/s0e00-Damian.wav \\
+      --audio /path/to/input.wav \\
       --start 0 --duration 0 --ss 2 --jobs 8 --extract-frames
 """
 
@@ -30,8 +30,6 @@ from ewp_waveform.application.service import render
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
 from ewp_waveform.paths import normalize_user_path
 
-AUDIO = Path("/home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav")
-# Short-clip default: first continuous speech on Damian; 0-8s is near-silence.
 START = 25.0
 DURATION = 8.0
 FPS = 60.0
@@ -236,7 +234,7 @@ def _run_once(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--audio", default=str(AUDIO))
+    parser.add_argument("--audio", required=True)
     parser.add_argument("--output-root", default="/tmp/ewp-ribbon-perf")
     parser.add_argument("--ss", type=int, default=RIBBON_SUPERSAMPLE)
     parser.add_argument("--jobs", type=int, default=1)

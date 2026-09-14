@@ -7,8 +7,9 @@ from typing import Literal
 
 from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
+from ewp_waveform.visual.style_defaults import BAR_GEOMETRIES
 
-MASK_GEOMETRIES = frozenset({"ribbon", "mirrored_bars"})
+MASK_GEOMETRIES = frozenset({"ribbon"}) | BAR_GEOMETRIES
 
 RenderPath = Literal["mask_fast", "rgba_2d"]
 AAMode = Literal["physical_ss", "coverage_taps"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Default mirrored-line combo: T1 thin + G2 open gap + C1 alternate + L2 center line.
+"""Fixed-axis classic ticks: thin sparse bars, low glow, same VisualField as the ribbon.
 
-    uv run python scripts/spectrum_field_mirrored.py \\
+    uv run python scripts/spectrum_field_classic.py \\
       --audio /path/to/input.wav \\
       --output-dir /path/to/output
 """
@@ -27,10 +27,11 @@ def _progress(message: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("audio")
+    parser.add_argument("--audio", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--start", type=float, default=START)
     parser.add_argument("--duration", type=float, default=DURATION)
+    parser.add_argument("--color", default=None, help="Override #RRGGBB")
     args = parser.parse_args()
     source = normalize_user_path(args.audio)
     dest = normalize_user_path(args.output_dir)
@@ -51,7 +52,8 @@ def main() -> int:
             spectrum_compress=0.75,
             visual_geometry="spectrum",
             spectrum_layout="field_center_out",
-            field_geometry="mirrored_bars",
+            field_geometry="classic_ticks",
+            waveform_color=args.color,
             progress=_progress,
         )
     except AppError as exc:
@@ -63,13 +65,8 @@ def main() -> int:
     outputs = payload.get("outputs")
     mov = Path(str(outputs[0]["path"])) if isinstance(outputs, list) and outputs else None
     analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
-    print(
-        "mirrored_bars",
-        analysis.get("render_path"),
-        analysis.get("field_geometry"),
-        mov,
-    )
-    if mov is not None and mov.is_file():
+    print("classic_ticks", analysis.get("render_path"), analysis.get("field_geometry"), mov)
+    if mov is not None and mov.is_file() and args.duration and args.duration <= 8.5:
         frames = dest / "frames"
         frames.mkdir(parents=True, exist_ok=True)
         png = frames / f"frame_{FRAME:04d}.png"

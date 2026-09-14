@@ -16,7 +16,6 @@ from pathlib import Path
 from ewp_waveform.application.service import render
 from ewp_waveform.paths import normalize_user_path
 
-AUDIO = Path("/home/linuch/waveform-rendering/zz-audio-samples/s0e00/s0e00-Damian.wav")
 START = 25.0
 DURATION = 8.0
 FRAME = 239
@@ -194,7 +193,7 @@ def _run(audio: Path, root: Path, spec: dict[str, object]) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--audio", default=str(AUDIO))
+    parser.add_argument("--audio", required=True)
     parser.add_argument("--output-root", default="/tmp/ewp-bars-style")
     parser.add_argument("--only", default="", help="comma-separated variant names")
     args = parser.parse_args()

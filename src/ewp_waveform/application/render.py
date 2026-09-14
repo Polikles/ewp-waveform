@@ -113,11 +113,16 @@ from ewp_waveform.identity import (
     sha256_file,
     short_signature,
 )
-from ewp_waveform.visual.bars import MIRRORED_LINE_DEFAULT, BarStyle
+from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
-from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
+from ewp_waveform.visual.plan import MASK_GEOMETRIES, RenderPlan, resolve_render_plan
 from ewp_waveform.visual.raster import raster_field_columns
 from ewp_waveform.visual.ribbon import field_to_columns
+from ewp_waveform.visual.style_defaults import (
+    BAR_GEOMETRIES,
+    default_bar_style,
+    default_glow_level,
+)
 
 
 def _glow_sigma(preset: VisualPreset) -> float:
@@ -455,7 +460,7 @@ def iter_field_frames(
         ribbon_supersample=supersample,
     )
     # Bars: no decorative center line until that styling pass.
-    center = bool(preset.waveform.center_line) and resolved.geometry != "mirrored_bars"
+    center = bool(preset.waveform.center_line) and resolved.geometry not in BAR_GEOMETRIES
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = time.perf_counter()
@@ -857,6 +862,18 @@ def _validate_png(directory: Path, *, expected_frames: int) -> dict[str, Any]:
     return {"passed": passed, "frames": count, "format": "png"}
 
 
+def _with_glow_level(preset: VisualPreset, level: str | None) -> VisualPreset:
+    if level is None:
+        return preset
+    effects = dict(preset.effects)
+    raw_glow = effects.get("glow")
+    glow = dict(raw_glow) if isinstance(raw_glow, dict) else {}
+    glow["level"] = str(level)
+    glow["enabled"] = str(level) != "none"
+    effects["glow"] = glow
+    return preset.model_copy(update={"effects": effects})
+
+
 def _with_waveform_color(preset: VisualPreset, color: str | None) -> VisualPreset:
     """Override stroke/glow color without editing the preset file."""
     if color is None or color == preset.waveform.color:
@@ -907,10 +924,14 @@ def render_job(
     bar_color_b: str | None = None,
     bar_center_line_width: float | None = None,
     waveform_color: str | None = None,
+    glow_level: str | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
     preset = _with_waveform_color(preset, waveform_color)
+    if glow_level is None:
+        glow_level = default_glow_level(field_geometry)
+    preset = _with_glow_level(preset, glow_level)
 
     def note(message: str) -> None:
         if progress is not None:
@@ -1170,33 +1191,20 @@ def render_job(
                     elif render_aa == "coverage_taps":
                         aa_mode = "coverage_taps"
                     resolved_field_geometry = "ribbon"
-                    if field_geometry in {"ribbon", "mirrored_bars"}:
+                    if field_geometry in MASK_GEOMETRIES:
                         resolved_field_geometry = field_geometry
-                    align = (
-                        bar_align
-                        if bar_align in {"period", "count", "slots"}
-                        else MIRRORED_LINE_DEFAULT.align
-                    )
+                    pack = default_bar_style(resolved_field_geometry)
+                    align = bar_align if bar_align in {"period", "count", "slots"} else pack.align
                     bars = BarStyle(
-                        width=(
-                            MIRRORED_LINE_DEFAULT.width if bar_width is None else float(bar_width)
-                        ),
-                        gap=MIRRORED_LINE_DEFAULT.gap if bar_gap is None else float(bar_gap),
+                        width=pack.width if bar_width is None else float(bar_width),
+                        gap=pack.gap if bar_gap is None else float(bar_gap),
                         count=None if bar_count is None else max(1, int(bar_count)),
-                        fill=(MIRRORED_LINE_DEFAULT.fill if bar_fill is None else float(bar_fill)),
+                        fill=pack.fill if bar_fill is None else float(bar_fill),
                         align=align,
-                        alternate=(
-                            MIRRORED_LINE_DEFAULT.alternate
-                            if bar_alternate is None
-                            else bool(bar_alternate)
-                        ),
-                        color_b=(
-                            MIRRORED_LINE_DEFAULT.color_b
-                            if bar_color_b is None
-                            else str(bar_color_b)
-                        ),
+                        alternate=pack.alternate if bar_alternate is None else bool(bar_alternate),
+                        color_b=pack.color_b if bar_color_b is None else str(bar_color_b),
                         center_line_width=(
-                            MIRRORED_LINE_DEFAULT.center_line_width
+                            pack.center_line_width
                             if bar_center_line_width is None
                             else float(bar_center_line_width)
                         ),
@@ -1305,7 +1313,7 @@ def render_job(
                                 amplitude=preset.waveform.amplitude,
                                 center_line=(
                                     bool(preset.waveform.center_line)
-                                    and (field_plan.geometry != "mirrored_bars")
+                                    and (field_plan.geometry not in BAR_GEOMETRIES)
                                 ),
                                 content_height=preset.canvas.height,
                                 glow=glow,

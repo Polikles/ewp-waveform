@@ -11,8 +11,8 @@ C = recentering + 12.5% edge taper
 Example:
 
     uv run python scripts/spectrum_layout_abc.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-layout \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 8
 """
 

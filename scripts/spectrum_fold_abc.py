@@ -11,8 +11,8 @@ C = B plus mild Gaussian on neighboring visual slots (sigma=1)
 Example:
 
     uv run python scripts/spectrum_fold_abc.py \\
-      /mnt/d/podkast/remaster/mp4test/s0e00.wav \\
-      --output-dir /mnt/d/podkast/remaster/mp4test/output-test-spectrum-fold \\
+      /path/to/input.wav \\
+      --output-dir /path/to/output \\
       --duration 8
 """
 

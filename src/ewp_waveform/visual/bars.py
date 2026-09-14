@@ -31,18 +31,9 @@ class BarStyle:
     fill: float = 0.62
     align: str = "period"
     n_slots: int = 65
-    alternate: bool = True
+    alternate: bool = False
     color_b: str = "#6E7BA7"
-    center_line_width: float = 2.0
-
-
-# T1 thin + G2 open gap + C1 alternate + L2 center line.
-MIRRORED_LINE_DEFAULT = BarStyle()
-
-# Board `2 mówców.png`. Production pair: Damian blue, Szymon white.
-SPEAKER_WHITE = "#FFFFFF"
-SPEAKER_PALE_CYAN = "#C7E6EC"
-SPEAKER_BLUE = "#6E7BA7"
+    center_line_width: float = 0.0
 
 
 def bar_spans(width: int, style: BarStyle) -> tuple[tuple[float, float], ...]:
