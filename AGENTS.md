@@ -74,14 +74,28 @@ Mandatory boundaries:
 
 Work in vertical slices. Before implementation:
 
-1. read requirements, architecture, relevant ADRs and schemas;
-2. identify acceptance criteria and requirement IDs;
-3. add/update tests first when practical;
-4. implement the smallest coherent complete change;
-5. run the relevant quality gate;
-6. update documentation and changelog when public contracts change.
+1. read this file and use `docs/README.md` as the specification index;
+2. locate the smallest relevant specification/test/code surface for the task;
+3. read only the relevant requirements, architecture sections, ADRs, schemas, and tests;
+4. identify acceptance criteria and requirement IDs where applicable;
+5. add/update tests first when practical;
+6. implement the smallest coherent complete change;
+7. run the relevant quality gate;
+8. update documentation and changelog when public contracts change.
 
 Do not create empty speculative modules.
+
+### Context discipline
+
+Use these as starting points, then follow references only as needed:
+
+- CLI: `docs/05-cli-specification.md`, `docs/09-state-errors-and-logging.md`, CLI tests.
+- Discovery/grouping: `docs/04-input-discovery-and-grouping.md`, ADR-0009, discovery/grouping tests.
+- Configuration/presets: `docs/06-configuration.md`, ADR-0003, relevant schemas, config tests.
+- Visual styles/effects: `docs/10-rendering-and-effects.md`, `docs/11-normalization.md`, visual/analysis tests, relevant render integration tests.
+- Render/output/publication: `docs/08-output-formats.md`, `docs/10-rendering-and-effects.md`, ADR-0002/0004/0007, render/publish tests.
+- Chunking/resume/recovery: `docs/18-recovery-and-workdirs.md`, `docs/22-chunking-and-continuity.md`, ADR-0006, checkpoint/chunk/render integration tests.
+- Performance/benchmarking: `docs/13-benchmarking.md`, performance profiles, benchmark tests.
 
 ## 6. Commits
 
@@ -117,7 +131,9 @@ If a change implements or depends materially on an ADR, identify it in the title
 
 Follow `docs/TESTING_STRATEGY.md` and `docs/12-testing-and-acceptance.md`.
 
-FFmpeg/filesystem/output/chunk/resume/process-orchestration changes require integration coverage.
+During iteration, run the narrowest relevant test module or test selection first. Do not repeatedly run the full integration suite after small local edits. Before completing a substantial change, run the required full quality gate (`make check` when available).
+
+FFmpeg/filesystem/output/chunk/resume/process-orchestration changes require integration coverage; run `make test-integration` (or the equivalent pytest command) before completion when those areas are affected.
 
 ## 8. Definition of done
 
