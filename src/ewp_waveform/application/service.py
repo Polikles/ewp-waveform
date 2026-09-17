@@ -299,6 +299,7 @@ def render(
     bar_center_line_width: float | None = None,
     waveform_color: str | None = None,
     glow_level: str | None = None,
+    classic_alternate_opacity: float | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -385,6 +386,7 @@ def render(
             bar_center_line_width=bar_center_line_width,
             waveform_color=waveform_color,
             glow_level=glow_level,
+            classic_alternate_opacity=classic_alternate_opacity,
         )
         if extra_space:
             existing = payload.get("warnings")

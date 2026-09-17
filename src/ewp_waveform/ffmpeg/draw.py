@@ -16,6 +16,8 @@ SCROLL_SUPERSAMPLE = 12
 RIBBON_SUPERSAMPLE_BASELINE = 12
 # Fixed-axis X does not move. 2x keeps area-downsampled AA; 1x stairs the contour.
 RIBBON_SUPERSAMPLE = 2
+# Operator-selected classic scroll baseline. Preset/API overrides remain part of identity.
+CLASSIC_SCROLL_ALTERNATE_OPACITY = 0.25
 
 
 def parse_rgb(color: str) -> tuple[int, int, int]:
@@ -118,6 +120,7 @@ def _put_span(
     r: int,
     g: int,
     b: int,
+    opacity: float = 1.0,
 ) -> None:
     """Fill [x0, x1) x [y0, y1) with coverage-based alpha on partial columns and rows."""
     px0 = max(0, math.floor(x0))
@@ -133,7 +136,7 @@ def _put_span(
             ycov = min(float(py) + 1.0, y1) - max(float(py), y0)
             if ycov <= 0.0:
                 continue
-            cov = xcov * min(1.0, ycov)
+            cov = xcov * min(1.0, ycov) * min(max(float(opacity), 0.0), 1.0)
             alpha = 255 if cov >= 1.0 - 1e-6 else max(1, min(255, round(255.0 * cov)))
             off = (py * width + px) * 4
             if alpha >= 255 or frame[off + 3] < alpha:
@@ -159,6 +162,7 @@ def draw_envelope_frame(
     supersample: int = 1,
     glow_sigma: float = 0.0,
     envelope_oversample: int = 1,
+    classic_alternate_opacity: float = 0.0,
 ) -> bytes:
     """Mirrored columns. ``scroll_phase`` is the left edge in output pixels (timestamp-derived).
 
@@ -189,7 +193,7 @@ def draw_envelope_frame(
         # Gapped styles keep discrete bars, still with fractional bin sampling.
         if gap_ss == 0 or period_ss <= 1:
             xs: list[float] = [float(x) for x in range(out_w)]
-            strip_w = 1.0
+            strips = [(x, 1.0, 1.0) for x in xs]
         else:
             rem = phase_ss % period_ss
             first = 0.0 if rem == 0.0 else period_ss - rem
@@ -199,8 +203,11 @@ def draw_envelope_frame(
                 if x + stroke_ss > 0:
                     xs.append(x)
                 x += period_ss
-            strip_w = float(stroke_ss)
-        for x in xs:
+            strips = [(x, float(stroke_ss), 1.0) for x in xs]
+            secondary_opacity = min(max(float(classic_alternate_opacity), 0.0), 1.0)
+            if style == "classic" and gap_ss > 0 and secondary_opacity > 0.0:
+                strips.extend((x + stroke_ss, float(gap_ss), secondary_opacity) for x in xs)
+        for x, strip_w, opacity in strips:
             world_px = scroll_phase + x / ss
             mag = sample_bin(columns, world_px * env_ss - phase_env_floor)
             half = min(float(max_half), float(max_half) * mag)
@@ -220,6 +227,7 @@ def draw_envelope_frame(
                 r=r,
                 g=g,
                 b=b,
+                opacity=opacity,
             )
     if center_line:
         _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)

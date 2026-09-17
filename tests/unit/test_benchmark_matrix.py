@@ -64,6 +64,18 @@ def test_overrides_do_not_write_canonical_preset() -> None:
     assert sha256_file(preset_path) == before
 
 
+def test_classic_opacity_override_copies_signal_settings() -> None:
+    base = load_preset("iuris-default")
+    assert "classic_alternate_opacity" not in base.signal
+    clone = apply_overrides(
+        base,
+        {"classic_alternate_opacity": 0.6},
+        "classic-opacity-60",
+    )
+    assert clone.signal["classic_alternate_opacity"] == 0.6
+    assert "classic_alternate_opacity" not in base.signal
+
+
 def test_unknown_override_is_rejected() -> None:
     base = load_preset("iuris-default")
     try:

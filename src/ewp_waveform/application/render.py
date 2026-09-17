@@ -95,6 +95,7 @@ from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.concat import concat_videos
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
 from ewp_waveform.ffmpeg.draw import (
+    CLASSIC_SCROLL_ALTERNATE_OPACITY,
     RIBBON_SUPERSAMPLE,
     SCROLL_SUPERSAMPLE,
     draw_envelope_frame,
@@ -240,6 +241,15 @@ def iter_scroll_frames(
     draw_h = height + 2 * pad
     ss = SCROLL_SUPERSAMPLE
     oversample = envelope_oversample_from_signal(preset.signal)
+    raw_classic_opacity = preset.signal.get(
+        "classic_alternate_opacity", CLASSIC_SCROLL_ALTERNATE_OPACITY
+    )
+    classic_opacity = (
+        min(max(float(raw_classic_opacity), 0.0), 1.0)
+        if isinstance(raw_classic_opacity, int | float)
+        and not isinstance(raw_classic_opacity, bool)
+        else CLASSIC_SCROLL_ALTERNATE_OPACITY
+    )
     env_w = draw_w * oversample
     for i in range(first_frame, first_frame + total):
         vis_start = viewport_left_px(i, fps, window_seconds, width)
@@ -265,6 +275,7 @@ def iter_scroll_frames(
             supersample=ss,
             glow_sigma=glow,
             envelope_oversample=oversample,
+            classic_alternate_opacity=classic_opacity,
         )
 
 
@@ -886,6 +897,15 @@ def _with_waveform_color(preset: VisualPreset, color: str | None) -> VisualPrese
     return preset.model_copy(update={"waveform": wave, "effects": effects})
 
 
+def _with_classic_alternate_opacity(preset: VisualPreset, opacity: float | None) -> VisualPreset:
+    """Apply an in-memory classic opacity override without mutating the preset."""
+    if opacity is None:
+        return preset
+    signal = dict(preset.signal)
+    signal["classic_alternate_opacity"] = min(max(float(opacity), 0.0), 1.0)
+    return preset.model_copy(update={"signal": signal})
+
+
 def render_job(
     job: PlannedJob,
     media: SourceMedia,
@@ -925,6 +945,7 @@ def render_job(
     bar_center_line_width: float | None = None,
     waveform_color: str | None = None,
     glow_level: str | None = None,
+    classic_alternate_opacity: float | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
     started = _utcnow()
@@ -932,6 +953,7 @@ def render_job(
     if glow_level is None:
         glow_level = default_glow_level(field_geometry)
     preset = _with_glow_level(preset, glow_level)
+    preset = _with_classic_alternate_opacity(preset, classic_alternate_opacity)
 
     def note(message: str) -> None:
         if progress is not None:
@@ -2138,6 +2160,9 @@ def _result_payload(
             "time_mode": preset.waveform.time_mode,
             "color": preset.waveform.color,
             "window_seconds": preset.waveform.window_seconds,
+            "classic_alternate_opacity": preset.signal.get(
+                "classic_alternate_opacity", CLASSIC_SCROLL_ALTERNATE_OPACITY
+            ),
             "envelope_oversample": envelope_oversample_from_signal(preset.signal),
             "envelope_aa": envelope_aa_from_signal(preset.signal)[0],
             "envelope_aa_support": envelope_aa_from_signal(preset.signal)[1],

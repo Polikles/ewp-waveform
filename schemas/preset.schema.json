@@ -100,6 +100,13 @@
           "minimum": 0,
           "description": "Optional Gaussian-approx envelope blur in seconds. 0 disables."
         },
+        "classic_alternate_opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.25,
+          "description": "Opacity of classic scroll bars inserted into the former gaps. Default 0.25; 0 restores empty gaps."
+        },
         "envelope_oversample": {
           "type": "integer",
           "enum": [1, 2, 4, 8],

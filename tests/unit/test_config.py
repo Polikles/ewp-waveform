@@ -37,6 +37,12 @@ def test_builtin_iuris_spectrum_is_frequency_domain() -> None:
     assert freq.get("range") == "auto"
 
 
+def test_builtin_minimal_classic_uses_approved_alternate_opacity() -> None:
+    preset = load_preset("minimal")
+    assert preset.waveform.style == "classic"
+    assert preset.signal.get("classic_alternate_opacity") == 0.25
+
+
 def test_default_application_config() -> None:
     cfg = load_application_config()
     assert cfg.defaults.preset == "iuris-default"

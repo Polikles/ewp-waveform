@@ -2,6 +2,7 @@ from itertools import pairwise
 
 from ewp_waveform.analysis.interp import pchip_eval, pchip_eval_many, pchip_slopes
 from ewp_waveform.ffmpeg.draw import (
+    CLASSIC_SCROLL_ALTERNATE_OPACITY,
     RIBBON_SUPERSAMPLE,
     SCROLL_SUPERSAMPLE,
     bar_metrics,
@@ -58,6 +59,47 @@ def test_mirrored_bars_have_no_gap() -> None:
     stroke, gap = bar_metrics("mirrored", 6.0)
     assert stroke == 6
     assert gap == 0
+
+
+def test_classic_scroll_default_alternate_opacity_is_25_percent() -> None:
+    assert CLASSIC_SCROLL_ALTERNATE_OPACITY == 0.25
+
+
+def test_classic_scroll_uses_translucent_secondary_bars_instead_of_empty_gaps() -> None:
+    width, height = 10, 24
+    frame = draw_envelope_frame(
+        [1.0] * width,
+        width=width,
+        height=height,
+        color="#6E7BA7",
+        amplitude=1.0,
+        stroke_width=6.0,
+        style="classic",
+        center_line=False,
+        classic_alternate_opacity=0.4,
+    )
+    row = height // 2
+    alpha = [frame[(row * width + x) * 4 + 3] for x in range(width)]
+    assert alpha[:5] == [255, 255, 255, 102, 102]
+    assert 0 not in alpha
+
+
+def test_classic_scroll_alternate_opacity_zero_retains_empty_gaps() -> None:
+    width, height = 10, 24
+    frame = draw_envelope_frame(
+        [1.0] * width,
+        width=width,
+        height=height,
+        color="#6E7BA7",
+        amplitude=1.0,
+        stroke_width=6.0,
+        style="classic",
+        center_line=False,
+        classic_alternate_opacity=0.0,
+    )
+    row = height // 2
+    alpha = [frame[(row * width + x) * 4 + 3] for x in range(width)]
+    assert alpha[:5] == [255, 255, 255, 0, 0]
 
 
 def test_peak_half_height_uses_glow_spread() -> None:

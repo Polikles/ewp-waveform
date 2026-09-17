@@ -17,6 +17,7 @@ center_line = true
 [signal]
 scale = "sqrt"
 smoothing = 0.10
+classic_alternate_opacity = 0.25
 
 [signal.normalization]
 mode = "auto"

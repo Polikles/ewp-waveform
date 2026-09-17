@@ -34,6 +34,7 @@ OVERRIDE_KEYS = frozenset(
         "window_seconds",
         "stroke_width",
         "center_line",
+        "classic_alternate_opacity",
     }
 )
 
@@ -92,6 +93,7 @@ def apply_overrides(
     waveform = clone.waveform.model_copy()
     canvas = clone.canvas.model_copy()
     effects = dict(clone.effects)
+    signal = dict(clone.signal)
     if "style" in overrides:
         waveform.style = str(overrides["style"])
     if "color" in overrides:
@@ -117,9 +119,16 @@ def apply_overrides(
         glow["level"] = level
         glow["enabled"] = level != "none"
         effects["glow"] = glow
+    if "classic_alternate_opacity" in overrides:
+        opacity = _as_float(overrides["classic_alternate_opacity"], "classic_alternate_opacity")
+        if not 0.0 <= opacity <= 1.0:
+            msg = "override 'classic_alternate_opacity' must be between 0 and 1"
+            raise ValueError(msg)
+        signal["classic_alternate_opacity"] = opacity
     clone.waveform = waveform
     clone.canvas = canvas
     clone.effects = effects
+    clone.signal = signal
     clone.name = f"{preset.name}--{variant_name}"
     return clone
 
