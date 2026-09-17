@@ -178,6 +178,41 @@ def test_scroll_render_writes_prores_and_preserves_source(tmp_path: Path) -> Non
     assert validation["passed"] is True
 
 
+def test_classic_scroll_opacity_default_and_api_override_are_resolved(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Classic.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(
+        tmp_path / "tiny-classic.toml",
+        TINY_PRESET.replace('style = "mirrored"', 'style = "classic"'),
+    )
+    default = render(
+        src,
+        output_dir=tmp_path / "default",
+        formats=["png"],
+        preset_name=str(preset),
+        force=True,
+    )[0]
+    overridden = render(
+        src,
+        output_dir=tmp_path / "override",
+        formats=["png"],
+        preset_name=str(preset),
+        force=True,
+        classic_alternate_opacity=0.6,
+    )[0]
+    default_config = default["resolved_visual_config"]
+    override_config = overridden["resolved_visual_config"]
+    assert isinstance(default_config, dict)
+    assert isinstance(override_config, dict)
+    assert default_config["classic_alternate_opacity"] == 0.25
+    assert override_config["classic_alternate_opacity"] == 0.6
+    default_job = default["job"]
+    override_job = overridden["job"]
+    assert isinstance(default_job, dict)
+    assert isinstance(override_job, dict)
+    assert default_job["render_signature"] != override_job["render_signature"]
+
+
 def _job_status(payload: dict[str, object]) -> str:
     job = payload["job"]
     assert isinstance(job, dict)
@@ -514,6 +549,33 @@ def test_spectrum_contour_png_differs_from_columns(tmp_path: Path) -> None:
             differed = True
             break
     assert differed
+
+
+def test_segmented_field_render_uses_centered_visual_field(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-Segmented.wav"
+    _tone_wav(src, seconds=0.4, rate=48000)
+    preset = _write(
+        tmp_path / "tiny-segmented.toml",
+        TINY_SPECTRUM.replace('style = "mirrored"', 'style = "segmented"'),
+    )
+    results = render(
+        src,
+        output_dir=tmp_path / "out",
+        formats=["png"],
+        preset_name=str(preset),
+        force=True,
+        spectrum_layout="field_center_out",
+        field_geometry="segmented_impulse",
+        spectrum_n_bands=16,
+    )
+    assert _job_status(results[0]) == "SUCCEEDED"
+    analysis = results[0]["analysis"]
+    assert isinstance(analysis, dict)
+    assert analysis["visual_pipeline"] == "analysis_field_ribbon"
+    assert analysis["field_geometry"] == "segmented_impulse"
+    frames = sorted(_first_output(results[0]).glob("frame_*.png"))
+    assert frames
+    assert all(frame.stat().st_size > 0 for frame in frames)
 
 
 def test_dry_run_reports_skip_after_successful_render(tmp_path: Path) -> None:

@@ -1,0 +1,29 @@
+{
+  "visual_contract_version": 13,
+  "width": 48,
+  "height": 32,
+  "color": "#6E7BA7",
+  "amplitude": 0.82,
+  "columns": [
+    0.05, 0.08, 0.12, 0.20, 0.35, 0.62, 0.90, 0.70,
+    0.44, 0.28, 0.52, 0.84, 1.00, 0.72, 0.38, 0.18,
+    0.10, 0.24, 0.48, 0.78, 0.64, 0.36, 0.22, 0.12,
+    0.08, 0.16, 0.30, 0.58, 0.88, 0.68, 0.40, 0.20,
+    0.12, 0.26, 0.54, 0.76, 0.50, 0.32, 0.18, 0.10,
+    0.07, 0.12, 0.22, 0.42, 0.66, 0.46, 0.24, 0.10
+  ],
+  "expected_sha256": {
+    "time_scroll": {
+      "classic": "873b676b29bc80708308b966860e039fd4bb491e929827d8d0ee092dc13cd1bc",
+      "mirrored": "5607db85f7371ba9f7963f7c35eea29ee28cc72fabb1869b1dd1c2a315fd3def",
+      "filled": "5607db85f7371ba9f7963f7c35eea29ee28cc72fabb1869b1dd1c2a315fd3def",
+      "segmented": "c7744c9406f28c9f0ff745883c243268b1c7ed481aba60f062a15e1da2f16647"
+    },
+    "fixed_axis": {
+      "classic": "cf8dce0763e13847d8aff3bf12fe1ee5fb9cf475312289c32f166543f2023c57",
+      "mirrored": "5d2cff06b3e5b3dc442c3afc0456a85bbd43aca2a513824b2698decacd65a358",
+      "filled": "11640526a49531a804655a9191524c0378660e531807c598e71b11d5b3bc16e5",
+      "segmented": "fd2c2e9b8704829fb54cb0e58e85527adeb3704b0e51d6696abb37cf09b09d7d"
+    }
+  }
+}
