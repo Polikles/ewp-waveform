@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ewp_waveform.config.models import VisualPreset
 
-VISUAL_CONTRACT_VERSION = 12
+VISUAL_CONTRACT_VERSION = 13
 SPECTRUM_CONTRACT_VERSION = 1
 
 

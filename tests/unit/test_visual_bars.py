@@ -4,6 +4,10 @@ from ewp_waveform.visual.bars import (
     draw_mirrored_bars_alpha,
     draw_mirrored_bars_rgba,
 )
+from ewp_waveform.visual.segmented import (
+    SEGMENTED_IMPULSE_DEFAULT,
+    segmented_impulse_alpha,
+)
 from ewp_waveform.visual.style_defaults import (
     BLUE,
     CLASSIC_TICKS_DEFAULT,
@@ -149,3 +153,47 @@ def test_center_line_width_spans_full_row() -> None:
     mid = 12
     row = [frame[mid * 40 + x] for x in range(40)]
     assert min(row) > 0
+
+
+def test_segmented_impulse_has_horizontal_and_vertical_cell_gaps() -> None:
+    alpha = segmented_impulse_alpha(
+        [1.0] * 80,
+        width=80,
+        height=48,
+        style=SEGMENTED_IMPULSE_DEFAULT,
+        amplitude=1.0,
+        supersample=1,
+    )
+    center = 24
+    assert alpha.max() == 255
+    assert 0 in alpha[center]
+    occupied_rows = [bool(alpha[y].max()) for y in range(alpha.shape[0])]
+    assert any(occupied_rows)
+    first = occupied_rows.index(True)
+    last = len(occupied_rows) - 1 - occupied_rows[::-1].index(True)
+    assert not all(occupied_rows[first : last + 1])
+
+
+def test_segmented_impulse_preserves_centered_smooth_envelope() -> None:
+    width = 81
+    columns = [0.15] * width
+    for x in range(width):
+        columns[x] += 0.85 * max(0.0, 1.0 - abs(x - 40) / 18.0)
+    alpha = segmented_impulse_alpha(
+        columns,
+        width=width,
+        height=64,
+        style=SEGMENTED_IMPULSE_DEFAULT,
+        amplitude=1.0,
+        supersample=1,
+    )
+
+    def occupied_height(x: int) -> int:
+        return sum(1 for y in range(alpha.shape[0]) if alpha[y, x] > 0)
+
+    populated = [(x, occupied_height(x)) for x in range(width) if occupied_height(x)]
+    peak_x, peak_height = max(populated, key=lambda item: item[1])
+    side_height = max(occupied_height(10), occupied_height(70))
+    period = SEGMENTED_IMPULSE_DEFAULT.width + SEGMENTED_IMPULSE_DEFAULT.gap
+    assert abs(peak_x - 40) <= period
+    assert peak_height > side_height * 2

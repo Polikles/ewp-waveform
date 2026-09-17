@@ -11,6 +11,11 @@ from ewp_waveform.visual.bars import (
 )
 from ewp_waveform.visual.plan import RenderPlan
 from ewp_waveform.visual.ribbon import raster_ribbon_columns
+from ewp_waveform.visual.segmented import (
+    SEGMENTED_IMPULSE_DEFAULT,
+    draw_segmented_impulse_alpha,
+    draw_segmented_impulse_rgba,
+)
 from ewp_waveform.visual.style_defaults import BAR_GEOMETRIES
 
 
@@ -27,6 +32,30 @@ def raster_field_columns(
     glow_sigma: float = 0.0,
     bar_style: BarStyle | None = None,
 ) -> bytes:
+    if plan.geometry == "segmented_impulse":
+        style = bar_style or SEGMENTED_IMPULSE_DEFAULT
+        if plan.path == "mask_fast":
+            return draw_segmented_impulse_alpha(
+                columns,
+                width=width,
+                height=height,
+                style=style,
+                amplitude=amplitude,
+                content_height=content_height,
+                supersample=plan.supersample,
+                glow_sigma=glow_sigma,
+            )
+        return draw_segmented_impulse_rgba(
+            columns,
+            width=width,
+            height=height,
+            style=style,
+            color=color,
+            amplitude=amplitude,
+            content_height=content_height,
+            supersample=plan.supersample,
+            glow_sigma=glow_sigma,
+        )
     if plan.geometry in BAR_GEOMETRIES:
         style = bar_style or BarStyle()
         if plan.path == "mask_fast":

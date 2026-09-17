@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from ewp_waveform.visual.bars import BarStyle
+from ewp_waveform.visual.segmented import SEGMENTED_IMPULSE_DEFAULT
 
-BAR_GEOMETRIES = frozenset({"mirrored_bars", "classic_ticks"})
+BAR_GEOMETRIES = frozenset({"mirrored_bars", "classic_ticks", "segmented_impulse"})
 
 # Thin open bars, optional alternate colors, full-width center stroke.
 MIRRORED_LINE_DEFAULT = BarStyle(
@@ -33,6 +34,8 @@ BLUE = "#6E7BA7"
 def default_bar_style(field_geometry: str) -> BarStyle:
     if field_geometry == "classic_ticks":
         return CLASSIC_TICKS_DEFAULT
+    if field_geometry == "segmented_impulse":
+        return SEGMENTED_IMPULSE_DEFAULT
     return MIRRORED_LINE_DEFAULT
 
 

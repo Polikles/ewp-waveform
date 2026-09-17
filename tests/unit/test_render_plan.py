@@ -53,6 +53,15 @@ def test_monochrome_bars_with_glow_select_mask_fast() -> None:
     assert plan.pix_fmt == "gray"
 
 
+def test_segmented_impulse_selects_mask_fast() -> None:
+    plan = resolve_render_plan(
+        _preset(), layout="field_center_out", field_geometry="segmented_impulse"
+    )
+    assert plan.path == "mask_fast"
+    assert plan.geometry == "segmented_impulse"
+    assert plan.pix_fmt == "gray"
+
+
 def test_alternating_bar_colors_select_rgba_2d() -> None:
     plan = resolve_render_plan(
         _preset(),
