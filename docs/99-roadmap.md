@@ -22,7 +22,7 @@ No dates are assigned until evidence supports them.
 - [x] short speech cuts (s0e00 / s2e9) for style and glow comparison;
 - [x] 30 vs 60 fps encode path on speech (appearance differs; DaVinci playback still operator);
 - [x] operator visual QA of speech renders (fresh WSL VM; `s0e00.wav` full `iuris-default` ProRes: look on par with 8 s preview, no artifacts at operator glance; see `docs/notes/ffmpeg-spike/speech.md`);
-- [ ] operator visual QA of `iuris-spectrum` on the same speech source;
+- [x] operator visual QA of the four fixed-axis style candidates on Damian (`s0e00`, 8 s); accepted as the current smooth baseline;
 - [ ] long-duration (full s2e9 ~50 min, later ~2.5 h) **after throughput is closer to usable** (~10× realtime still implies many hours);
 - [ ] music/non-speech sample when available.
 
@@ -41,6 +41,7 @@ No dates are assigned until evidence supports them.
 - [x] operator installation/runbook.
 
 ## Benchmark TODO
+- [ ] optimize the active scroll and fixed-axis pipelines against an adopted wall-time/real-time-factor target without changing the approved visual baselines;
 - [ ] chunk 30/60/120/300 s;
 - [x] scroll chunk encode uses `jobs` as a process pool (`balanced`=2, `maximum`=4);
 - [x] jobs 1 vs 4 wall-time on `s0e00` (12604 s → 4010 s, ~3.1×, ~17% CPU);
@@ -67,6 +68,12 @@ No dates are assigned until evidence supports them.
 - [ ] throughput benchmark vs FFmpeg MVP on the same identity (`FR-BENCH-017`) before GPU.
 
 ## FFmpeg visual tuning (after MVP baseline)
+- [x] operator-approved smooth fixed-axis baseline for `classic`, `mirrored`, `filled`, and centered `segmented` on Damian;
+- [x] classic time-scroll alternating-bar opacity selected at 0.25;
+- [x] commit small redistributable regression fixtures for the approved built-in style defaults;
+- [ ] provide both smooth and more jagged variants of the four main style silhouettes, tuning the jagged variants toward `warianty wizualizacji.png`; ignore the three `układ przestrzenny` composition examples;
+- [ ] add style opacity controls: mirrored horizontal center bar, filled lower half, and alternating classic bars;
+- [ ] after built-in baselines are regression-locked and the active render pipeline is optimized, allow users to save named visual-preset variants of built-in geometries with custom color, opacity, glow, spacing, and related settings; never mutate built-in presets or style defaults;
 - [ ] phrase-length **scroll** envelope window (boards: seconds of speech as one shape, not 33 ms PCM);
 - [ ] mirrored line as vertical mirrored bars (FFmpeg `showwaves` / lp80 are the wrong geometry);
 - [x] `lowpass=80` rejected as a default;
@@ -92,6 +99,7 @@ No dates are assigned until evidence supports them.
 - [ ] auto-generated project manifest;
 - [ ] WebM/additional formats;
 - [ ] public plugin API;
+- [ ] optional executable custom-geometry extension API, separate from configuration-only saved preset variants and unable to replace built-in geometry identifiers;
 - [ ] richer preview templates;
 - [ ] full operator Instructions;
 - [ ] short in-repo example audio + default-preset visualizations for GUI/docs (CC BY-NC-SA excerpts; after renderer testing).

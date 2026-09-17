@@ -40,6 +40,16 @@ Same-name presets may coexist.
 
 Built-ins are immutable. User/project overrides can shadow them.
 
+## Saved visual variants
+
+A saved custom style in the configuration sense is a named visual-preset variant that
+reuses a built-in waveform geometry with user-selected settings such as color,
+opacity, glow, and spacing. Saving a variant creates a new preset with a distinct
+name; it never edits or replaces the built-in preset or its style defaults.
+
+Executable geometry extensions are a separate later feature. They are not required
+for saving configuration-only variants.
+
 ## No inheritance
 
 Preset inheritance (`extends`) is intentionally excluded from MVP for simplicity, portability, and predictable backup behavior.

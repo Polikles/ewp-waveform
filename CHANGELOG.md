@@ -6,6 +6,9 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Changed
 
+- Roadmap separates configuration-only saved visual variants from later executable geometry extensions and orders customization after built-in regression baselines and render-pipeline optimization.
+- Classic time-scroll rendering fills its former empty gaps with configurable lower-opacity bars (`signal.classic_alternate_opacity`, default 0.25) to reduce motion strobing while preserving the jagged envelope. Preset, benchmark, and application API overrides operate on resolved copies.
+- Visual contract version 13 invalidates pre-baseline render identities after the classic opacity and fixed-axis segmented geometry changes.
 - MASK_FAST colorize writes RGB 0 on transparent pixels so ProRes playback is not a solid fill when a player ignores alpha.
 - Field-ribbon encode selects a RenderPlan below VisualField. Monochrome ribbon and mirrored bars both use MASK_FAST when effects allow; RGBA_2D remains the reference fallback (`--path rgba_2d`).
 - `render(..., waveform_color=)` overrides stroke/glow color per track. Example palettes: white `#FFFFFF`, blue `#6E7BA7`.
@@ -18,6 +21,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Added
 
+- Fixed-axis segmented impulse geometry clips a stationary cell grid by the shared centered smooth VisualField contour, preserving the base shape while adding horizontal and vertical separation.
 - Fixed-axis mirrored bars from the same VisualField as the filled ribbon (`field_geometry=mirrored_bars`, default width 5 / gap 3). A/B script: `scripts/spectrum_field_ab.py`.
 - Phase timers on the field-ribbon path (`decode`, `frequency_span`, `spectral_analysis`, `visual_field`, `raster`, `ffmpeg_feed`, `ffmpeg_wait`). Bench script: `scripts/perf_ribbon.py`.
 - Deterministic analysis cache keyed by source identity and analysis settings only (not VisualField mapping, glow, or ribbon style). Override directory with `EWP_ANALYSIS_CACHE`.
