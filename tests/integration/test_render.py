@@ -9,6 +9,12 @@ from pathlib import Path
 from ewp_waveform.application.results import result_payload_errors
 from ewp_waveform.application.service import plan_jobs, render
 from ewp_waveform.identity import sha256_file
+from tests.render_oracles import (
+    assert_decoded_prores_equal,
+    assert_png_sequences_equal,
+    assert_prores_contract,
+    assert_semantic_results_equal,
+)
 
 TINY_SPECTRUM = """
 schema_version = 1
@@ -315,13 +321,7 @@ def test_chunked_png_matches_unchunked_at_join(tmp_path: Path) -> None:
     assert int(analysis["chunk_count"]) >= 2
     one_dir = _first_output(unchunked[0])
     many_dir = _first_output(chunked[0])
-    one_frames = sorted(one_dir.glob("frame_*.png"))
-    many_frames = sorted(many_dir.glob("frame_*.png"))
-    assert [path.name for path in one_frames] == [path.name for path in many_frames]
-    assert one_frames
-    join = one_frames[len(one_frames) // 2]
-    for name in (one_frames[0].name, join.name, one_frames[-1].name):
-        assert (one_dir / name).read_bytes() == (many_dir / name).read_bytes()
+    assert_png_sequences_equal(one_dir, many_dir, boundary_frames={2, 4})
 
 
 def test_parallel_chunk_png_matches_sequential(tmp_path: Path) -> None:
@@ -362,12 +362,66 @@ def test_parallel_chunk_png_matches_sequential(tmp_path: Path) -> None:
     assert int(parallel_analysis["encode_workers"]) == 2
     one_dir = _first_output(sequential[0])
     two_dir = _first_output(parallel[0])
-    one_frames = sorted(one_dir.glob("frame_*.png"))
-    two_frames = sorted(two_dir.glob("frame_*.png"))
-    assert [path.name for path in one_frames] == [path.name for path in two_frames]
-    assert one_frames
-    for left, right in zip(one_frames, two_frames, strict=True):
-        assert left.read_bytes() == right.read_bytes()
+    assert_png_sequences_equal(one_dir, two_dir, boundary_frames={2, 4})
+
+
+def test_chunked_prores_matches_unchunked_after_decode(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-ProResOracle.wav"
+    _tone_wav(src, seconds=0.6, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    one = _write(tmp_path / "one.toml", NO_CHUNKS)
+    many = _write(tmp_path / "many.toml", TINY_CHUNKS)
+    unchunked = render(
+        src,
+        output_dir=tmp_path / "one",
+        formats=["prores4444"],
+        preset_name=str(preset),
+        performance_name=str(one),
+        force=True,
+    )[0]
+    chunked = render(
+        src,
+        output_dir=tmp_path / "many",
+        formats=["prores4444"],
+        preset_name=str(preset),
+        performance_name=str(many),
+        force=True,
+    )[0]
+
+    assert _job_status(unchunked) == "SUCCEEDED"
+    assert _job_status(chunked) == "SUCCEEDED"
+    one_mov = _first_output(unchunked)
+    many_mov = _first_output(chunked)
+    for path in (one_mov, many_mov):
+        assert_prores_contract(path, width=80, height=32, fps=10, frame_count=6)
+    assert_decoded_prores_equal(one_mov, many_mov, width=80, height=32)
+
+
+def test_repeated_render_result_payloads_are_semantically_equal(tmp_path: Path) -> None:
+    src = tmp_path / "s0e00-ResultOracle.wav"
+    _tone_wav(src, seconds=0.6, rate=48000)
+    preset = _write(tmp_path / "tiny.toml", TINY_PRESET)
+    performance = _write(tmp_path / "perf.toml", TINY_CHUNKS)
+    first = render(
+        src,
+        output_dir=tmp_path / "first",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+        force=True,
+    )[0]
+    second = render(
+        src,
+        output_dir=tmp_path / "second",
+        formats=["png"],
+        preset_name=str(preset),
+        performance_name=str(performance),
+        force=True,
+    )[0]
+
+    assert _job_status(first) == "SUCCEEDED"
+    assert _job_status(second) == "SUCCEEDED"
+    assert_semantic_results_equal(first, second)
 
 
 def _chunks_perf(root: Path, jobs: int = 2) -> str:
@@ -444,8 +498,7 @@ def test_resume_reuses_validated_chunks(tmp_path: Path) -> None:
     )
     assert _job_status(reference[0]) == "SUCCEEDED"
     ref_dir = _first_output(reference[0])
-    for name in ("frame_000001.png", "frame_000004.png"):
-        assert (dest / name).read_bytes() == (ref_dir / name).read_bytes()
+    assert_png_sequences_equal(dest, ref_dir, boundary_frames={2, 4})
 
 
 def test_stale_checkpoint_is_not_reused(tmp_path: Path) -> None:
