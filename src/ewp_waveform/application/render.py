@@ -87,6 +87,7 @@ from ewp_waveform.application.chunks import (
     processing_window,
 )
 from ewp_waveform.application.evidence import fingerprint_from_plan
+from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.results import elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
@@ -189,6 +190,7 @@ def planned_destinations(
     clip_duration: float | None = None,
 ) -> tuple[str, Path | None, Path | None]:
     """Return render signature and canonical dest paths (mov, png dir)."""
+    validate_output_formats(formats)
     sig = render_signature(
         source_sha256=source_sha256,
         preset=preset,
@@ -948,6 +950,7 @@ def render_job(
     classic_alternate_opacity: float | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
+    validate_output_formats(formats)
     started = _utcnow()
     preset = _with_waveform_color(preset, waveform_color)
     if glow_level is None:

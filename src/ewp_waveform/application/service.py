@@ -20,7 +20,9 @@ from ewp_waveform.application.benchmark import (
 )
 from ewp_waveform.application.capability import capability_for_preset
 from ewp_waveform.application.clean import clean_workdirs, list_workdirs
+from ewp_waveform.application.errors import AppError as AppError
 from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
+from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.plan import JobPlan, plan_destinations_for_job
 from ewp_waveform.application.render import _clip_bounds, output_root, render_job
 from ewp_waveform.application.results import build_run_summary, utc_now, write_run_summary
@@ -39,7 +41,6 @@ from ewp_waveform.config.models import (
 )
 from ewp_waveform.discovery.scan import DiscoveryError, discover_paths
 from ewp_waveform.domain.diagnostics import (
-    EXIT_CODE_VALUES,
     CapabilityItem,
     Diagnostic,
     DiagnosticCode,
@@ -58,19 +59,6 @@ from ewp_waveform.ffmpeg.doctor import check_environment
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
 from ewp_waveform.ffmpeg.process import ToolNotFoundError
 from ewp_waveform.identity import sha256_file
-
-
-class AppError(Exception):
-    def __init__(
-        self, exit_code: ExitCode, message: str, diagnostic: Diagnostic | None = None
-    ) -> None:
-        super().__init__(message)
-        self.exit_code = exit_code
-        self.diagnostic = diagnostic
-
-    @property
-    def numeric_exit(self) -> int:
-        return EXIT_CODE_VALUES[self.exit_code]
 
 
 def doctor() -> list[str]:
@@ -119,8 +107,10 @@ def dry_run(
     preset_name: str | None = None,
     performance_name: str | None = None,
     fps_override: float | None = None,
+    formats: list[str] | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, list[PlannedJob], list[Diagnostic]]:
     app_cfg = load_application_config(config_path)
+    validate_output_formats(formats or app_cfg.output.formats)
     try:
         preset = load_preset(preset_name or app_cfg.defaults.preset)
         load_performance(performance_name or app_cfg.defaults.performance)
@@ -207,6 +197,7 @@ def plan_jobs(
         preset_name=preset_name,
         performance_name=performance_name,
         fps_override=fps_override,
+        formats=formats,
     )
     performance = load_performance(performance_name or app_cfg.defaults.performance)
     fmts = formats or app_cfg.output.formats
@@ -308,6 +299,7 @@ def render(
         preset_name=preset_name,
         performance_name=performance_name,
         fps_override=fps_override,
+        formats=formats,
     )
     if any(d.severity == Severity.ERROR for d in diagnostics):
         raise AppError(ExitCode.INPUT, diagnostics[-1].message, diagnostics[-1])
