@@ -10,6 +10,7 @@ from typing import Any
 
 from ewp_waveform.application.capability import capability_for_preset
 from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
+from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.plan import plan_destinations_for_job
 from ewp_waveform.application.render import output_root, render_job
 from ewp_waveform.application.results import utc_now, write_run_summary
@@ -158,6 +159,7 @@ def expand_benchmark(
     output_dir: Path,
     force: bool = False,
 ) -> list[BenchmarkCell]:
+    validate_output_formats(manifest.benchmark.formats)
     if not manifest.inputs or not manifest.variants or not manifest.benchmark.renderers:
         msg = "benchmark matrix is empty"
         raise ValueError(msg)

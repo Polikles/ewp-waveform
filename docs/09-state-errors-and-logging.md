@@ -45,6 +45,18 @@ Output-size estimate is missing, or is close to / above free space on the output
 
 Each stable ID must have documented meaning, probable causes, consequences, and remediation.
 
+### Unsupported output formats (`E_CONFIG_INVALID`)
+
+`UnsupportedOutputFormatError` in `ewp_waveform.application.formats` is an
+`AppError` with configuration exit code 2. It identifies all unsupported tokens
+and lists `png` and `prores4444` as the supported choices. Remove or replace the
+unknown tokens in repeated `--format` flags or `[output].formats`. The entire
+effective request is rejected, not partially rendered or reported as successful
+SKIP; no source hashing/probing/encoding or output/work/result directory creation
+is performed for that request. Application planning/dry-run/render and direct
+`render_job`/destination planning callers receive the same typed error. Existing
+`ewp_waveform.application.service.AppError` imports remain supported.
+
 ## Logging
 
 Separate:

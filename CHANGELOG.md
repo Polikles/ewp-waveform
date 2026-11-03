@@ -69,6 +69,7 @@ The project follows Semantic Versioning. Development is currently an internal be
 
 ### Fixed
 
+- Unsupported output formats now reject the complete effective request with `E_CONFIG_INVALID` (CLI exit 2) before source/media or output/work/result side effects, including config-derived, mixed and direct-job requests. Supported, repeated and default selections retain their existing behavior and identity.
 - Long FFmpeg stdin encodes no longer deadlock when the child fills a piped stderr (stats). Frame progress is logged every 300 frames.
 - Dual PNG+ProRes encode no longer concatenates `flags=area` with `split` (`areasplit`).
 

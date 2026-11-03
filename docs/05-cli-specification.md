@@ -51,6 +51,21 @@ waveform render episode.wav   --preset iuris-default   --format prores4444   --f
 waveform render ./audio --performance maximum
 ```
 
+## Output format selection
+
+`--format` is repeatable and accepts only `png` and `prores4444`. All effective
+tokens are validated together: an unknown token rejects the entire request, even
+when supported formats are also requested. The CLI reports `E_CONFIG_INVALID`
+and exits 2 before source probing/hashing, encoding or output/work/result
+directory creation. This applies to dry-run, preview and render, including
+`[output].formats` inherited from application config. Benchmark dry-run/run also
+reject unsupported manifest formats before matrix media work or result creation.
+
+A nonempty CLI/API selection overrides the config list. An absent or empty API
+selection falls back to the configured list (built-in default: `prores4444`); an
+empty effective list retains the existing ProRes default. Repeated supported
+tokens do not duplicate assets. Formats do not change visual render identity.
+
 ## Dry-run
 
 Resolve the real plan without final rendering. Report discovery, grouping, warnings, timeline checks, effective preset/performance, signatures, dest paths, and SKIP/PROCESS. Concurrency/workdir policy remain listed as performance metadata (`chunk_seconds`, jobs, workdirs).
