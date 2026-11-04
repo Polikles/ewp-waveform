@@ -102,6 +102,86 @@ If a long scroll job dies after some 60 s chunks:
 
 ## Disk and time (honest)
 
+### Retained local reference and visual acceptance
+
+The operator accepts the current renderer as an MVP, not a permanent pixel-perfect
+style mandate. Reuse the single current local reference indexed by the private
+project-ops manual-tests manifest and canonical run navigation. Source recordings,
+reference images, generated MOVs and extracted stills stay in operator-local media
+storage, outside Git and review packages. No upload to a model provider is implied.
+Use an actual short s0e00 speaker excerpt with the accepted `iuris-default` preset;
+do not substitute an episode-length performance run or a render matrix.
+
+Record exact source commit/product version, input hash, clip boundaries, resolved
+visual/performance settings, tools, output hash/size/time and validation. Stills may
+come from that same render. Label automated observations separately from human
+review: generating a reference is not a new human acceptance event. Reuse it for
+relevant changes rather than regenerating on every commit. Assess shape, layout,
+contour, color/alpha, audio response and temporal continuity actually present in
+the clip. Small explained differences are allowed if the overall character is
+retained; style evolution needs an explicit rationale, and defects remain defects.
+Exact same-contract deterministic/functional tests still apply; see
+`../docs/12-testing-and-acceptance.md`. Do not blindly refresh failing oracles.
+
+### Capacity admission and reserve
+
+Check free bytes on the actual output AND workdir/scratch filesystems before each
+render. On a shared filesystem count their combined peak, not the same free space
+twice. Estimate from measured bytes/second at comparable resolution/FPS/style,
+including final assets, simultaneous chunk/publish copies, decode/cache needs and
+stills. Use a conservative allowance for uncertainty. Built-in `W_OUTPUT_SPACE`
+and `doctor` are useful checks, not a guarantee that workdirs fit.
+
+The current roughly 115 GiB VM filesystem uses a 10 GiB minimum operating reserve
+and a 20 GiB early-warning level. The reserve leaves room for the OS, shared tools
+and failed-job recovery, beyond an ordinary short render's sub-GiB peak. For larger
+jobs raise the reserve to at least twice the projected largest active chunk plus
+1 GiB if that exceeds 10 GiB. Raise the warning to reserve plus at least 10 GiB or
+25% of the planned peak growth, whichever is larger. These are capacity margins,
+not test quotas. Reassess when the VM or workload changes. Private ops records hold
+current measured capacity, estimates and free-before/after receipts.
+
+Postpone a render if its conservative remaining growth would cross the reserve;
+notify the operator. Below the warning level, reassess remaining growth and defer
+optional additional renders. During longer selected jobs sample free space and
+owned output/workdir sizes at existing chunk/frame progress (for example every
+300 frames, or about once per minute). Stop further admission and safely interrupt
+if growth threatens the reserve; retain failed-job recovery state. No monitoring
+service is required. Never automatically delete baselines, sources, environments
+or unreviewed historical evidence; cleanup needs explicit selection and authority.
+
+### Development versions and repository maintenance
+
+`pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
+new results/examples must agree. Historical result versions remain historical.
+Version 0.1.0 assigns the accepted MVP/identity-correction development baseline;
+there was no prior assigned version beyond 0.0.0 and no public release. Future
+compatible bug corrections normally increment patch; new functionality and
+intentional pre-1.0 compatibility migrations normally increment minor. Document
+the actual promised interface and impact rather than treating every internal hash
+change as a public API break. A stable public incompatible API change requires
+the applicable SemVer major policy. Do not infer stability merely from MVP status.
+
+EWP-IDENTITY-FIX-001 corrects appearance reuse by adding recipe-v1 to frequency
+signatures, including defaults: old assets remain but are not reused. This is an
+intentional persisted-output workflow migration accepted by the operator; raster
+v13 and time-scroll identity remain unchanged. Product SemVer, TaskPacket snapshot
+versions, raster/recipe/results contracts and orchestration G versions are distinct.
+Changing a product version does not itself authorize publication, package upload
+or a public release.
+
+For this single-developer project, integrate authorized verified work promptly
+into main with ordinary history-preserving Git operations. At most one necessary
+short-lived task branch; no branch for each render/report/checkpoint or routine
+documentation change. Use exact commits and verification refs for evidence.
+Retire a completed branch only after its commits are reachable from main and no
+unique work, active execution, useful worktree state or branch-name consumer
+remains. Delete remote task branches only after exact remote main integration is
+verified. Never force removal of a useful/dirty worktree. Record exact identities
+and local versus remote publication in private ops. G uses its maintained
+integration branch until qualification is complete; product acceptance is not a
+G/main merge gate waiver or permission to delete G's historical branches.
+
 - A few seconds of `iuris-default` at 60 fps is the right smoke test.
 - Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk. ~10 GB for 6.5 min @ 1400×280×60 is expected; ~100 GB per 50 min speaker is acceptable as a throwaway asset.
 - Chunk size and `jobs` (`--performance balanced` or `maximum`) do not change the intended look. `balanced` uses 2 encode processes; `maximum` uses 4. A custom performance TOML can raise `jobs` further on a many-core CPU.
@@ -144,6 +224,6 @@ Long s2e9 / ~2.5 h jobs stay off undersized VMs.
 | `E_RENDERER_CAPABILITY` particles/playhead | Those features are out of this MVP. Disable particles; do not set `time_mode = "playhead"`. |
 | `SKIPPED` when you expected a new look | Signature includes preset, fps, and visual contract. Change those or use `--force`. |
 | Empty leftover `.mov` | Empty dests are not skipped; rerun should replace them. |
-| Disk fills with ProRes | Use `preview --duration 8`; delete `waveform-output/` / `benchmark-output/` you created; they are gitignored. |
+| Disk growth threatens reserve | Postpone further renders; notify the operator and inspect selected disposable workdirs. Never automatically delete baselines, source media, environments or unreviewed evidence. |
 | Resume did not reuse chunks | Checkpoint must match source hash and render signature. Stale files are discarded on purpose. |
 | CPU stays at a few percent | Old builds encoded chunks one-by-one (one Python core + one FFmpeg). Pull a revision that uses `jobs`, then `--performance balanced` (2 processes) or `maximum` (4). Custom `jobs` in a performance TOML can go higher. GPU is later. |

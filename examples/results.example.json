@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "tool": {"name": "ewp-waveform", "version": "0.0.0"},
+  "tool": {"name": "ewp-waveform", "version": "0.1.0"},
   "job": {
     "job_id": "example-job",
     "status": "SUCCEEDED",

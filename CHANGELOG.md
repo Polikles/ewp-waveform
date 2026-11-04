@@ -1,8 +1,14 @@
 # Changelog
 
-The project follows Semantic Versioning. Development is currently an internal beta / pre-MVP; there is no public release.
+The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
 
 ## Unreleased
+
+No changes yet.
+
+## 0.1.0 — 2026-11-04 (local development baseline; not a public release)
+
+First assigned development baseline after the accepted MVP and identity correction; previous development snapshots all declared 0.0.0. This single minor increment includes the accumulated changes below, rather than a second bump for the same accepted work. The frequency identity migration is a bug correction with intentional persisted-output reuse invalidation, not an incompatible public API or raster change. Old assets are retained; frequency jobs rerender. Raster v13, appearance recipe v1 and results schema v1 remain separate and unchanged.
 
 ### Changed
 

@@ -82,6 +82,26 @@ result; tests must not silently treat either path as rendered or equivalent. Whe
 supported, its deterministic oracle must be approved and added to this matrix before renderer
 refactoring relies on it.
 
+## Local visual-reference acceptance
+
+The operator accepts the MVP's overall visual character, not unconditional
+cross-version pixel or encoded-byte equality. Keep one representative local render
+with exact provenance in private ops; optional stills come from the same render.
+Compare relevant shape, layout, contour, color/alpha treatment, audio response and
+continuity. Document deliberate visual evolution and its effect rather than
+silently calling a difference equivalent. A short single-style reference does not
+qualify other styles, speakers, chunk boundaries or endurance performance.
+
+The exact oracle matrix above remains required for genuine deterministic and
+functional equivalence within its declared contract, especially execution-only
+refactors, chunk/resume behavior and frozen v13 raster regressions. Small permitted
+cross-version style differences do not authorize blind fixture regeneration or
+mask defects; a deliberate contract change needs explained review and targeted
+new evidence while preserving the old baseline. MOV container equality is still
+not a visual oracle. Reuse the local reference when relevant; do not rerender it
+for routine code changes or invent a separate human visual-review event. See
+`../Instructions/runbook.md` for storage, provenance and maintenance rules.
+
 ## Chunk boundary
 
 Stress many boundaries and compare boundary neighborhoods for waveform amplitude, effects, pixel/alpha difference, missing/duplicate frames, and drift.
