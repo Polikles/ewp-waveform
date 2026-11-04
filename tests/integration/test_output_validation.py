@@ -122,11 +122,11 @@ def test_production_png_rejects_invalid_later_frame(tmp_path: Path, damage: str)
         frame.write_bytes(data[: len(data) // 2])
     elif damage == "bad-crc":
         # Damage only an IDAT checksum, leaving compressed pixels decodable.
-        data = bytearray(frame.read_bytes())
-        index = data.index(b"IDAT")
-        length = int.from_bytes(data[index - 4 : index], "big")
-        data[index + 4 + length] ^= 1
-        frame.write_bytes(data)
+        crc_data = bytearray(frame.read_bytes())
+        index = crc_data.index(b"IDAT")
+        length = int.from_bytes(crc_data[index - 4 : index], "big")
+        crc_data[index + 4 + length] ^= 1
+        frame.write_bytes(crc_data)
     elif damage == "gap":
         frame.rename(directory / "frame_000004.png")
     elif damage in {"wrong-size", "rgb"}:
