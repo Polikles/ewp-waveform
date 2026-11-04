@@ -143,3 +143,11 @@ See `22-chunking-and-continuity.md`.
 If changing a rendering algorithm intentionally changes appearance, the algorithm/config belongs to visual render identity.
 
 If two strategies are contractually equivalent within tolerance, strategy is execution metadata only.
+
+
+Fixed-axis appearance controls are resolved before output identity/reuse, not
+only before drawing. The effective versioned recipe is part of frequency render
+signatures and results, including SKIP. This intentionally changes prior
+frequency/default signatures to avoid reusing old outputs of unknown appearance;
+time-scroll identities and raster contract v13 are unchanged. See ADR-0004 for
+the migration, inactive-control and representation/AA boundaries.

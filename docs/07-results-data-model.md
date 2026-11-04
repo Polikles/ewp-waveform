@@ -58,3 +58,12 @@ Run ID is operational, not visual identity. Per-job payloads include `run_json` 
 ## Versioning
 
 Result schema version is independent of application/preset/benchmark schema versions.
+
+
+Frequency results additionally store `resolved_visual_config.fixed_axis_recipe`,
+the exact versioned effective recipe hashed into the render signature. It is
+available on SUCCEEDED, SKIPPED and FAILED results; unlike successful analysis
+metadata, it records the active controls even when no render is performed.
+Version 1 covers fixed-axis geometry/layout, active smoothing/mapping, contour,
+supersampling/AA and field/bar appearance. Existing preset fields remain separate.
+The schema-v1 object extension is additive; time-scroll results are unchanged.
