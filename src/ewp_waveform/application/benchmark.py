@@ -400,6 +400,7 @@ def run_benchmark(
             }
         except (ToolNotFoundError, OSError):
             tools[name] = None
+    environment = {"platform": platform.platform(), "python": sys.version, "tools": tools}
     summary = {
         "schema_version": 1,
         "manifest": manifest.name,
@@ -419,9 +420,9 @@ def run_benchmark(
         "benchmark_wall_seconds": time.perf_counter() - benchmark_wall0,
         "benchmark_wall_seconds_scope": (
             "invocation setup, expansion/probes/profile loads, cells, output-size accounting "
-            "and tool versions; excludes summary serialization/write"
+            "and tool/platform fingerprint collection; excludes summary serialization/write"
         ),
-        "environment": {"platform": platform.platform(), "python": sys.version, "tools": tools},
+        "environment": environment,
     }
     write_run_summary(summary, run_dir / "benchmark.json")
     write_run_summary(summary, output_dir / f"{manifest.name}_benchmark.json")

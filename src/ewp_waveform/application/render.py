@@ -1133,6 +1133,9 @@ def render_job(
         effective_audio_seconds=clip_duration,
         expected_frames=expected_frames,
         reused_output_formats=[item["format"] for item in skip_outputs],
+        ffmpeg_threads_option_role=(
+            "input_rawvideo_decoder" if producing_png and producing_mov else "output_encoder"
+        ),
     )
     ribbon_ss = appearance.ribbon_ss if appearance is not None else RIBBON_SUPERSAMPLE
     try:

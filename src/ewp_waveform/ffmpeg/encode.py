@@ -133,7 +133,15 @@ def encode_rgba_stream(
     if phases is not None:
         phases.extras["raw_feed_pixel_format"] = in_fmt
         phases.extras["ffmpeg_threads_argument"] = ffmpeg_threads
-        phases.extras["ffmpeg_threads_scope"] = "requested encoder argument; 0 omits -threads"
+        phases.extras["ffmpeg_threads_option_role"] = (
+            "input_rawvideo_decoder"
+            if png_dir is not None and prores_path is not None
+            else "output_encoder"
+        )
+        phases.extras["ffmpeg_threads_scope"] = (
+            "adapter-selected stream parameter; role follows unchanged option placement; "
+            "0 omits -threads; not an observed thread count or process/filter cap"
+        )
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
     graph = _glow_crop_graph(

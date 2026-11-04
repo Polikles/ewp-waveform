@@ -130,6 +130,15 @@ def render_measurements(
         if rate is not None:
             output_duration = frames / rate
             duration_basis = "validated PNG frame count / configured fps"
+    thread_parameter = extras.get(
+        "ffmpeg_threads_resolved_argument", extras.get("ffmpeg_threads_argument")
+    )
+    thread_role = extras.get("ffmpeg_threads_option_role")
+    positive_thread_option = (
+        isinstance(thread_parameter, int)
+        and not isinstance(thread_parameter, bool)
+        and thread_parameter > 0
+    )
     return {
         "throughput_available": eligible,
         "throughput_unavailable_reason": None
@@ -164,12 +173,20 @@ def render_measurements(
         "resume_history": payload.get("resume_history"),
         "warnings": payload.get("warnings"),
         "resolved_performance_config": payload.get("resolved_performance_config"),
-        "ffmpeg_threads_resolved_argument": extras.get(
-            "ffmpeg_threads_resolved_argument", extras.get("ffmpeg_threads_argument")
+        "ffmpeg_threads_resolved_argument": thread_parameter,
+        "ffmpeg_threads_option_role": thread_role,
+        "ffmpeg_encoder_threads_argument": (
+            thread_parameter if positive_thread_option and thread_role == "output_encoder" else None
+        ),
+        "ffmpeg_decoder_threads_argument": (
+            thread_parameter
+            if positive_thread_option and thread_role == "input_rawvideo_decoder"
+            else None
         ),
         "ffmpeg_threads_argument_scope": (
-            "selected encoder option, not observed thread count or a whole-process/filter cap; "
-            "0 means automatic/default"
+            "adapter-selected stream parameter; dual outputs apply positive -threads to the "
+            "input rawvideo decoder, single output to its encoder; 0 omits the option; "
+            "not observed thread counts or a whole-process/filter cap"
         ),
         "analysis_cache_observed": extras.get("analysis_cache"),
         "raw_feed_bytes": extras.get("raw_feed_bytes"),

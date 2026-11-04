@@ -153,7 +153,7 @@ Speedup is null: no comparable paired baseline is collected by this runner.
 Cell `wall_seconds` covers the render_job call, including hashing, reuse checks,
 production validation, publication and cleanup. Benchmark probing/profile loading
 and matrix planning are excluded. `benchmark_wall_seconds` covers invocation setup,
-planning/probes/profile loads, all cells, output-size accounting and version probes;
+planning/probes/profile loads, all cells, output-size accounting and tool/platform fingerprint collection;
 it excludes summary serialization/write. It is not a sum of phase counters.
 
 Phase `seconds`/`counts` retain existing keys. Instrumentation is partial and
@@ -171,8 +171,14 @@ Jobs/threads from profiles are requested settings. `encode_workers_resolved` is
 the returned execution partition, not observed CPU utilization. Fingerprint jobs
 are resolved field-worker count; fingerprint ffmpeg_threads is the parent-requested
 thread setting, not necessarily the worker argument or an observed thread count.
-Instrumented feeds record their encoder thread argument separately; zero omits
-`-threads` and leaves FFmpeg to resolve it. Actual jobs/threads are unobserved/null.
+The adapter-selected stream parameter is reported separately from its option role:
+for dual PNG+ProRes the existing positive `-threads` is before `-i` and applies to
+the input rawvideo decoder, not either output encoder; for a single output it is
+after `-i` and applies to that output encoder. Zero omits `-threads` entirely.
+`ffmpeg_encoder_threads_argument` is null for dual output or omitted options;
+`ffmpeg_decoder_threads_argument` records only a positive dual-output option.
+Null arguments do not establish observed defaults. Actual jobs/threads remain
+unobserved/null. Command placement is preserved, not corrected/tuned here.
 
 `resources.parent_lifetime_ru_maxrss` is RUSAGE_SELF's parent process-lifetime
 high-water sampled after the cell (KiB on Linux, bytes on macOS, otherwise
@@ -185,8 +191,8 @@ not collected. No new monitoring platform or performance claim is introduced.
 
 Both-format cells retain per-format validated counts; a disagreement has no common
 throughput frame count and suppresses FPS/RTF rather than summing or hiding it.
-Production validation tolerances themselves are unchanged. Resolved encoder
-arguments do not establish an FFmpeg process/filter thread cap. `nproc` in legacy
+Production validation tolerances themselves are unchanged. Resolved adapter
+parameters do not establish an FFmpeg process/filter thread cap. `nproc` in legacy
 fingerprints is os.cpu_count machine metadata, not affinity/quota or utilization.
 Output bytes are a post-call traversal of returned paths, including reuse when
 present; they are not measured writes or disk I/O. Each invocation also retains

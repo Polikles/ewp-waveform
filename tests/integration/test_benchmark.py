@@ -231,3 +231,34 @@ def test_analysis_cache_cold_warm_is_independent_of_output_work_namespaces(
     assert states == ["miss", "hit", "miss"]
     for output in outputs[1:]:
         assert_png_sequences_equal(outputs[0], output)
+
+
+def test_dual_output_threads_label_decoder_without_changing_render_commands(tmp_path: Path) -> None:
+    from tests.integration.test_render import TINY_SPECTRUM
+
+    src = tmp_path / "s0e00-Threads.wav"
+    _tone_wav(src)
+    path = tmp_path / "tiny-spectrum.toml"
+    path.write_text(TINY_SPECTRUM.strip() + "\n", encoding="utf-8")
+    preset = load_preset(str(path))
+    performance = load_performance("balanced").model_copy(deep=True)
+    performance.processing["ffmpeg_threads"] = 3
+    performance.workdirs["root"] = str(tmp_path / "work")
+    payload = render_job(
+        _planned_job(src, preset),
+        probe_media(src),
+        preset,
+        performance,
+        output_dir=tmp_path / "out",
+        formats=["png", "prores4444"],
+        force=False,
+        spectrum_layout="field_center_out",
+    )
+    assert payload["job"]["status"] == "SUCCEEDED"
+    report = render_measurements(payload, planned_action="PROCESS", wall_seconds=1, fps=10)
+    assert report["ffmpeg_threads_resolved_argument"] == 3
+    assert report["ffmpeg_threads_option_role"] == "input_rawvideo_decoder"
+    assert report["ffmpeg_decoder_threads_argument"] == 3
+    assert report["ffmpeg_encoder_threads_argument"] is None
+    assert "input rawvideo decoder" in report["ffmpeg_threads_argument_scope"]
+    assert report["throughput_available"] is True

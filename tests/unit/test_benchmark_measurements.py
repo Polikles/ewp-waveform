@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import platform
 import resource
 import subprocess
 import sys
@@ -18,6 +19,7 @@ from ewp_waveform.application.evidence import parent_resource_observation, rende
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.load import load_preset
 from ewp_waveform.config.models import BenchmarkManifest, BenchmarkSection
+from ewp_waveform.ffmpeg import encode
 from ewp_waveform.ffmpeg.process import run_argv_stdin
 
 
@@ -270,3 +272,67 @@ def test_planned_skip_is_not_a_terminal_render_observation(
     assert cell_report["wall_seconds"] is None
     assert cell_report["render_fps"] is None
     assert cell_report["resources"] is None
+
+
+@pytest.mark.parametrize("formats", [["png"], ["prores4444"], ["png", "prores4444"]])
+def test_thread_role_matches_unchanged_stream_option_placement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, formats: list[str]
+) -> None:
+    calls: list[list[str]] = []
+
+    def feed(argv: list[str], *args: Any, **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(encode, "run_argv_stdin", feed)
+    phases = PhaseTimes()
+    encode.encode_rgba_stream(
+        iter([b"rgba"]),
+        width=1,
+        height=1,
+        fps=10,
+        glow=0,
+        png_dir=tmp_path / "png" if "png" in formats else None,
+        prores_path=tmp_path / "asset.mov" if "prores4444" in formats else None,
+        ffmpeg_threads=3,
+        phases=phases,
+    )
+    argv = calls[0]
+    dual = len(formats) == 2
+    assert (argv.index("-threads") < argv.index("-i")) is dual
+    role = "input_rawvideo_decoder" if dual else "output_encoder"
+    assert phases.extras["ffmpeg_threads_option_role"] == role
+    payload = _payload()
+    payload["performance"]["extras"].update(phases.extras)
+    result = render_measurements(payload, planned_action="PROCESS", wall_seconds=1, fps=10)
+    assert result["ffmpeg_threads_resolved_argument"] == 3
+    assert result["ffmpeg_threads_option_role"] == role
+    assert result["ffmpeg_encoder_threads_argument"] == (None if dual else 3)
+    assert result["ffmpeg_decoder_threads_argument"] == (3 if dual else None)
+
+
+def test_benchmark_timer_includes_platform_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = BenchmarkManifest(
+        schema_version=1,
+        name="timer",
+        inputs=[],
+        variants=[],
+        benchmark=BenchmarkSection(renderers=["ffmpeg"], formats=["png"]),
+    )
+    monkeypatch.setattr(benchmark, "load_and_expand", lambda *a, **kw: (manifest, []))
+    monkeypatch.setattr(
+        benchmark, "run_argv", lambda *a: SimpleNamespace(returncode=0, stdout="tool test\n")
+    )
+    clock = [0.0]
+    monkeypatch.setattr(time, "perf_counter", lambda: clock[0])
+
+    def platform_fingerprint() -> str:
+        clock[0] += 7.0
+        return "controlled-platform"
+
+    monkeypatch.setattr(platform, "platform", platform_fingerprint)
+    result = benchmark.run_benchmark(tmp_path / "manifest", output_dir=tmp_path / "out")
+    assert result["benchmark_wall_seconds"] == 7.0
+    assert result["environment"]["platform"] == "controlled-platform"
