@@ -124,3 +124,60 @@ Include quiet/typical/loud speech, transient peaks, long silence, overlapping sp
 - normalization/soft-clipping sweeps.
 
 A tested variant may be explicitly saved as a preset. Benchmark execution itself never mutates presets.
+
+
+## Measurement semantics (BENCH-001)
+
+Each run creates an exclusive `benchmark-*` invocation directory, then ordinal
+`cells/cell-NNNNNN/output` and `work` namespaces. Profiles and duplicate inputs
+never share output/recovery state, including across repeated invocations. Dry-run
+plans the same cell layout without allocating an invocation. Output signatures,
+presets and renderer decisions are unchanged. Analysis cache is independent:
+select `EWP_ANALYSIS_CACHE` externally (an empty owned directory for a cold case,
+the same populated directory for a warm case). The runner never clears or primes
+it and records only observed hit/miss; uninstrumented paths report null.
+
+`action` remains a compatibility alias of `planned_action`. `actual_action` and
+`actual_status` describe the runtime result; cells not invoked have `NOT_RUN`
+actuals, not a fictional terminal result. `status` retains the legacy plan status
+for non-invoked cells. Only planned PROCESS plus actual SUCCEEDED, explicit passed
+production validation, nonempty outputs, no reused outputs/resumed chunks and
+known positive duration/frame/wall observations qualify as throughput samples.
+SKIPPED, failed, unknown, blocked and unvalidated cases have null render FPS/RTF.
+`render_fps` is validated output frames / render wall seconds. `real_time_factor`
+is render wall seconds / effective clipped audio seconds, never full-source seconds.
+PNG output duration is validated frame count / configured FPS; MOV duration is
+validated metadata. Drift is output duration minus effective audio duration.
+Speedup is null: no comparable paired baseline is collected by this runner.
+
+Cell `wall_seconds` covers the render_job call, including hashing, reuse checks,
+production validation, publication and cleanup. Benchmark probing/profile loading
+and matrix planning are excluded. `benchmark_wall_seconds` covers invocation setup,
+planning/probes/profile loads, all cells, output-size accounting and version probes;
+it excludes summary serialization/write. It is not a sum of phase counters.
+
+Phase `seconds`/`counts` retain existing keys. Instrumentation is partial and
+non-additive: generator time includes nested visual-field/raster work; blocking
+stdin feed/write time is not encoder CPU time and can overlap child encoding.
+Wait includes stdin close, drain-thread joins and process wait. Parallel spans
+measure parent orchestration, not worker phases; unobserved worker breakdown is
+null. Missing phase entries are unobserved, not zero. No frame stream is sampled
+or iterated again for telemetry. `rgba_bytes` is a legacy last-feed attempted-byte
+key (also used for gray masks); `raw_feed_bytes` sums chunks whose writes returned,
+for instrumented parent feeds only, with the input pixel format labelled. It is
+not process-tree I/O or a count inferred for uninstrumented workers.
+
+Jobs/threads from profiles are requested settings. `encode_workers_resolved` is
+the returned execution partition, not observed CPU utilization. Fingerprint jobs
+are resolved field-worker count; fingerprint ffmpeg_threads is the parent-requested
+thread setting, not necessarily the worker argument or an observed thread count.
+Instrumented feeds record their encoder thread argument separately; zero omits
+`-threads` and leaves FFmpeg to resolve it. Actual jobs/threads are unobserved/null.
+
+`resources.parent_lifetime_ru_maxrss` is RUSAGE_SELF's parent process-lifetime
+high-water sampled after the cell (KiB on Linux, bytes on macOS, otherwise
+platform-defined). The deprecated `ru_maxrss_kb` alias is populated only on Linux
+and has that same lifetime scope. Neither is a per-cell or process-tree peak;
+subtracting high-water marks cannot produce one. Per-cell/tree RSS, parent/child
+CPU, normalized utilization, disk I/O and peak workdir bytes are explicitly null,
+not collected. No new monitoring platform or performance claim is introduced.

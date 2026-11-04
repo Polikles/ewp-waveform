@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Correct benchmark cell isolation and reporting: validated PROCESS-only throughput,
+  effective clip duration, separate planned/runtime outcomes, honest timer/feed/worker
+  scope, and explicit unavailable resource measurements. Renderer behavior unchanged;
+  no speedup claim.
+
+
 The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
 
 ## [0.1.2] - 2026-11-04

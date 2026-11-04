@@ -30,6 +30,17 @@ class PhaseTimes:
         payload: dict[str, Any] = {
             "seconds": dict(self.seconds),
             "counts": dict(self.counts),
+            "semantics": {
+                "clock": "perf_counter wall seconds",
+                "collection_scope": "calling parent process only; partial instrumentation",
+                "additive": False,
+                "generator": "next(iterator), including nested visual_field/raster work",
+                "ffmpeg_feed": "blocking stdin write/feed; not encoder CPU time",
+                "ffmpeg_wait": "stdin close, drain-thread joins and process wait",
+                "field_encode_parallel": "parent pool orchestration span; not worker breakdown",
+                "worker_phase_seconds": None,
+                "missing_phases": "unobserved, not zero; no complete wall-time partition",
+            },
         }
         if self.extras:
             payload["extras"] = dict(self.extras)

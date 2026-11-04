@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import os
 import platform
+import resource
+import sys
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -72,3 +75,102 @@ def fingerprint_from_plan(
         nproc=nproc_raw,
         machine=platform.platform(),
     )
+
+
+def _positive_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    result = float(value)
+    return result if math.isfinite(result) and result > 0 else None
+
+
+def render_measurements(
+    payload: dict[str, Any], *, planned_action: str, wall_seconds: float, fps: float
+) -> dict[str, Any]:
+    """Only validated, wholly processed output is a rendering-throughput sample."""
+    job = payload.get("job", {})
+    status = job.get("status", "UNKNOWN") if isinstance(job, dict) else "UNKNOWN"
+    validation = payload.get("validation", {})
+    report = validation if isinstance(validation, dict) else {}
+    performance = payload.get("performance", {})
+    phases = performance if isinstance(performance, dict) else {}
+    raw_extras = phases.get("extras", {})
+    extras = raw_extras if isinstance(raw_extras, dict) else {}
+    duration = _positive_number(extras.get("effective_audio_seconds"))
+    frames = _positive_number(report.get("frames"))
+    outputs = payload.get("outputs")
+    execution = payload.get("execution", {})
+    resumed = execution.get("resumed") if isinstance(execution, dict) else None
+    eligible = (
+        planned_action == "PROCESS"
+        and status == "SUCCEEDED"
+        and report.get("passed") is True
+        and isinstance(outputs, list)
+        and bool(outputs)
+        and not resumed
+        and not extras.get("reused_output_formats")
+        and duration is not None
+        and frames is not None
+        and _positive_number(wall_seconds) is not None
+    )
+    output_duration = _positive_number(report.get("duration_seconds"))
+    duration_basis = "validated MOV metadata" if output_duration is not None else None
+    if output_duration is None and report.get("format") == "png" and frames is not None:
+        rate = _positive_number(fps)
+        if rate is not None:
+            output_duration = frames / rate
+            duration_basis = "validated PNG frame count / configured fps"
+    return {
+        "throughput_available": eligible,
+        "throughput_unavailable_reason": None
+        if eligible
+        else (
+            "requires planned PROCESS, actual SUCCEEDED, validated non-reused outputs, "
+            "effective duration, validated frame count and positive render wall time"
+        ),
+        "effective_audio_seconds": duration,
+        "clip_start_seconds": extras.get("clip_start_seconds"),
+        "expected_frames": extras.get("expected_frames"),
+        "validated_output_frames": frames,
+        "output_duration_seconds": output_duration,
+        "output_duration_basis": duration_basis,
+        "duration_drift_seconds": (
+            output_duration - duration
+            if output_duration is not None and duration is not None
+            else None
+        ),
+        "render_fps": frames / wall_seconds if eligible and frames is not None else None,
+        "real_time_factor": (
+            wall_seconds / duration if eligible and duration is not None else None
+        ),
+        "speedup": None,
+        "speedup_unavailable_reason": "no paired comparable baseline collected",
+        "phases": phases,
+        "analysis_cache_observed": extras.get("analysis_cache"),
+        "raw_feed_bytes": extras.get("raw_feed_bytes"),
+        "raw_feed_pixel_format": extras.get("raw_feed_pixel_format"),
+        "raw_feed_scope": "parent instrumented feeds only; worker feeds unobserved",
+    }
+
+
+def parent_resource_observation() -> dict[str, Any]:
+    """RUSAGE_SELF is lifetime parent high-water, never a per-cell delta."""
+    raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    unit = (
+        "bytes"
+        if sys.platform == "darwin"
+        else ("KiB" if sys.platform.startswith("linux") else "platform-defined")
+    )
+    return {
+        "parent_lifetime_ru_maxrss": raw,
+        "parent_lifetime_ru_maxrss_unit": unit,
+        "scope": "RUSAGE_SELF parent process-lifetime high-water sampled after cell",
+        "per_cell_peak_rss_bytes": None,
+        "process_tree_peak_rss_bytes": None,
+        "parent_cpu_seconds": None,
+        "child_cpu_seconds": None,
+        "normalized_cpu_utilization": None,
+        "disk_io_bytes": None,
+        "peak_workdir_bytes": None,
+        "unavailable_reason": "not collected; no worker/process-tree monitoring",
+    }

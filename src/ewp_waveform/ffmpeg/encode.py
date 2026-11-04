@@ -130,6 +130,10 @@ def encode_rgba_stream(
     ffmpeg = require_tool("ffmpeg")
     ss = max(1, int(supersample))
     in_fmt = "gray" if pix_fmt == "gray" else "rgba"
+    if phases is not None:
+        phases.extras["raw_feed_pixel_format"] = in_fmt
+        phases.extras["ffmpeg_threads_argument"] = ffmpeg_threads
+        phases.extras["ffmpeg_threads_scope"] = "requested encoder argument; 0 omits -threads"
     in_w = (width + 2 * overscan) * ss
     in_h = height + 2 * overscan
     graph = _glow_crop_graph(

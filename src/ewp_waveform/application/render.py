@@ -1120,6 +1120,12 @@ def render_job(
     validation: dict[str, Any] = {"passed": False}
     resume_history: list[dict[str, Any]] = []
     clock = phases if phases is not None else PhaseTimes()
+    clock.extras.update(
+        clip_start_seconds=clip_start,
+        effective_audio_seconds=clip_duration,
+        expected_frames=expected_frames,
+        reused_output_formats=[item["format"] for item in skip_outputs],
+    )
     ribbon_ss = appearance.ribbon_ss if appearance is not None else RIBBON_SUPERSAMPLE
     try:
         after_hash = sha256_file(job.path)

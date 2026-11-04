@@ -72,6 +72,7 @@ def run_argv_stdin(
     t_out.start()
     t_err.start()
     rgba_bytes = 0
+    raw_feed_bytes = 0
     try:
         iterator = iter(chunks)
         while True:
@@ -82,7 +83,8 @@ def run_argv_stdin(
                 break
             t1 = time.perf_counter()
             rgba_bytes += len(chunk)
-            proc.stdin.write(chunk)
+            written = proc.stdin.write(chunk)
+            raw_feed_bytes += written if written is not None else 0
             t2 = time.perf_counter()
             if phases is not None:
                 phases.add("generator", t1 - t0)
@@ -99,6 +101,13 @@ def run_argv_stdin(
         if phases is not None:
             phases.add("ffmpeg_wait", time.perf_counter() - t_close)
             phases.extras["rgba_bytes"] = rgba_bytes
+            phases.extras["rgba_bytes_scope"] = "legacy last-feed attempted bytes; may be gray"
+            phases.extras["raw_feed_bytes"] = (
+                phases.extras.get("raw_feed_bytes", 0) + raw_feed_bytes
+            )
+            phases.extras["raw_feed_bytes_scope"] = (
+                "sum of chunks whose blocking write returned; parent instrumented feeds only"
+            )
     return subprocess.CompletedProcess(
         argv, proc.returncode, b"".join(stdout_parts), b"".join(stderr_parts)
     )

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import resource
+import os
+import platform
+import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,9 +13,10 @@ from typing import Any
 
 from ewp_waveform.application.capability import capability_for_preset
 from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
+from ewp_waveform.application.evidence import parent_resource_observation, render_measurements
 from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.plan import plan_destinations_for_job
-from ewp_waveform.application.render import output_root, render_job
+from ewp_waveform.application.render import render_job
 from ewp_waveform.application.results import utc_now, write_run_summary
 from ewp_waveform.config.load import load_benchmark_manifest, load_performance, load_preset
 from ewp_waveform.config.models import BenchmarkManifest, BenchmarkVariant, VisualPreset
@@ -20,7 +24,7 @@ from ewp_waveform.domain.diagnostics import CapabilityLevel
 from ewp_waveform.domain.grouping import ids_for_path
 from ewp_waveform.domain.models import PlannedJob, TimeMode, VisualizationDomain
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
-from ewp_waveform.ffmpeg.process import ToolNotFoundError
+from ewp_waveform.ffmpeg.process import ToolNotFoundError, require_tool, run_argv
 from ewp_waveform.identity import sha256_file
 
 OVERRIDE_KEYS = frozenset(
@@ -80,6 +84,7 @@ class BenchmarkCell:
     estimated_output_mb: float | None = None
     estimate_label: str | None = None
     notes: str = ""
+    output_dir: Path | None = None
 
 
 def apply_overrides(
@@ -172,6 +177,7 @@ def expand_benchmark(
             preset = _variant_preset(variant, manifest_dir)
             for renderer in manifest.benchmark.renderers:
                 for profile_name in profiles:
+                    cell_root = output_dir / "cells" / f"cell-{len(cells):06d}"
                     action = "PROCESS"
                     notes = ""
                     if renderer != "ffmpeg":
@@ -192,7 +198,7 @@ def expand_benchmark(
                                 job,
                                 preset,
                                 source_sha256=source_sha,
-                                output_dir=output_dir,
+                                output_dir=cell_root / "output",
                                 formats=formats,
                                 force=force,
                             )
@@ -230,6 +236,7 @@ def expand_benchmark(
                             estimated_output_mb=estimate,
                             estimate_label=label,
                             notes=notes,
+                            output_dir=cell_root / "output",
                         )
                     )
     return cells
@@ -255,8 +262,11 @@ def run_benchmark(
     force: bool = False,
     grouping_separator: str = "-",
 ) -> dict[str, Any]:
-    manifest, cells = load_and_expand(manifest_path, output_dir=output_dir, force=force)
+    benchmark_wall0 = time.perf_counter()
     started = utc_now()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix="benchmark-", dir=output_dir))
+    manifest, cells = load_and_expand(manifest_path, output_dir=run_dir, force=force)
     records: list[dict[str, Any]] = []
     for cell in cells:
         record: dict[str, Any] = {
@@ -266,74 +276,146 @@ def run_benchmark(
             "performance": cell.performance_name,
             "formats": cell.formats,
             "preset": cell.preset.name,
-            "action": cell.action,
+            "action": cell.action,  # compatibility alias for planned_action
+            "planned_action": cell.action,
+            "actual_action": "NOT_RUN",
+            "actual_status": "NOT_RUN",
+            "wall_seconds": None,
+            "wall_seconds_scope": (
+                "render_job call only, including hash/reuse/validation/publication/cleanup; "
+                "excludes benchmark expansion, input probing and performance-profile loading"
+            ),
+            "source_duration_seconds": cell.duration_seconds,
+            "output_dir": str(cell.output_dir),
+            "analysis_cache_selection": os.environ.get("EWP_ANALYSIS_CACHE") or "default",
+            "analysis_cache_policy": "externally selected; not cleared or warmed by runner",
         }
+        record.update(
+            render_measurements(
+                {}, planned_action=cell.action, wall_seconds=0, fps=cell.preset.canvas.fps
+            )
+        )
         if cell.action != "PROCESS":
-            record["status"] = cell.action
+            record["status"] = cell.action  # legacy planning status, not a terminal observation
             record["notes"] = cell.notes
+            record["resources"] = None
+            record["ru_maxrss_kb"] = None
+            record["output_bytes"] = None
             records.append(record)
             continue
-        performance = load_performance(cell.performance_name)
+        performance = load_performance(cell.performance_name).model_copy(deep=True)
+        assert cell.output_dir is not None
+        work_root = cell.output_dir.parent / "work"
+        performance.workdirs["root"] = str(work_root)
+        record["work_root"] = str(work_root)
+        record["jobs_requested"] = performance.processing.get("jobs")
+        record["ffmpeg_threads_requested"] = performance.processing.get("ffmpeg_threads")
         job = _planned_job(cell.input_path, cell.preset, grouping_separator)
         media = probe_media(cell.input_path)
         wall0 = time.perf_counter()
-        rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         payload = render_job(
             job,
             media,
             cell.preset,
             performance,
-            output_dir=output_root(cell.input_path, output_dir, "benchmark-output"),
+            output_dir=cell.output_dir,
             formats=cell.formats,
             force=force,
         )
         wall = time.perf_counter() - wall0
-        rss1 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        resources = parent_resource_observation()
         job_meta = payload.get("job")
         status = "UNKNOWN"
         if isinstance(job_meta, dict):
             status = str(job_meta.get("status") or "UNKNOWN")
-        output_bytes = 0
+        output_bytes: int | None = None
         outputs = payload.get("outputs")
-        if isinstance(outputs, list):
+        if isinstance(outputs, list) and outputs:
+            output_bytes = 0
             for item in outputs:
-                if isinstance(item, dict) and item.get("path"):
-                    path = Path(str(item["path"]))
-                    if path.is_file():
-                        output_bytes += path.stat().st_size
-                    elif path.is_dir():
-                        output_bytes += sum(
-                            child.stat().st_size for child in path.rglob("*") if child.is_file()
-                        )
+                if not isinstance(item, dict) or not item.get("path"):
+                    output_bytes = None
+                    break
+                path = Path(str(item["path"]))
+                if path.is_file():
+                    output_bytes += path.stat().st_size
+                elif path.is_dir():
+                    output_bytes += sum(
+                        child.stat().st_size for child in path.rglob("*") if child.is_file()
+                    )
+                else:
+                    output_bytes = None
+                    break
+        analysis = payload.get("analysis", {})
+        record.update(
+            render_measurements(payload, planned_action=cell.action, wall_seconds=wall, fps=job.fps)
+        )
         record.update(
             {
                 "status": status,
-                "wall_seconds": round(wall, 4),
-                "ru_maxrss_kb": max(rss0, rss1),
+                "actual_status": status,
+                "actual_action": "REUSE"
+                if status == "SKIPPED"
+                else ("PROCESS" if status in {"SUCCEEDED", "FAILED"} else "UNKNOWN"),
+                "wall_seconds": wall,
+                "resources": resources,
+                "ru_maxrss_kb": resources["parent_lifetime_ru_maxrss"]
+                if sys.platform.startswith("linux")
+                else None,
+                "ru_maxrss_kb_scope": (
+                    "deprecated alias: lifetime parent high-water in KiB on Linux only"
+                ),
                 "output_bytes": output_bytes,
+                "outputs": outputs,
                 "job_id": job_meta.get("job_id") if isinstance(job_meta, dict) else None,
+                "encode_workers_resolved": analysis.get("encode_workers")
+                if isinstance(analysis, dict)
+                else None,
+                "jobs_observed": None,
+                "ffmpeg_threads_observed": None,
+                "worker_measurement_scope": (
+                    "resolved task partition is not observed process/thread utilization"
+                ),
             }
         )
         records.append(record)
-    completed = utc_now()
-    succeeded = sum(1 for item in records if item.get("status") == "SUCCEEDED")
-    skipped = sum(1 for item in records if item.get("status") == "SKIPPED")
-    failed = sum(1 for item in records if item.get("status") == "FAILED")
-    blocked = sum(1 for item in records if item.get("status") in {"BLOCKED", "UNSUPPORTED"})
+    tools: dict[str, Any] = {}
+    for name in ("ffmpeg", "ffprobe"):
+        try:
+            executable = require_tool(name)
+            result = run_argv([str(executable), "-version"])
+            tools[name] = {
+                "path": str(executable),
+                "version": result.stdout.splitlines()[0]
+                if result.returncode == 0 and result.stdout
+                else None,
+            }
+        except (ToolNotFoundError, OSError):
+            tools[name] = None
     summary = {
         "schema_version": 1,
         "manifest": manifest.name,
         "manifest_path": str(manifest_path),
+        "run_dir": str(run_dir),
         "cells": records,
         "counts": {
             "cells": len(records),
-            "succeeded": succeeded,
-            "skipped": skipped,
-            "failed": failed,
-            "blocked": blocked,
+            "succeeded": sum(item.get("actual_status") == "SUCCEEDED" for item in records),
+            "skipped": sum(item.get("status") in {"SKIP", "SKIPPED"} for item in records),
+            "failed": sum(item.get("actual_status") == "FAILED" for item in records),
+            "blocked": sum(item.get("status") in {"BLOCKED", "UNSUPPORTED"} for item in records),
+            "unknown": sum(item.get("actual_status") == "UNKNOWN" for item in records),
+            "throughput_samples": sum(item["throughput_available"] for item in records),
         },
-        "timestamps": {"started_at": started, "completed_at": completed},
+        "timestamps": {"started_at": started, "completed_at": utc_now()},
+        "benchmark_wall_seconds": time.perf_counter() - benchmark_wall0,
+        "benchmark_wall_seconds_scope": (
+            "invocation setup, expansion/probes/profile loads, cells, output-size accounting "
+            "and tool versions; excludes summary serialization/write"
+        ),
+        "environment": {"platform": platform.platform(), "python": sys.version, "tools": tools},
     }
+    write_run_summary(summary, run_dir / "benchmark.json")
     write_run_summary(summary, output_dir / f"{manifest.name}_benchmark.json")
     summary["result_json"] = str(output_dir / f"{manifest.name}_benchmark.json")
     return summary
