@@ -12,10 +12,9 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
-
 from ewp_waveform import __version__
 from ewp_waveform.analysis.cache import (
     analysis_cache_digest,
@@ -65,6 +64,13 @@ from ewp_waveform.analysis.temporal import (
     load_mono_f32,
     temporal_envelope_columns,
     temporal_envelope_peak,
+)
+from ewp_waveform.application.appearance import (
+    FixedAxisAppearance,
+    resolve_fixed_axis_appearance,
+)
+from ewp_waveform.application.appearance import (
+    normalize_spatial_filter as _spectrum_spatial_filter,
 )
 from ewp_waveform.application.checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
@@ -117,12 +123,11 @@ from ewp_waveform.identity import (
 )
 from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
-from ewp_waveform.visual.plan import MASK_GEOMETRIES, RenderPlan, resolve_render_plan
+from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
 from ewp_waveform.visual.raster import raster_field_columns
 from ewp_waveform.visual.ribbon import field_to_columns
 from ewp_waveform.visual.style_defaults import (
     BAR_GEOMETRIES,
-    default_bar_style,
     default_glow_level,
 )
 
@@ -188,15 +193,19 @@ def planned_destinations(
     formats: Sequence[str],
     clip_start: float = 0.0,
     clip_duration: float | None = None,
+    fixed_axis_recipe: dict[str, Any] | None = None,
 ) -> tuple[str, Path | None, Path | None]:
     """Return render signature and canonical dest paths (mov, png dir)."""
     validate_output_formats(formats)
+    if fixed_axis_recipe is None and preset.waveform.domain == "frequency":
+        fixed_axis_recipe = resolve_fixed_axis_appearance(preset).identity()
     sig = render_signature(
         source_sha256=source_sha256,
         preset=preset,
         fps=job.fps,
         clip_start=clip_start,
         clip_duration=clip_duration,
+        fixed_axis_recipe=fixed_axis_recipe,
     )
     short = short_signature(sig)
     project_dir = output_dir / job.project_id
@@ -279,19 +288,6 @@ def iter_scroll_frames(
             envelope_oversample=oversample,
             classic_alternate_opacity=classic_opacity,
         )
-
-
-def _spectrum_spatial_sigma(width: int, tau_seconds: float, scale: float) -> float:
-    """Log-Hz spatial sigma in output pixels. 0 when temporal smoothing is off."""
-    if tau_seconds <= 0.0 or scale <= 0.0:
-        return 0.0
-    return max(1.0, float(width) / 200.0) * scale
-
-
-def _spectrum_spatial_filter(kind: str) -> str:
-    if kind == "gaussian":
-        return "gaussian"
-    return "box"
 
 
 def iter_spectrum_frames(
@@ -958,6 +954,36 @@ def render_job(
     preset = _with_glow_level(preset, glow_level)
     preset = _with_classic_alternate_opacity(preset, classic_alternate_opacity)
 
+    appearance: FixedAxisAppearance | None = None
+    if job.domain.value == "frequency":
+        appearance = resolve_fixed_axis_appearance(
+            preset,
+            spectrum_contour=spectrum_contour,
+            spectrum_spatial_scale=spectrum_spatial_scale,
+            spectrum_spatial_filter=spectrum_spatial_filter,
+            spectrum_n_bands=spectrum_n_bands,
+            spectrum_tilt_db_per_octave=spectrum_tilt_db_per_octave,
+            spectrum_compress=spectrum_compress,
+            spectrum_recenter=spectrum_recenter,
+            spectrum_edge_taper=spectrum_edge_taper,
+            visual_geometry=visual_geometry,
+            spectrum_layout=spectrum_layout,
+            spectrum_slot_sigma=spectrum_slot_sigma,
+            ribbon_supersample=ribbon_supersample,
+            render_path=render_path,
+            render_aa=render_aa,
+            field_geometry=field_geometry,
+            bar_width=bar_width,
+            bar_gap=bar_gap,
+            bar_count=bar_count,
+            bar_fill=bar_fill,
+            bar_align=bar_align,
+            bar_alternate=bar_alternate,
+            bar_color_b=bar_color_b,
+            bar_center_line_width=bar_center_line_width,
+        )
+    fixed_axis_recipe = appearance.identity() if appearance is not None else None
+
     def note(message: str) -> None:
         if progress is not None:
             progress(message)
@@ -974,6 +1000,7 @@ def render_job(
         formats=formats,
         clip_start=clip_start,
         clip_duration=duration if duration is not None and duration > 0 else None,
+        fixed_axis_recipe=fixed_axis_recipe,
     )
     project_dir = output_dir / job.project_id
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -1024,6 +1051,7 @@ def render_job(
             source_sha,
             sig,
             started,
+            fixed_axis_recipe=fixed_axis_recipe,
             status="SKIPPED",
             outputs=skip_outputs,
             warnings=[],
@@ -1048,9 +1076,7 @@ def render_job(
     validation: dict[str, Any] = {"passed": False}
     resume_history: list[dict[str, Any]] = []
     clock = phases if phases is not None else PhaseTimes()
-    ribbon_ss = (
-        max(1, int(ribbon_supersample)) if ribbon_supersample is not None else RIBBON_SUPERSAMPLE
-    )
+    ribbon_ss = appearance.ribbon_ss if appearance is not None else RIBBON_SUPERSAMPLE
     try:
         after_hash = sha256_file(job.path)
         if after_hash != source_sha:
@@ -1069,11 +1095,8 @@ def render_job(
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
         if job.domain.value == "frequency":
-            geometry = (
-                visual_geometry
-                if visual_geometry in {"temporal_rms", "temporal_rms_peak"}
-                else "spectrum"
-            )
+            assert appearance is not None
+            geometry = appearance.geometry
             scale = str(preset.signal.get("scale") or "sqrt")
             raw_smooth = preset.signal.get("smoothing", 0.0)
             tau = 0.0
@@ -1148,101 +1171,22 @@ def render_job(
                     "spectrum_raster": "contour",
                 }
             else:
-                spatial_scale = (
-                    spectrum_spatial_scale
-                    if isinstance(spectrum_spatial_scale, int | float)
-                    and not isinstance(spectrum_spatial_scale, bool)
-                    and spectrum_spatial_scale > 0.0
-                    else 1.0
-                )
-                spatial_filter = _spectrum_spatial_filter(spectrum_spatial_filter)
-                spatial_sigma = _spectrum_spatial_sigma(
-                    preset.canvas.width, tau, float(spatial_scale)
-                )
-                n_bands = (
-                    int(spectrum_n_bands)
-                    if isinstance(spectrum_n_bands, int)
-                    and not isinstance(spectrum_n_bands, bool)
-                    and spectrum_n_bands >= 2
-                    else None
-                )
-                tilt_db = (
-                    float(spectrum_tilt_db_per_octave)
-                    if isinstance(spectrum_tilt_db_per_octave, int | float)
-                    and not isinstance(spectrum_tilt_db_per_octave, bool)
-                    else 0.0
-                )
-                compress = (
-                    float(spectrum_compress)
-                    if isinstance(spectrum_compress, int | float)
-                    and not isinstance(spectrum_compress, bool)
-                    and spectrum_compress > 0.0
-                    else 1.0
-                )
-                recenter = bool(spectrum_recenter)
-                taper = (
-                    float(spectrum_edge_taper)
-                    if isinstance(spectrum_edge_taper, int | float)
-                    and not isinstance(spectrum_edge_taper, bool)
-                    and spectrum_edge_taper > 0.0
-                    else 0.0
-                )
-                if taper > 0.0:
-                    taper = min(taper, 0.49)
-                if spectrum_layout == "field_center_out":
-                    layout = "field_center_out"
-                elif spectrum_layout == "center_out":
-                    layout = "center_out"
-                else:
-                    layout = "linear"
-                slot_sigma = (
-                    float(spectrum_slot_sigma)
-                    if isinstance(spectrum_slot_sigma, int | float)
-                    and not isinstance(spectrum_slot_sigma, bool)
-                    and spectrum_slot_sigma > 0.0
-                    else 0.0
-                )
+                spatial_scale = appearance.spatial_scale
+                spatial_filter = appearance.spatial_filter
+                spatial_sigma = appearance.spatial_sigma
+                n_bands = appearance.n_bands
+                tilt_db = appearance.tilt_db
+                compress = appearance.compress
+                recenter = appearance.recenter
+                taper = appearance.taper
+                layout = appearance.layout
+                slot_sigma = appearance.slot_sigma
+                bars = appearance.bars
+                field_plan = appearance.field_plan
                 if layout == "field_center_out":
                     field_bands = n_bands if n_bands is not None else 64
                     mapping = CenterOutMapping(n_slots=CENTER_OUT_SLOTS, n_bands=field_bands)
-                    forced_path: Literal["mask_fast", "rgba_2d"] | None = None
-                    if render_path == "mask_fast":
-                        forced_path = "mask_fast"
-                    elif render_path == "rgba_2d":
-                        forced_path = "rgba_2d"
-                    aa_mode: Literal["physical_ss", "coverage_taps"] | None = None
-                    if render_aa == "physical_ss":
-                        aa_mode = "physical_ss"
-                    elif render_aa == "coverage_taps":
-                        aa_mode = "coverage_taps"
-                    resolved_field_geometry = "ribbon"
-                    if field_geometry in MASK_GEOMETRIES:
-                        resolved_field_geometry = field_geometry
-                    pack = default_bar_style(resolved_field_geometry)
-                    align = bar_align if bar_align in {"period", "count", "slots"} else pack.align
-                    bars = BarStyle(
-                        width=pack.width if bar_width is None else float(bar_width),
-                        gap=pack.gap if bar_gap is None else float(bar_gap),
-                        count=None if bar_count is None else max(1, int(bar_count)),
-                        fill=pack.fill if bar_fill is None else float(bar_fill),
-                        align=align,
-                        alternate=pack.alternate if bar_alternate is None else bool(bar_alternate),
-                        color_b=pack.color_b if bar_color_b is None else str(bar_color_b),
-                        center_line_width=(
-                            pack.center_line_width
-                            if bar_center_line_width is None
-                            else float(bar_center_line_width)
-                        ),
-                    )
-                    field_plan = resolve_render_plan(
-                        preset,
-                        layout=layout,
-                        field_geometry=resolved_field_geometry,
-                        ribbon_supersample=ribbon_ss,
-                        force_path=forced_path,
-                        aa_mode=aa_mode,
-                        alternate_bars=bars.alternate,
-                    )
+                    assert bars is not None and field_plan is not None
                     cache_payload = analysis_cache_payload(
                         source_sha256=source_sha,
                         clip_start=clip_start,
@@ -1803,6 +1747,7 @@ def render_job(
             source_sha,
             sig,
             started,
+            fixed_axis_recipe=fixed_axis_recipe,
             status=status,
             outputs=outputs,
             warnings=warnings,
@@ -1828,6 +1773,7 @@ def render_job(
             source_sha,
             sig,
             started,
+            fixed_axis_recipe=fixed_axis_recipe,
             status=status,
             outputs=outputs,
             warnings=warnings,
@@ -2126,6 +2072,7 @@ def _result_payload(
     normalization: dict[str, Any] | None = None,
     resume_history: list[dict[str, Any]] | None = None,
     phase_report: dict[str, Any] | None = None,
+    fixed_axis_recipe: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     glow = preset.effects.get("glow") if isinstance(preset.effects.get("glow"), dict) else {}
     report = validation if validation is not None else {"passed": status == "SUCCEEDED"}
@@ -2157,6 +2104,7 @@ def _result_payload(
         ],
         "preset": {"name": preset.name, "source": "builtin"},
         "resolved_visual_config": {
+            **({"fixed_axis_recipe": fixed_axis_recipe} if fixed_axis_recipe is not None else {}),
             "fps": job.fps,
             "style": preset.waveform.style,
             "domain": preset.waveform.domain,

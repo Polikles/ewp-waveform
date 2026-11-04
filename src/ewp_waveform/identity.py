@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from ewp_waveform.config.models import VisualPreset
 
@@ -31,6 +32,7 @@ def render_signature(
     renderer: str = "ffmpeg",
     clip_start: float = 0.0,
     clip_duration: float | None = None,
+    fixed_axis_recipe: dict[str, Any] | None = None,
 ) -> str:
     payload = {
         "source_sha256": source_sha256,
@@ -54,6 +56,8 @@ def render_signature(
     }
     if preset.waveform.domain == "frequency":
         payload["spectrum_contract_version"] = SPECTRUM_CONTRACT_VERSION
+    if fixed_axis_recipe is not None:
+        payload["fixed_axis_recipe"] = fixed_axis_recipe
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
