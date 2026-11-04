@@ -844,7 +844,7 @@ def _validate_mov(
     try:
         if not path.is_file() or path.stat().st_size <= 0:
             return {"passed": False}
-        info = probe_video(path)
+        info = probe_video(path, first_frame=True)
         rate_ok = Fraction(info.avg_frame_rate) == Fraction(str(fps))
         duration_ok = (
             math.isfinite(info.duration_seconds)

@@ -40,7 +40,8 @@ Byte-identical ProRes/PNG is not required.
 PNG validation requires `frame_000001.png` onward without gaps or extra matching
 names, nonempty regular files, and the expected count. One installed ffprobe
 image2 traversal decodes the sequence and checks every frame's dimensions and
-RGBA pixel format (8- or 16-bit). Decode diagnostics fail validation even when
+RGBA pixel format (8- or 16-bit), with CRC checking and strict decode errors.
+Decode diagnostics fail validation even when
 ffprobe exits zero. This runs before PNG publication and on PNG reuse: O(frames)
 file reads/PNG decode and compact per-frame metadata, not decoded RGBA frames
 retained in Python, and not one tool process per image. PNG files do not store a
@@ -49,7 +50,8 @@ sequence FPS; job FPS plus the contiguous expected count defines their timing.
 MOV validation checks ProRes 4444/4444 XQ, `yuva444p` alpha capability, dimensions,
 expected FPS, a known count within the existing one-frame tolerance, and positive
 finite duration within one target frame (plus microsecond metadata rounding).
-The existing ffprobe inspection now also requires the first video packet to
+The production validator opts into a first-frame sample; ordinary `probe_video`
+callers remain metadata-only. This output inspection requires the first video packet to
 produce a readable frame and rejects error diagnostics. It runs at chunk
 validation, final publication and destination reuse, with one bounded first-packet
 decode per probe, not a full movie decode. It does not prove that later frames

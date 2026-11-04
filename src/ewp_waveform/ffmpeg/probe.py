@@ -68,11 +68,11 @@ def probe_media(path: Path) -> SourceMedia:
     )
 
 
-def probe_video(path: Path) -> VideoStreamInfo:
-    # Decode only the first packet, not the complete movie, on this hot path.
-    payload = _probe_json(path, first_frame=True)
+def probe_video(path: Path, *, first_frame: bool = False) -> VideoStreamInfo:
+    # Production output checks opt into a bounded sample; other probes stay metadata-only.
+    payload = _probe_json(path, first_frame=first_frame)
     frames = payload.get("frames") or []
-    if not any(frame.get("media_type") == "video" for frame in frames):
+    if first_frame and not any(frame.get("media_type") == "video" for frame in frames):
         raise ProbeError(f"No readable video frame in {path}")
     streams = payload.get("streams") or []
     video = next((item for item in streams if item.get("codec_type") == "video"), None)
@@ -111,9 +111,13 @@ def probe_png_sequence(directory: Path) -> list[dict[str, Any]]:
             str(ffprobe),
             "-v",
             "error",
+            "-err_detect",
+            "crccheck+explode",
             "-f",
             "image2",
             "-start_number",
+            "1",
+            "-start_number_range",
             "1",
             "-i",
             str(directory / "frame_%06d.png"),

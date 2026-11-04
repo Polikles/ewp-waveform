@@ -99,6 +99,7 @@ def _mov_passes(path: Path) -> bool:
         "empty",
         "malformed",
         "truncated",
+        "bad-crc",
         "gap",
         "wrong-size",
         "rgb",
@@ -119,6 +120,13 @@ def test_production_png_rejects_invalid_later_frame(tmp_path: Path, damage: str)
     elif damage == "truncated":
         data = frame.read_bytes()
         frame.write_bytes(data[: len(data) // 2])
+    elif damage == "bad-crc":
+        # Damage only an IDAT checksum, leaving compressed pixels decodable.
+        data = bytearray(frame.read_bytes())
+        index = data.index(b"IDAT")
+        length = int.from_bytes(data[index - 4 : index], "big")
+        data[index + 4 + length] ^= 1
+        frame.write_bytes(data)
     elif damage == "gap":
         frame.rename(directory / "frame_000004.png")
     elif damage in {"wrong-size", "rgb"}:
@@ -200,7 +208,7 @@ def test_mov_missing_or_inconsistent_metadata(
     _movie(path)
     info = probe_video(path)
     altered = replace(info, **{field: value})
-    monkeypatch.setattr(render_module, "probe_video", lambda _: altered)
+    monkeypatch.setattr(render_module, "probe_video", lambda _, **kwargs: altered)
     assert not _mov_passes(path)
 
 
