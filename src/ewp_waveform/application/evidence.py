@@ -98,6 +98,16 @@ def render_measurements(
     extras = raw_extras if isinstance(raw_extras, dict) else {}
     duration = _positive_number(extras.get("effective_audio_seconds"))
     frames = _positive_number(report.get("frames"))
+    primary_format = (
+        "png"
+        if report.get("format") == "png"
+        else ("prores4444" if report.get("codec") == "prores" else None)
+    )
+    frames_by_format = {primary_format: report.get("frames")} if primary_format else {}
+    if "png_frames" in report:
+        frames_by_format["png"] = report["png_frames"]
+        if report["png_frames"] != report.get("frames"):
+            frames = None  # no common validated dual-format timeline count
     outputs = payload.get("outputs")
     execution = payload.get("execution", {})
     resumed = execution.get("resumed") if isinstance(execution, dict) else None
@@ -131,7 +141,10 @@ def render_measurements(
         "effective_audio_seconds": duration,
         "clip_start_seconds": extras.get("clip_start_seconds"),
         "expected_frames": extras.get("expected_frames"),
-        "validated_output_frames": frames,
+        "validated_output_frames": report.get("frames"),
+        "validated_output_frames_by_format": frames_by_format,
+        "throughput_frame_count": frames,
+        "throughput_frame_count_basis": "validated common output timeline, not summed formats",
         "output_duration_seconds": output_duration,
         "output_duration_basis": duration_basis,
         "duration_drift_seconds": (
@@ -146,6 +159,18 @@ def render_measurements(
         "speedup": None,
         "speedup_unavailable_reason": "no paired comparable baseline collected",
         "phases": phases,
+        "validation": payload.get("validation"),
+        "execution": payload.get("execution"),
+        "resume_history": payload.get("resume_history"),
+        "warnings": payload.get("warnings"),
+        "resolved_performance_config": payload.get("resolved_performance_config"),
+        "ffmpeg_threads_resolved_argument": extras.get(
+            "ffmpeg_threads_resolved_argument", extras.get("ffmpeg_threads_argument")
+        ),
+        "ffmpeg_threads_argument_scope": (
+            "selected encoder option, not observed thread count or a whole-process/filter cap; "
+            "0 means automatic/default"
+        ),
         "analysis_cache_observed": extras.get("analysis_cache"),
         "raw_feed_bytes": extras.get("raw_feed_bytes"),
         "raw_feed_pixel_format": extras.get("raw_feed_pixel_format"),

@@ -181,3 +181,13 @@ and has that same lifetime scope. Neither is a per-cell or process-tree peak;
 subtracting high-water marks cannot produce one. Per-cell/tree RSS, parent/child
 CPU, normalized utilization, disk I/O and peak workdir bytes are explicitly null,
 not collected. No new monitoring platform or performance claim is introduced.
+
+
+Both-format cells retain per-format validated counts; a disagreement has no common
+throughput frame count and suppresses FPS/RTF rather than summing or hiding it.
+Production validation tolerances themselves are unchanged. Resolved encoder
+arguments do not establish an FFmpeg process/filter thread cap. `nproc` in legacy
+fingerprints is os.cpu_count machine metadata, not affinity/quota or utilization.
+Output bytes are a post-call traversal of returned paths, including reuse when
+present; they are not measured writes or disk I/O. Each invocation also retains
+its own benchmark.json; the manifest-named JSON remains the latest-result alias.

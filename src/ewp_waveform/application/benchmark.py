@@ -280,6 +280,11 @@ def run_benchmark(
             "planned_action": cell.action,
             "actual_action": "NOT_RUN",
             "actual_status": "NOT_RUN",
+            "jobs_requested": None,
+            "ffmpeg_threads_requested": None,
+            "encode_workers_resolved": None,
+            "jobs_observed": None,
+            "ffmpeg_threads_observed": None,
             "wall_seconds": None,
             "wall_seconds_scope": (
                 "render_job call only, including hash/reuse/validation/publication/cleanup; "
@@ -367,6 +372,9 @@ def run_benchmark(
                 ),
                 "output_bytes": output_bytes,
                 "outputs": outputs,
+                "output_bytes_scope": (
+                    "post-call bytes at returned paths, including any reused outputs"
+                ),
                 "job_id": job_meta.get("job_id") if isinstance(job_meta, dict) else None,
                 "encode_workers_resolved": analysis.get("encode_workers")
                 if isinstance(analysis, dict)

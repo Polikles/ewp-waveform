@@ -1100,6 +1100,14 @@ def render_job(
             outputs=skip_outputs,
             warnings=[],
             validation=skip_validation,
+            phase_report={
+                "extras": {
+                    "clip_start_seconds": clip_start,
+                    "effective_audio_seconds": clip_duration,
+                    "expected_frames": expected_frames,
+                    "reused_output_formats": [item["format"] for item in skip_outputs],
+                }
+            },
         )
 
     producing_mov = want_mov and not skip_mov
@@ -1315,6 +1323,7 @@ def render_job(
                         ranges = _field_frame_ranges(len(column_rows), requested_workers)
                         spectrum_encode_workers = len(ranges)
                         worker_threads = _encode_worker_threads(threads, spectrum_encode_workers)
+                        clock.extras["ffmpeg_threads_resolved_argument"] = worker_threads
                         png_abs = str((work / "png").resolve()) if producing_png else None
                         if producing_png:
                             (work / "png").mkdir(parents=True, exist_ok=True)
@@ -1536,6 +1545,8 @@ def render_job(
                     outputs.append({"path": str(png_dest), "format": "png"})
                 if not producing_mov:
                     validation = png_report
+                else:
+                    validation = {**validation, "png_frames": png_report.get("frames")}
             if geometry == "spectrum":
                 analysis = {
                     "chunk_count": spectrum_encode_workers if field_encoded else 1,
@@ -1725,6 +1736,9 @@ def render_job(
                 note=note,
             )
             analysis["encode_workers"] = encode_workers
+            clock.extras["ffmpeg_threads_resolved_argument"] = (
+                _encode_worker_threads(threads, encode_workers) if encode_workers else None
+            )
             if reused:
                 remaining = [
                     window.chunk.start_seconds
