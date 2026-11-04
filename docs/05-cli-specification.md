@@ -70,6 +70,18 @@ tokens do not duplicate assets. Formats do not change visual render identity.
 
 Resolve the real plan without final rendering. Report discovery, grouping, warnings, timeline checks, effective preset/performance, signatures, dest paths, and SKIP/PROCESS. Concurrency/workdir policy remain listed as performance metadata (`chunk_seconds`, jobs, workdirs).
 
+Planning and `inspect` do not create output directories, workdirs, analysis caches
+or result files, and do not modify existing project trees. `dry-run` supports
+`--start` / `--duration` to plan the same clip identity as `preview`; `render`
+processes the full file and does not accept these clip flags.
+
+Capacity inspection uses the output root when it exists, or its nearest existing
+directory ancestor without changing the planned destination. An unavailable,
+inaccessible or non-directory path produces a typed `W_OUTPUT_SPACE` warning
+rather than creating directories or failing with a raw filesystem exception.
+This is advisory: check permissions and free space before rendering. Normal
+execution still creates its required output and work directories.
+
 ## Preview
 
 Uses the real renderer over a short interval. Expected controls: `--start`, `--duration`, optional future `--template`. Preview uses the preset FPS (default **60**); `--fps 30` is a different identity and will look more stepped at the default scroll speed.

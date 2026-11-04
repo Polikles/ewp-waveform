@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import stat
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -417,8 +418,33 @@ def _output_space_warning(
     formats: list[str],
     clip_duration: float,
 ) -> Diagnostic | None:
-    root.mkdir(parents=True, exist_ok=True)
-    free_mb = shutil.disk_usage(root).free / (1024 * 1024)
+    # Capacity inspection must not create output/work/cache/result paths.
+    # Only a genuinely missing component permits walking to its parent: a
+    # permission or non-directory error must not silently select another volume.
+    probe = root
+    try:
+        while True:
+            try:
+                mode = probe.stat().st_mode
+            except FileNotFoundError:
+                if probe.parent == probe:
+                    raise
+                probe = probe.parent
+                continue
+            if not stat.S_ISDIR(mode):
+                raise NotADirectoryError(f"Not a directory: {probe}")
+            break
+        free_mb = shutil.disk_usage(probe).free / (1024 * 1024)
+    except OSError as exc:
+        return Diagnostic(
+            code=DiagnosticCode.W_OUTPUT_SPACE,
+            severity=Severity.WARNING,
+            message=(
+                f"Could not check available space for {root}: {exc}. "
+                "Confirm the output path, permissions and disk headroom before rendering."
+            ),
+            path=str(root),
+        )
     estimate = estimate_output_mb(clip_duration, preset, formats)
     if estimate is None:
         return Diagnostic(

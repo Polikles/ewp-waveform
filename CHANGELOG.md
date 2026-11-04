@@ -2,6 +2,15 @@
 
 The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
 
+## [0.1.1] - 2026-11-04
+
+### Fixed
+
+- Planning/dry-run no longer creates the output root. Capacity warnings inspect an
+  existing ancestor without changing destinations; unavailable space checks report
+  `W_OUTPUT_SPACE`. Normal render directory creation remains supported.
+
+
 ## Unreleased
 
 No changes yet.
