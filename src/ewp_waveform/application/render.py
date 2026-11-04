@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from ewp_waveform import __version__
 from ewp_waveform.analysis.cache import (
     analysis_cache_digest,

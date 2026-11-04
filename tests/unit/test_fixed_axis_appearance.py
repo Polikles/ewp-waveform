@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
 from ewp_waveform.application.appearance import resolve_fixed_axis_appearance
 from ewp_waveform.config.load import load_preset
 from ewp_waveform.config.models import VisualPreset
