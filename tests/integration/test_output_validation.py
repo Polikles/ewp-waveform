@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from ewp_waveform.application.render import _validate_mov, _validate_png
@@ -182,7 +183,7 @@ def test_mov_missing_or_inconsistent_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
-    value: object,
+    value: Any,
 ) -> None:
     path = tmp_path / "asset.mov"
     _movie(path)
@@ -203,7 +204,9 @@ def test_valid_outputs_reuse_and_invalid_destinations_do_not_skip(
     _tone_wav(src, seconds=0.3, rate=48000)
     preset = _write(tmp_path / "tiny.toml", TINY_SPECTRUM if frequency else TINY_PRESET)
     out = tmp_path / "out"
-    first = render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    first = cast(
+        dict[str, Any], render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    )
     assert first["job"]["status"] == "SUCCEEDED"
     asset = Path(str(first["outputs"][0]["path"]))
     before = (
@@ -213,7 +216,9 @@ def test_valid_outputs_reuse_and_invalid_destinations_do_not_skip(
             asset: asset.stat().st_mtime_ns,
         }
     )
-    second = render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    second = cast(
+        dict[str, Any], render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    )
     assert second["job"]["status"] == "SKIPPED"
     assert second["validation"]["passed"] is True
     assert {p: p.stat().st_mtime_ns for p in before} == before
@@ -221,10 +226,14 @@ def test_valid_outputs_reuse_and_invalid_destinations_do_not_skip(
         (asset / "frame_000002.png").write_bytes(b"bad PNG")
     else:
         _movie(asset, rate=5)
-    third = render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    third = cast(
+        dict[str, Any], render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    )
     assert third["job"]["status"] == "SUCCEEDED"
     assert third["validation"]["passed"] is True
-    fourth = render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    fourth = cast(
+        dict[str, Any], render(src, output_dir=out, formats=[fmt], preset_name=str(preset))[0]
+    )
     assert fourth["job"]["status"] == "SKIPPED"
 
 
@@ -242,7 +251,7 @@ def test_invalid_work_output_fails_before_publication(
     original = render_module.encode_rgba_stream
 
     def damaged_encode(*args: object, **kwargs: object) -> None:
-        original(*args, **kwargs)  # type: ignore[arg-type]
+        original(*args, **kwargs)
         if damage == "bad-mov":
             path = kwargs["prores_path"]
             assert isinstance(path, Path)
@@ -257,8 +266,39 @@ def test_invalid_work_output_fails_before_publication(
 
     monkeypatch.setattr(render_module, "encode_rgba_stream", damaged_encode)
     fmt = "prores4444" if damage == "bad-mov" else "png"
-    result = render(src, output_dir=tmp_path / "out", formats=[fmt], preset_name=str(preset))[0]
+    result = cast(
+        dict[str, Any],
+        render(src, output_dir=tmp_path / "out", formats=[fmt], preset_name=str(preset))[0],
+    )
     assert result["job"]["status"] == "FAILED"
     assert result["validation"]["passed"] is False
     assert result["outputs"] == []
-    assert any(item["code"] == "E_OUTPUT_VALIDATION" for item in result["warnings"])
+    # Scroll chunk completeness fails earlier through the existing capability diagnostic.
+    code = (
+        "E_RENDERER_CAPABILITY"
+        if damage == "missing-png" and not frequency
+        else "E_OUTPUT_VALIDATION"
+    )
+    assert any(item["code"] == code for item in result["warnings"])
+
+
+@pytest.mark.parametrize("profile", ["4", "5"])
+def test_valid_prores_4444_profiles(tmp_path: Path, profile: str) -> None:
+    path = tmp_path / "asset.mov"
+    _movie(path, profile=profile)
+    assert _mov_passes(path)
+
+
+def test_png_rgba16_is_supported(tmp_path: Path) -> None:
+    directory = tmp_path / "png"
+    _images(directory, pix_fmt="rgba64be")
+    assert _png_passes(directory)
+
+
+def test_prores_damaged_first_packet_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "asset.mov"
+    _movie(path)
+    data = path.read_bytes()
+    assert b"icpf" in data
+    path.write_bytes(data.replace(b"icpf", b"bad!", 1))
+    assert not _mov_passes(path)
