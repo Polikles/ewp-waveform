@@ -26,6 +26,8 @@ Playhead envelope and particles are not available. GPU is not used.
 ## File names and grouping
 
 - One source file → one waveform job.
+- A file containing several speakers is still one input; no diarization,
+  speaker separation or multi-speaker composition is required.
 - `s0e00-Damian.wav` groups as project `s0e00`, track `Damian` (first `-`).
 - Ungrouped names are valid (`interview.wav` → project and track `interview`).
 - Directory input is a batch. Recursion is off unless `--recursive`.
@@ -111,12 +113,16 @@ If a long scroll job dies after some 60 s chunks:
 ### Retained local reference and visual acceptance
 
 The operator accepts the current renderer as an MVP, not a permanent pixel-perfect
-style mandate. Reuse the single current local reference indexed by the private
+style mandate. Apply [visual development, complete acceptance assets and retention](../docs/23-visual-development-and-retention.md).
+Reuse the retained eight-second MVP reference indexed by the private
 project-ops manual-tests manifest and canonical run navigation. Source recordings,
 reference images, generated MOVs and extracted stills stay in operator-local media
 storage, outside Git and review packages. No upload to a model provider is implied.
-Use an actual short s0e00 speaker excerpt with the accepted `iuris-default` preset;
-do not substitute an episode-length performance run or a render matrix.
+Use the actual short s0e00 excerpt for a scoped diagnostic, not a replacement
+reference on every edit. It is not a complete-s0e00 deliverable: optimization
+completion requires a complete render per added/optimized style on the provisional
+full s0e00-Damian input, with applicable baseline retained for independent operator
+comparison. No mandatory style/color/track/episode Cartesian product is implied.
 
 Record exact source commit/product version, input hash, clip boundaries, resolved
 visual/performance settings, tools, output hash/size/time and validation. Stills may
@@ -185,11 +191,12 @@ unique work, active execution, useful worktree state or branch-name consumer
 remains. Delete remote task branches only after exact remote main integration is
 verified. Never force removal of a useful/dirty worktree. Record exact identities
 and local versus remote publication in private ops. G uses its maintained
-integration branch until qualification is complete; product acceptance is not a
+integration branch until its finite reusable baseline is qualified and explicitly
+accepted; later fresh-VM/project/VPS qualification follows it. Product acceptance is not a
 G/main merge gate waiver or permission to delete G's historical branches.
 
 - A few seconds of `iuris-default` at 60 fps is the right smoke test.
-- Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk. ~10 GB for 6.5 min @ 1400×280×60 is expected; ~100 GB per 50 min speaker is acceptable as a throwaway asset.
+- Episode-length ProRes needs admitted capacity for baseline, optimized output and work/recovery copies. Historical size estimates (~10 GB for 6.5 min at 1400×280×60; ~100 GB per 50 min track) are planning context, not a disposal permission. Keep baseline/download and optimized-comparison holds; intermediates need not be archived indefinitely.
 - Chunk size and `jobs` (`render --performance balanced` or `maximum`) do not intentionally change the look. They request up to 2 or 4 scroll workers respectively; actual parallelism depends on available chunks. Custom positive-integer `jobs` values do not make serial paths parallel.
 - Historical reported wall time (original measurements unavailable for fresh comparison; not a current promise) on `s0e00` (~6.5 min): ~3.5 h at `jobs=1`, ~67 min at `jobs=4` (~10× realtime, ~17% of a 14700K). Further cuts are a product goal; the FFmpeg path will not use the whole machine.
 - `benchmark run` is for matrices of short files. Do not point the example manifest at private episode paths inside git.
@@ -225,7 +232,7 @@ has not been freshly executed on WSL or a clean host by this documentation updat
 1. Follow [install.md](install.md) on the specifically selected host; record checkout/version, Python, uv and FFmpeg identities. Prefix commands with `uv run` from the checkout. Require `waveform doctor` to report `doctor: ok`.
 2. `waveform capabilities` — expect `domain:time+scroll` limited, `domain:frequency+fixed-axis` experimental, `effect:particles` unsupported, `domain:time+playhead` unsupported.
 3. `inspect` a single WAV and a `s0e00-Damian.wav` / `s0e00-Szymon.wav` pair; grouping must split on the first `-`.
-4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest. Full-file dests appear only after **all** chunks encode and concat; until then work lives under `<process-temp>/ewp-waveform-work/` by default (Python temp selection honors `TMPDIR`; a performance profile may select `workdirs.root`). Progress is on **stderr** (`chunk N/M frame 300/3600`, …).
+4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Record alpha-capable codec/pixel format in ffprobe (`yuva`), content-level alpha verification, and later operator/NLE review separately; metadata alone does not establish a transparent background. Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest. Full-file dests appear only after **all** chunks encode and concat; until then work lives under `<process-temp>/ewp-waveform-work/` by default (Python temp selection honors `TMPDIR`; a performance profile may select `workdirs.root`). Progress is on **stderr** (`chunk N/M frame 300/3600`, …).
 5. Repeat `preview` with the same clip flags and destination: expect SKIP. `dry-run --start 0 --duration 8` with matching preset/FPS/output must plan that preview identity; its existence-based SKIP is advisory, not full output validation. `preview --force` must write `_v002`. Full-file `render` has no clip flags and targets a different identity for a shorter-than-source preview.
 6. `render --format prores4444 --format png` and confirm both exist plus `*_results.json` and `run_*_results.json`.
 7. Use `preview --start 0 --duration 8 --preset iuris-spectrum` on the same source for a short spectrum render; result JSON `analysis.fmin_hz` / `fmax_hz` should be populated.

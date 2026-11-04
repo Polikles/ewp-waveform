@@ -56,6 +56,10 @@ Mandatory boundaries:
 10. MVP is plugin-ready but does not execute arbitrary external plugin code.
 11. Visual presets, performance profiles, application config, preview templates, and benchmark manifests are separate.
 12. Performance settings must not intentionally alter appearance.
+    This separates execution settings from visual algorithms, not a universal
+    cross-version pixel-identity mandate. Read `docs/23-visual-development-and-retention.md`
+    before style/optimization/acceptance work; it governs deliberate visual
+    evolution, complete per-style acceptance renders and baseline/download holds.
 13. Chunk partitioning and resume must preserve canonical continuity.
 
 ## 4. Coding standards

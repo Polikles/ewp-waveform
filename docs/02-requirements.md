@@ -207,3 +207,13 @@
 - **NFR-TEST-002** — FFmpeg/filesystem/process orchestration receive integration tests.
 - **NFR-TEST-003** — Visual equivalence may use tolerances rather than byte equality.
 - **NFR-TEST-004** — Source immutability is tested.
+
+# Operator clarification — 2026-11-04
+
+For input/style scope, intentional cross-version visual evolution, per-style
+complete acceptance assets and retention, apply
+[23 — Visual development and retention](23-visual-development-and-retention.md).
+Execution settings still preserve their declared visual contract; intentional
+algorithm changes require explicit comparison/oracle/identity treatment. Exact
+cross-version pixels are not universal acceptance. The full s0e00-Damian input is
+the provisional acceptance workload, not a mandatory all-style/color/track matrix.

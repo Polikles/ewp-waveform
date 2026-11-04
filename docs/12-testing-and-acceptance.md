@@ -84,9 +84,19 @@ refactoring relies on it.
 
 ## Local visual-reference acceptance
 
+Apply [the current visual-development/retention contract](23-visual-development-and-retention.md).
+The retained eight-second MVP reference is diagnostic evidence, not the complete
+s0e00 deliverable for each added/optimized style. Preserve applicable pre-change
+baselines and independent operator comparison; visual acceptance does not confirm
+download or release a baseline for deletion. Content alpha, codec metadata and
+operator/NLE review are separate findings. The scoped matrix above remains exact
+for same-contract equivalence, not a ban on explained visual-contract evolution.
+
 The operator accepts the MVP's overall visual character, not unconditional
-cross-version pixel or encoded-byte equality. Keep one representative local render
-with exact provenance in private ops; optional stills come from the same render.
+cross-version pixel or encoded-byte equality. Keep the retained MVP reference
+with exact provenance in private ops; identify additional applicable per-style
+baselines before appearance-changing optimization. Optional stills come from
+the identified renders.
 Compare relevant shape, layout, contour, color/alpha treatment, audio response and
 continuity. Document deliberate visual evolution and its effect rather than
 silently calling a difference equivalent. A short single-style reference does not

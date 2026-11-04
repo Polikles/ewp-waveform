@@ -13,6 +13,12 @@ If documents conflict, use this order:
 
 Contradictions must be resolved explicitly.
 
+Current operator clarification: [23 — Visual development, acceptance assets and
+retention](23-visual-development-and-retention.md), accepted 2026-11-04. It clarifies
+02/10/12/13 for this scope; same-contract equivalence and configuration-domain
+separation remain in force. Historical spike notes are evidence, not current
+appearance acceptance or retention authority.
+
 ## Documents
 
 1. `01-product-scope.md` — product purpose and boundaries.
@@ -37,6 +43,7 @@ Contradictions must be resolved explicitly.
 20. `20-mvp-requirements-traceability.md` — requirements map.
 21. `21-ffmpeg-baseline-plan.md` — FFmpeg research spike.
 22. `22-chunking-and-continuity.md` — continuity contract/strategies.
+23. `23-visual-development-and-retention.md` — visual evolution, complete acceptance assets, alpha verification and retention.
 99. `99-roadmap.md` — deferred work.
 
 Additional:

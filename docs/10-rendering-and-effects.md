@@ -29,6 +29,11 @@ FFmpeg `showfreqs` is the same *idea* (fixed X = frequency) but is not the produ
 
 ## Styles
 
+Current development and acceptance sequence:
+[baseline, optimize, refine; independent comparison and retention](23-visual-development-and-retention.md).
+Broad look acceptance is not complete fidelity of every variant. The reference
+yellow/preset discrepancy remains unresolved; no color is canonicalized here.
+
 Initial registry:
 
 - `classic`

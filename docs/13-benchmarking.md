@@ -26,7 +26,7 @@ Measure where available:
 
 Future GPU metrics: peak VRAM, GPU utilization, GPU processing time.
 
-Throughput (wall time / real-time factor) is a **required** performance target, not an optional extra (`NFR-PERF-005`, `FR-BENCH-016`). Large ProRes is acceptable for throwaway assets; long wall time is not. Numeric bars (for example a maximum real-time factor on the operator workstation) are adopted only from labelled evidence.
+Throughput (wall time / real-time factor) is a **required** performance target, not an optional extra (`NFR-PERF-005`, `FR-BENCH-016`). Large ProRes can be acceptable within admitted capacity; size does not release baseline/comparison retention holds. Long wall time remains a product concern. Numeric bars (for example a maximum real-time factor on the operator workstation) are adopted only from labelled evidence. See [visual development and retention](23-visual-development-and-retention.md): short benchmark cells do not replace complete per-style s0e00 acceptance renders, and requested matrix expansion is not a mandatory full style/color/track/episode acceptance product.
 
 Historical reported operator evidence (original measurement artifacts unavailable
 for current comparison; retained numbers below are not reconstructed results), `iuris-default` ProRes on `s0e00.wav` (~395.7 s source, 23741 frames @ 60 fps, 7×60 s chunks, ~10 GB):

@@ -32,7 +32,12 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
-No changes yet.
+### Documentation
+
+Documentation clarification (no runtime or version change): per-track independent
+assets, baseline/optimization/refinement sequence, complete per-style s0e00 acceptance,
+transparent-content verification and exact-identity download/comparison retention.
+Yellow remains unresolved; presets, visual fixtures and historical receipts unchanged.
 
 ## 0.1.0 — 2026-11-04 (local development baseline; not a public release)
 
