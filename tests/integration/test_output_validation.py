@@ -8,12 +8,23 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+
 from ewp_waveform.application.render import _validate_mov, _validate_png
 from ewp_waveform.application.service import render
 from ewp_waveform.ffmpeg.probe import probe_video
 from tests.integration.test_render import TINY_PRESET, TINY_SPECTRUM, _tone_wav, _write
 
 render_module = importlib.import_module("ewp_waveform.application.render")
+
+
+@pytest.fixture(autouse=True)
+def isolated_workdirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Kept failed artifacts must not leak between independent synthetic cases/runs.
+    monkeypatch.setattr(
+        render_module,
+        "resolve_workdir",
+        lambda performance, key: tmp_path / "work" / key,
+    )
 
 
 def _images(directory: Path, *, size: str = "80x32", pix_fmt: str = "rgba") -> None:
