@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import sys
-import tempfile
+import uuid
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -264,9 +264,9 @@ def run_benchmark(
 ) -> dict[str, Any]:
     benchmark_wall0 = time.perf_counter()
     started = utc_now()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    run_dir = Path(tempfile.mkdtemp(prefix="benchmark-", dir=output_dir))
+    run_dir = output_dir / f"benchmark-{uuid.uuid4().hex}"
     manifest, cells = load_and_expand(manifest_path, output_dir=run_dir, force=force)
+    run_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     records: list[dict[str, Any]] = []
     for cell in cells:
         record: dict[str, Any] = {
