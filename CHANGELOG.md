@@ -4,6 +4,13 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## [0.1.1] - 2026-11-04
 
+### Documentation
+
+- Correct clip commands (`preview`/`dry-run`, not `render`) and distinguish scroll,
+  legacy spectrum and thresholded field parallelism. Align internal checkout/uv
+  installation, current environment/version and future QA boundaries without
+  claiming new deployment/platform qualification or new performance measurements.
+
 ### Fixed
 
 - Planning/dry-run no longer creates the output root. Capacity warnings inspect an

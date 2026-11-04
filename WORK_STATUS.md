@@ -6,11 +6,17 @@ Specification baseline accepted.
 
 License: EWP Waveform Community License 1.0.
 
-Development is internal-beta / pre-MVP. There is no chosen release candidate and no public release.
+The operator accepted the internal MVP at 0.1.0; current development version is
+0.1.1 with read-only planning and corrected operator guidance. Delivery remains
+checkout + uv / Python >=3.12,<3.13 / system FFmpeg. No release candidate or public
+release, clean-host qualification, wheel, Docker, native Windows or GPU support
+is claimed. See [Instructions/install.md](Instructions/install.md).
 
-## Next phase
+## Current implementation and next work
 
-FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Operator visual QA: full `s0e00.wav` `iuris-default` ProRes looks usable (no artifacts at a glance); `jobs=4` cut wall time 12604 s → 4010 s (~10× realtime, ~17% CPU). Next evidence: `iuris-spectrum` on the same speech source. Episode-length jobs wait until throughput is closer to usable. Wall-time is a requirement (`NFR-PERF-005`); custom renderer owns using the CPU/GPU (`NFR-PERF-006`).
+FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Operator visual QA: full `s0e00.wav` `iuris-default` ProRes looks usable (no artifacts at a glance); `jobs=4` cut wall time 12604 s → 4010 s (~10× realtime, ~17% CPU). That historical next-evidence suggestion is superseded: locked fixed-axis style
+fixtures and the AnalysisFrame/VisualField/raster foundation now exist. Ordinary
+preset/CLI delivery of script/API-only field controls remains backlog work. Episode-length jobs wait until throughput is closer to usable. Wall-time is a requirement (`NFR-PERF-005`); custom renderer owns using the CPU/GPU (`NFR-PERF-006`).
 
 Synthetic + short speech-cut evidence is in `docs/notes/ffmpeg-spike/` (see `speech.md`).
 
@@ -31,7 +37,14 @@ Scroll jobs chunk at `chunk_seconds` (default 60) with overlap preroll so concat
 
 Current **scroll look lock** (operator, `*ad0c99b500c0.mov`): 60 fps, 5 s window, `envelope_oversample=4`, `envelope_motion_lpf=sinc` (~0.09 cyc/px), `envelope_aa=area@1`, `shutter_degrees=0`, 12× raster, medium glow. Not a pixel match to brand mirrored line.
 
-Long jobs run on the operator workstation. Labelled `s0e00` throughput is in `docs/13-benchmarking.md` and `docs/notes/ffmpeg-spike/speech.md`.
+Long jobs run on the operator workstation. Historical reported `s0e00` throughput (not freshly comparable; original measurements unavailable) is in `docs/13-benchmarking.md` and `docs/notes/ffmpeg-spike/speech.md`.
+
+The current field-center-out application path has conditional parallel encode
+(`jobs > 1`, at least 1,800 expected frames). Legacy CLI `iuris-spectrum` remains
+serial; CLI has no field-layout/render-path/AA selector. Scroll retains its
+chunk process pool. Clip flags belong to `preview` and `dry-run`, not `render`.
+Do not replace these implemented foundations as if they were missing; remaining
+product delivery and measured optimization are separate work.
 
 ## Deferred pending evidence
 

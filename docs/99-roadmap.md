@@ -2,6 +2,25 @@
 
 No dates are assigned until evidence supports them.
 
+## Current navigation — 0.1.1 internal MVP
+
+The internal MVP has been accepted; delivery is checkout + uv / Python
+>=3.12,<3.13 / system FFmpeg, not a public release or qualified deployment image.
+[Installation recipe](../Instructions/install.md) and
+[future host QA](../Instructions/runbook.md#future-checkouthost-qa-checklist-not-a-qualification-result)
+separate documented steps from completed host qualification.
+
+Missing-foundation interpretations of the older MVP2/field checklist below are
+superseded: AnalysisFrame, VisualField, canonical RGBA/raster paths and locked
+style regression fixtures already exist. The field-center-out path has a process
+pool for `jobs > 1` and >=1,800 expected frames; legacy CLI spectrum stays serial.
+Ordinary preset/CLI delivery, measured optimization and separately deferred
+features remain work, not grounds to rebuild these foundations. Historical
+unchecked visual-review/research items below are not automatically marked done.
+Earlier reported throughput remains historical; original measurements are not
+available for a fresh performance comparison. Reuse the retained local visual
+reference; this documentation update does not regenerate it or qualify new looks.
+
 ## Phase 0 — Specification
 - [x] Scope/requirements/architecture.
 - [x] CLI/config/results baseline.

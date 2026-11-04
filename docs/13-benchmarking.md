@@ -28,7 +28,8 @@ Future GPU metrics: peak VRAM, GPU utilization, GPU processing time.
 
 Throughput (wall time / real-time factor) is a **required** performance target, not an optional extra (`NFR-PERF-005`, `FR-BENCH-016`). Large ProRes is acceptable for throwaway assets; long wall time is not. Numeric bars (for example a maximum real-time factor on the operator workstation) are adopted only from labelled evidence.
 
-Labelled operator evidence, `iuris-default` ProRes on `s0e00.wav` (~395.7 s source, 23741 frames @ 60 fps, 7×60 s chunks, ~10 GB):
+Historical reported operator evidence (original measurement artifacts unavailable
+for current comparison; retained numbers below are not reconstructed results), `iuris-default` ProRes on `s0e00.wav` (~395.7 s source, 23741 frames @ 60 fps, 7×60 s chunks, ~10 GB):
 
 | Date | `jobs` | Wall | Real-time factor | CPU (Task Manager, approx.) | Look |
 |---|---|---|---|---|---|
@@ -78,7 +79,12 @@ Parallel jobs:
 1 / 2 / 4 / auto
 ```
 
-`jobs` now fans out independent scroll-chunk encodes (one process per worker, each drawing RGBA and piping FFmpeg). It does not change intended appearance. First wall-time evidence: `jobs=1` → `jobs=4` on `s0e00` (~3.1×). `auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers. Spectrum stays single-process until it has a chunk contract.
+`jobs` now fans out independent scroll-chunk encodes (one process per worker, each drawing RGBA and piping FFmpeg). It does not change intended appearance. First wall-time evidence: `jobs=1` → `jobs=4` on `s0e00` (~3.1×). `auto` is a benchmark-matrix token meaning the runner should also try an automatic worker count. It is not a `jobs` field value in committed performance profiles; those remain positive integers. Legacy fixed-axis spectrum stays single-process. The existing application/script
+`field_center_out` path uses its own frame-partition pool when `jobs > 1` and
+expected frames >= 1,800; shorter field work is serial. This is not the scroll
+chunk/resume contract, nor a generally selectable CLI spectrum feature: field
+layout/render-path/AA kwargs are not current CLI flags. `render` accepts
+`--performance`; `preview` does not. See [operator limits](../Instructions/runbook.md#known-limits-do-not-treat-as-bugs).
 
 FFmpeg threads:
 

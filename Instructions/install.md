@@ -1,10 +1,21 @@
-# Install (Ubuntu 24.04 / WSL2)
+# Install — internal checkout delivery
 
-This is the operator install path for the FFmpeg MVP. You do not need a GUI, GPU, or Docker.
+The accepted internal MVP is development version 0.1.1. The supported delivery
+recipe is a source checkout plus uv, Python >=3.12,<3.13 and system FFmpeg/ffprobe.
+There is no public release, index-installable package or qualified wheel/Docker
+image. GPU rendering, native Windows and Apple Silicon qualification remain
+deferred. This document is a recipe, not evidence that every listed host works.
 
-Reference environment: Ubuntu 24.04 (WSL2 or bare metal), Python 3.12, FFmpeg 6.x with `prores_ks` and PNG.
+Historical reference: Ubuntu 24.04 / WSL2, Python 3.12 and FFmpeg 6.x. The current
+restored project environment was checked on Ubuntu 26.04.1 x86_64 with CPython
+3.12.3, uv 0.12.6 and system FFmpeg/ffprobe 8.0.1-3ubuntu2. Those observations and
+the project gates do not constitute a fresh clean-host/WSL installation test.
+See [the dependency baseline](../docs/14-dependency-baseline.md): the exact minimum
+FFmpeg version is not qualified; capabilities matter more than the version string.
 
-## 1. System packages
+## 1. Provision system tools on an approved host
+
+On an Ubuntu host where the operator permits system installation:
 
 ```bash
 sudo apt update
@@ -13,42 +24,55 @@ ffmpeg -version
 ffprobe -version
 ```
 
-You need `prores_ks` and `png` encoders and the `gblur`, `overlay`, `scale`, `alphamerge`, and `lut` filters. `waveform doctor` checks these. Do not vendor FFmpeg into the repo.
+Require `prores_ks` and `png` encoders and `gblur`, `overlay`, `scale`,
+`alphamerge`, and `lut` filters. `waveform doctor` checks these. Do not vendor
+FFmpeg into the repository. No provisioning is performed by this documentation.
 
-## 2. `uv` and Python 3.12
+## 2. Prepare uv and Python 3.12
+
+If absent, install uv using the operator-reviewed Astral instructions/source.
+Review the installer before executing downloaded code. Then:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
 uv python install 3.12
 ```
 
-## 3. Clone and install the package
+Do not retarget a broken Python 3.12 virtual environment to system Python 3.14.
+Preserve the old environment before an explicitly authorized rebuild. An existing
+restored environment does not need reinstalling just because documentation changed.
+
+## 3. Use the checkout and committed lock
 
 ```bash
 git clone https://github.com/Polikles/ewp-waveform.git
 cd ewp-waveform
-uv sync --no-dev
-uv run waveform version
+uv sync --locked --no-dev
+uv run --no-sync waveform version
 ```
 
-`--no-dev` is enough to run the CLI. Developers who will run the quality gate should use `uv sync` (installs ruff, mypy, pytest). See `DEVELOPMENT.md`.
+Select the intended reviewed commit before syncing. `--no-dev` is enough for the
+CLI; developers use `uv sync --locked` for Ruff, mypy and pytest. See
+[DEVELOPMENT.md](../DEVELOPMENT.md). Do not update dependencies as an install fix
+without a separately reviewed change. The package version and committed lock must
+agree. Normal `uv run waveform ...` may sync; use `uv run --no-sync waveform ...`
+when deliberately reusing the already prepared matching environment.
 
-## 4. Verify
+## 4. Verify, then run bounded QA
 
 ```bash
-uv run waveform doctor
-uv run waveform capabilities
+uv run --no-sync waveform doctor
+uv run --no-sync waveform capabilities
+uv run --no-sync waveform --help
 ```
 
-`doctor` must print `doctor: ok` and exit 0. If it fails, the message names the missing encoder, filter, temp-dir write, or disk space. Fix the environment before rendering.
+Require `doctor: ok` and exit 0 before rendering. Resolve missing tools/filters,
+temp write or disk capacity diagnostics on that specific host. Follow the
+[future checkout/host QA checklist](runbook.md#future-checkouthost-qa-checklist-not-a-qualification-result)
+with one tiny authorized input and storage headroom, recording actual results.
+No clean-host, Windows, WSL, wheel, Docker or GPU support is inferred from help.
 
-## 5. Optional: put `waveform` on PATH
-
-```bash
-uv sync --no-dev
-# then, from this checkout:
-uv run waveform --help
-```
-
-There is no public pip/PyPI release. Do not `pip install` from an index. Internal betas run from this repository with `uv`.
+There is no public pip/PyPI release. Run from this repository with uv; these
+instructions do not place a standalone `waveform` executable on the global PATH.
+Keep local audio, reference images and generated media outside Git and review
+packages. See [runbook.md](runbook.md) for retained-reference and capacity policy.

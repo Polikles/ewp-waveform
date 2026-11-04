@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** internal beta. Default look is limited versus the Iuris et Logos boards. There is no public release.
+**Status:** accepted internal MVP, development version 0.1.1, checkout-based delivery only. Default look remains limited versus the Iuris et Logos boards. There is no public release or generally qualified deployment target.
 
 ## What this tool does
 
@@ -43,7 +43,7 @@ uv run waveform capabilities
 # See how files will group
 uv run waveform inspect "/path/to/audio"
 
-# Plan: signatures, dest paths, SKIP vs PROCESS
+# Read-only plan: signatures, dest paths, SKIP vs PROCESS; creates no output/work/cache/results
 uv run waveform dry-run "/path/to/audio" --preset iuris-default --output-dir "/path/to/out"
 
 # Short real render (uses the production path, not a fake preview)
@@ -67,6 +67,12 @@ uv run waveform performance show balanced
 uv run waveform clean --workdirs --dry-run
 uv run waveform clean --workdirs
 ```
+
+Clip controls `--start` and `--duration` belong to `preview` and `dry-run`, not
+`render`. To check a preview destination, repeat its exact clip flags, preset, FPS
+and output directory in `dry-run`. `preview` does not accept `--performance` or
+`--keep-temp`; it uses the application default performance profile. Full `render`
+accepts both and always targets the full file.
 
 Exit codes: `0` success, `2` config/CLI, `3` input, `4` capability, `5` render/output, `6` partial multi-job failure.
 
@@ -184,8 +190,8 @@ G/main merge gate waiver or permission to delete G's historical branches.
 
 - A few seconds of `iuris-default` at 60 fps is the right smoke test.
 - Episode-length ProRes belongs on a machine with tens of GB free, not a tiny VM disk. ~10 GB for 6.5 min @ 1400×280×60 is expected; ~100 GB per 50 min speaker is acceptable as a throwaway asset.
-- Chunk size and `jobs` (`--performance balanced` or `maximum`) do not change the intended look. `balanced` uses 2 encode processes; `maximum` uses 4. A custom performance TOML can raise `jobs` further on a many-core CPU.
-- Labelled wall time on `s0e00` (~6.5 min): ~3.5 h at `jobs=1`, ~67 min at `jobs=4` (~10× realtime, ~17% of a 14700K). Further cuts are a product goal; the FFmpeg path will not use the whole machine.
+- Chunk size and `jobs` (`render --performance balanced` or `maximum`) do not intentionally change the look. They request up to 2 or 4 scroll workers respectively; actual parallelism depends on available chunks. Custom positive-integer `jobs` values do not make serial paths parallel.
+- Historical reported wall time (original measurements unavailable for fresh comparison; not a current promise) on `s0e00` (~6.5 min): ~3.5 h at `jobs=1`, ~67 min at `jobs=4` (~10× realtime, ~17% of a 14700K). Further cuts are a product goal; the FFmpeg path will not use the whole machine.
 - `benchmark run` is for matrices of short files. Do not point the example manifest at private episode paths inside git.
 
 ## Known limits (do not treat as bugs)
@@ -194,20 +200,35 @@ G/main merge gate waiver or permission to delete G's historical branches.
 - Spectrum is **experimental** (application FFT + log-Hz span, not the particle field).
 - Playhead mode is refused.
 - Particles enabled in a preset are refused.
-- `jobs` is the number of **processes** that encode independent 60 s scroll chunks after the global peak is stored. Concat stays ordered copy. `jobs=1` and `jobs=2` must match visually. Spectrum is still a single encode. GPU is not used.
+- Scroll: `jobs` bounds processes encoding independent `chunk_seconds` chunks
+  after the global peak is stored. Ordered concat preserves continuity; `jobs=1`
+  and `jobs=2` must match visually.
+- Legacy fixed-axis spectrum (the CLI `iuris-spectrum` default) uses a single
+  frame stream/encode, not the scroll chunk pool.
+- The existing application/script `field_center_out` path can use a process pool
+  only when requested `jobs > 1` and expected frames are at least 1,800 (30 s at
+  60 fps). Shorter field work remains serial. This is not a general CLI spectrum
+  parallelism switch: field layout/geometry, render-path and antialiasing kwargs
+  are internal/API controls, not current `waveform` flags. Locked style fixtures
+  and the AnalysisFrame/VisualField/raster foundation already exist; ordinary
+  preset/CLI delivery and further qualification are separate backlog work.
+- GPU is not used.
 - 10-bit ProRes request vs 12-bit ffprobe readout remains an open fidelity note.
 
-## Fresh WSL VM checklist
+## Future checkout/host QA checklist (not a qualification result)
 
-Use a **copy** of audio you are allowed to process. Do not commit outputs.
+Use a **copy** of audio you are allowed to process, or a tiny synthetic fixture.
+Keep source recordings, reference images and derived assets outside Git and review
+packages; a private repository does not authorize their publication. This checklist
+has not been freshly executed on WSL or a clean host by this documentation update.
 
-1. Install (`Instructions/install.md`) until `waveform doctor` is `ok`.
+1. Follow [install.md](install.md) on the specifically selected host; record checkout/version, Python, uv and FFmpeg identities. Prefix commands with `uv run` from the checkout. Require `waveform doctor` to report `doctor: ok`.
 2. `waveform capabilities` — expect `domain:time+scroll` limited, `domain:frequency+fixed-axis` experimental, `effect:particles` unsupported, `domain:time+playhead` unsupported.
 3. `inspect` a single WAV and a `s0e00-Damian.wav` / `s0e00-Szymon.wav` pair; grouping must split on the first `-`.
-4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest. Full-file dests appear only after **all** chunks encode and concat; until then work lives under `/tmp/ewp-waveform-work/`. Progress is on **stderr** (`chunk N/M frame 300/3600`, …).
-5. `render` the same **preview clip** (`--start` / `--duration` matching preview) and `dry-run` must show `SKIP`. `--force` must write `_v002`. Full-file `render` is a different dest (minutes of 60 fps ProRes; watch stderr progress).
+4. `preview` 2–8 s of speech at `iuris-default` to `--output-dir`. Confirm the `.mov` has alpha in ffprobe (`yuva`). Preview uses a **clip** identity (default 8 s). A later full `render` of the same file must **not** SKIP that preview dest. Full-file dests appear only after **all** chunks encode and concat; until then work lives under `<process-temp>/ewp-waveform-work/` by default (Python temp selection honors `TMPDIR`; a performance profile may select `workdirs.root`). Progress is on **stderr** (`chunk N/M frame 300/3600`, …).
+5. Repeat `preview` with the same clip flags and destination: expect SKIP. `dry-run --start 0 --duration 8` with matching preset/FPS/output must plan that preview identity; its existence-based SKIP is advisory, not full output validation. `preview --force` must write `_v002`. Full-file `render` has no clip flags and targets a different identity for a shorter-than-source preview.
 6. `render --format prores4444 --format png` and confirm both exist plus `*_results.json` and `run_*_results.json`.
-7. `render --preset iuris-spectrum` on the same short clip; result JSON `analysis.fmin_hz` / `fmax_hz` populated.
+7. Use `preview --start 0 --duration 8 --preset iuris-spectrum` on the same source for a short spectrum render; result JSON `analysis.fmin_hz` / `fmax_hz` should be populated.
 8. Interrupt a multi-chunk job (tiny `chunk_seconds` in a custom performance TOML, or a longer file) and resume; look for `W_JOB_RESUMED`.
 9. Open the ProRes in DaVinci (or another NLE with alpha) on a machine that can play it. Compare to the boards only as a direction check; pixel match is not claimed.
 10. `clean --workdirs --dry-run` then `clean --workdirs`.
@@ -226,4 +247,4 @@ Long s2e9 / ~2.5 h jobs stay off undersized VMs.
 | Empty leftover `.mov` | Empty dests are not skipped; rerun should replace them. |
 | Disk growth threatens reserve | Postpone further renders; notify the operator and inspect selected disposable workdirs. Never automatically delete baselines, source media, environments or unreviewed evidence. |
 | Resume did not reuse chunks | Checkpoint must match source hash and render signature. Stale files are discarded on purpose. |
-| CPU stays at a few percent | Old builds encoded chunks one-by-one (one Python core + one FFmpeg). Pull a revision that uses `jobs`, then `--performance balanced` (2 processes) or `maximum` (4). Custom `jobs` in a performance TOML can go higher. GPU is later. |
+| CPU stays at a few percent | Check the active path: scroll can use `render --performance balanced` (up to 2 workers) or `maximum` (up to 4), while legacy spectrum and short field renders are serial. `preview` has no performance flag. A custom performance TOML affects only paths that consume `jobs`; it does not enable GPU or general spectrum parallelism. |
