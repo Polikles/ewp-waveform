@@ -379,6 +379,16 @@ def benchmark_dry_run_cmd(
             f"  {cell.action:12} {cell.input_path.name}  {cell.variant_name}  "
             f"{cell.renderer}/{cell.performance_name}  {dest}"
         )
+        typer.echo(
+            f"               source_duration_seconds={cell.duration_seconds} "
+            f"requested_start_seconds={cell.start} requested_duration_seconds={cell.duration}"
+        )
+        if cell.effective_start_seconds is not None and cell.effective_duration_seconds is not None:
+            end = cell.effective_start_seconds + cell.effective_duration_seconds
+            typer.echo(
+                f"               effective=[{cell.effective_start_seconds},{end}) "
+                f"effective_audio_seconds={cell.effective_duration_seconds}"
+            )
         if cell.notes:
             typer.echo(f"               {cell.notes}")
         if cell.estimated_output_mb is not None:

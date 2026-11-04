@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GroupingConfig(BaseModel):
@@ -75,7 +75,12 @@ class PerformanceProfile(BaseModel):
 
 
 class BenchmarkInput(BaseModel):
+    # Input-only strictness prevents misspelled/coerced bounds becoming full-source jobs.
+    model_config = ConfigDict(extra="forbid")
+
     path: str
+    start: float | None = Field(default=None, strict=True, allow_inf_nan=False, ge=0)
+    duration: float | None = Field(default=None, strict=True, allow_inf_nan=False, gt=0)
 
 
 class BenchmarkVariant(BaseModel):

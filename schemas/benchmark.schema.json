@@ -29,8 +29,17 @@
         "properties": {
           "path": {
             "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "variants": {

@@ -28,3 +28,6 @@ renderers = ["ffmpeg"]
 formats = ["prores4444", "png"]
 performance_profiles = ["balanced", "maximum"]
 dry_run_estimates = true
+
+# Each [[inputs]] may optionally specify start = 25.0 and duration = 8.0 (seconds).
+# Place those fields in that input table, not in [benchmark] or variant overrides.

@@ -61,6 +61,44 @@ Non-canonical test variants are allowed.
 
 Benchmark execution never silently changes canonical presets.
 
+### Input intervals
+
+Each `[[inputs]]` may select `start` and/or `duration` in seconds, for example:
+
+```toml
+[[inputs]]
+path = "episode.wav"
+start = 25.0
+duration = 8.0
+```
+
+Omitting both preserves full-source behavior and its existing output signature.
+Omitting `start` means zero; omitting `duration` means the remaining source. Values
+must be finite numbers (not strings or booleans), start nonnegative and supplied
+duration positive. Unknown input keys are rejected rather than silently dropping
+misspelled bounds. This strictness is scoped to benchmark inputs, not every config
+model. Empty effective intervals (including start at/past EOF) reject the request
+before output, work or analysis-cache allocation; other missing/unprobeable inputs
+retain BLOCKED behavior. All inputs are planned before any cell executes.
+
+Bounds use the existing production clipping path: a duration extending past EOF
+is truncated to the remaining audio, not padded. Planning passes the normalized
+start and **requested**, not truncated, duration to the existing destination/signature
+helper, exactly as production does. Different clip requests cannot reuse an
+unclipped destination; invocation/cell isolation remains unchanged. There are no
+benchmark CLI clip overrides or alternate clipping/runner implementations.
+
+Dry-run prints source duration, requested bounds and the effective half-open interval
+for every probed cell. Estimates use effective audio seconds. `BenchmarkCell.duration_seconds`
+remains source duration for compatibility; `start`/`duration` retain the request and
+`effective_start_seconds`/`effective_duration_seconds` describe the plan. Benchmark
+JSON separates `source_duration_seconds`, `requested_start_seconds`,
+`requested_duration_seconds`, `planned_clip_start_seconds` and
+`planned_effective_audio_seconds` from the observed `clip_start_seconds` and
+`effective_audio_seconds`. Planned duration is not evidence of successful rendering.
+Throughput still requires successful production validation and uses observed effective
+seconds/validated frames; frame rounding and existing validation tolerances are unchanged.
+
 ## Dry-run
 
 Report expanded jobs, expected file count, formats, and—when evidence exists—estimated disk use and time. Estimates must be labelled and omitted when evidence is insufficient.

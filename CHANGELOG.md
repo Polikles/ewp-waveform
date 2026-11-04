@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Benchmark manifests retain optional per-input start/duration seconds through
+  planning, production rendering and reporting. Dry-run exposes requested/effective
+  bounds; estimates use the effective interval. Invalid or empty intervals reject
+  before allocation; EOF truncation and interval-sensitive identity reuse the
+  existing production path. Full-source manifests retain their behavior.
+
 - Correct benchmark cell isolation and reporting: validated PROCESS-only throughput,
   effective clip duration, separate planned/runtime outcomes, honest timer/feed/worker
   scope, and explicit unavailable resource measurements. Renderer behavior unchanged;

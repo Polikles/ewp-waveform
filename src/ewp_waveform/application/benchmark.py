@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import platform
 import sys
@@ -16,7 +17,7 @@ from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
 from ewp_waveform.application.evidence import parent_resource_observation, render_measurements
 from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.plan import plan_destinations_for_job
-from ewp_waveform.application.render import render_job
+from ewp_waveform.application.render import _clip_bounds, render_job
 from ewp_waveform.application.results import utc_now, write_run_summary
 from ewp_waveform.config.load import load_benchmark_manifest, load_performance, load_preset
 from ewp_waveform.config.models import BenchmarkManifest, BenchmarkVariant, VisualPreset
@@ -80,11 +81,15 @@ class BenchmarkCell:
     action: str
     mov_path: Path | None = None
     png_path: Path | None = None
-    duration_seconds: float | None = None
+    duration_seconds: float | None = None  # source duration (compatibility)
     estimated_output_mb: float | None = None
     estimate_label: str | None = None
     notes: str = ""
     output_dir: Path | None = None
+    start: float | None = None
+    duration: float | None = None
+    effective_start_seconds: float | None = None
+    effective_duration_seconds: float | None = None
 
 
 def apply_overrides(
@@ -184,6 +189,8 @@ def expand_benchmark(
                         action = "UNSUPPORTED"
                         notes = f"renderer '{renderer}' is not available in the FFmpeg MVP"
                     duration: float | None = None
+                    clip_start: float | None = None
+                    clip_duration: float | None = None
                     mov: Path | None = None
                     png: Path | None = None
                     estimate: float | None = None
@@ -192,6 +199,18 @@ def expand_benchmark(
                         try:
                             media = probe_media(source)
                             duration = media.duration_seconds
+                            clip_start, clip_duration = _clip_bounds(
+                                media, item.start, item.duration
+                            )
+                            if (
+                                not math.isfinite(duration)
+                                or not math.isfinite(clip_duration)
+                                or clip_duration <= 0
+                            ):
+                                msg = (
+                                    f"benchmark input {source}: interval has no renderable duration"
+                                )
+                                raise ValueError(msg)
                             source_sha = sha256_file(source)
                             job = _planned_job(source, preset)
                             planned = plan_destinations_for_job(
@@ -201,6 +220,9 @@ def expand_benchmark(
                                 output_dir=cell_root / "output",
                                 formats=formats,
                                 force=force,
+                                clip_start=clip_start,
+                                # Production identity retains the requested duration, even past EOF.
+                                clip_duration=item.duration,
                             )
                             action = planned.action
                             mov = planned.mov_path
@@ -208,7 +230,7 @@ def expand_benchmark(
                             if job.capability == CapabilityLevel.UNSUPPORTED:
                                 action = "UNSUPPORTED"
                                 notes = job.capability_notes
-                        except (ToolNotFoundError, ProbeError, OSError, ValueError) as exc:
+                        except (ToolNotFoundError, ProbeError, OSError) as exc:
                             action = "BLOCKED"
                             notes = str(exc)
                     elif action == "PROCESS":
@@ -216,10 +238,10 @@ def expand_benchmark(
                         notes = f"missing input {source}"
                     if (
                         manifest.benchmark.dry_run_estimates
-                        and duration is not None
-                        and duration > 0
+                        and clip_duration is not None
+                        and clip_duration > 0
                     ):
-                        estimate = estimate_output_mb(duration, preset, formats)
+                        estimate = estimate_output_mb(clip_duration, preset, formats)
                         label = ESTIMATE_LABEL
                     cells.append(
                         BenchmarkCell(
@@ -233,6 +255,10 @@ def expand_benchmark(
                             mov_path=mov,
                             png_path=png,
                             duration_seconds=duration,
+                            start=item.start,
+                            duration=item.duration,
+                            effective_start_seconds=clip_start,
+                            effective_duration_seconds=clip_duration,
                             estimated_output_mb=estimate,
                             estimate_label=label,
                             notes=notes,
@@ -291,6 +317,10 @@ def run_benchmark(
                 "excludes benchmark expansion, input probing and performance-profile loading"
             ),
             "source_duration_seconds": cell.duration_seconds,
+            "requested_start_seconds": cell.start,
+            "requested_duration_seconds": cell.duration,
+            "planned_clip_start_seconds": cell.effective_start_seconds,
+            "planned_effective_audio_seconds": cell.effective_duration_seconds,
             "output_dir": str(cell.output_dir),
             "analysis_cache_selection": os.environ.get("EWP_ANALYSIS_CACHE") or "default",
             "analysis_cache_policy": "externally selected; not cleared or warmed by runner",
@@ -326,6 +356,8 @@ def run_benchmark(
             output_dir=cell.output_dir,
             formats=cell.formats,
             force=force,
+            start=cell.start,
+            duration=cell.duration,
         )
         wall = time.perf_counter() - wall0
         resources = parent_resource_observation()
