@@ -226,16 +226,29 @@ def plan_jobs(
         space = _output_space_warning(root, preset, fmts, clip_dur)
         if space is not None:
             diagnostics.append(space)
-        planned = plan_destinations_for_job(
-            job,
-            preset,
-            source_sha256=source_sha,
-            output_dir=root,
-            formats=fmts,
-            force=force,
-            clip_start=start if start is not None and start > 0 else 0.0,
-            clip_duration=duration if duration is not None and duration > 0 else None,
-        )
+        try:
+            planned = plan_destinations_for_job(
+                job,
+                preset,
+                source_sha256=source_sha,
+                output_dir=root,
+                formats=fmts,
+                force=force,
+                clip_start=start if start is not None and start > 0 else 0.0,
+                clip_duration=duration if duration is not None and duration > 0 else None,
+            )
+        except OSError as exc:
+            message = f"Could not inspect output destinations under {root}: {exc}"
+            raise AppError(
+                ExitCode.RENDER,
+                message,
+                Diagnostic(
+                    code=DiagnosticCode.E_OUTPUT_VALIDATION,
+                    severity=Severity.ERROR,
+                    message=message,
+                    path=str(root),
+                ),
+            ) from exc
         plans.append(
             JobPlan(
                 job=planned.job,

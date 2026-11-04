@@ -79,8 +79,11 @@ Capacity inspection uses the output root when it exists, or its nearest existing
 directory ancestor without changing the planned destination. An unavailable,
 inaccessible or non-directory path produces a typed `W_OUTPUT_SPACE` warning
 rather than creating directories or failing with a raw filesystem exception.
-This is advisory: check permissions and free space before rendering. Normal
-execution still creates its required output and work directories.
+This capacity warning is advisory: check permissions and free space before
+rendering. If destination inspection itself is inaccessible, planning stops with
+a typed `E_OUTPUT_VALIDATION` / exit 5, rather than a raw filesystem exception or
+a claim that inaccessible output is reusable. Normal execution still creates its
+required output and work directories.
 
 ## Preview
 

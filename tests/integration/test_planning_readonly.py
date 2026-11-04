@@ -176,3 +176,35 @@ def test_render_still_creates_output_and_results(tmp_path: Path) -> None:
     assert src.read_bytes() == before[1]
     assert src.stat().st_mtime_ns == before[0].st_mtime_ns
     assert stat.S_ISREG(src.stat().st_mode)
+
+
+@pytest.mark.parametrize("entry", ["api", "cli"])
+def test_ancestor_search_denial_is_typed_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str
+) -> None:
+    src = tmp_path / "s0e00-Test.wav"
+    _tone_wav(src)
+    out = tmp_path / "denied" / "out"
+    original_stat = Path.stat
+    before = _tree(tmp_path)
+
+    def denied_stat(path: Path, *, follow_symlinks: bool = True) -> object:
+        if path.is_relative_to(out.parent):
+            raise PermissionError(13, "ancestor search denied", str(path))
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", denied_stat)
+        if entry == "api":
+            with pytest.raises(service.AppError) as error:
+                service.plan_jobs(src, output_dir=out)
+            assert error.value.numeric_exit == 5
+            assert error.value.diagnostic is not None
+            assert error.value.diagnostic.code == DiagnosticCode.E_OUTPUT_VALIDATION
+            assert error.value.diagnostic.path == str(out)
+        else:
+            result = CliRunner().invoke(app, ["dry-run", str(src), "--output-dir", str(out)])
+            assert result.exit_code == 5
+            assert "E_OUTPUT_VALIDATION" in result.output
+            assert "Could not inspect output destinations" in result.output
+    assert _tree(tmp_path) == before
