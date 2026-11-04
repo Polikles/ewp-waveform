@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import stat
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def test_space_warning_uses_existing_volume_without_changing_destination(
         checked.append(path)
         return type("Usage", (), {"free": 1})()
 
-    monkeypatch.setattr(service.shutil, "disk_usage", disk_usage)
+    monkeypatch.setattr(shutil, "disk_usage", disk_usage)
     before = _tree(tmp_path)
     _, _, _, plans, diagnostics = service.plan_jobs(src, output_dir=out)
     assert checked == [out if existing else tmp_path]
@@ -112,7 +113,7 @@ def test_unavailable_space_is_typed_warning_not_a_write(
     def unavailable(path: Path) -> object:
         raise failure("space unavailable")
 
-    monkeypatch.setattr(service.shutil, "disk_usage", unavailable)
+    monkeypatch.setattr(shutil, "disk_usage", unavailable)
     before = _tree(tmp_path)
     _, _, _, plans, diagnostics = service.plan_jobs(src, output_dir=out)
     assert plans[0].action == "PROCESS"
