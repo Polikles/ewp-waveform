@@ -2,6 +2,18 @@
 
 The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
 
+## [0.1.2] - 2026-11-04
+
+### Fixed
+
+- Production output validation rejects malformed, incomplete, wrong-size or
+  non-RGBA PNG sequences, including gaps and damaged later frames. Missing PNG
+  work output can no longer become a successful job. Valid outputs remain reusable.
+- ProRes reuse/publication now checks FPS, duration, known frame count, 4444
+  profile/alpha and first-frame readability as well as dimensions. This sampled
+  MOV check is not a full decode or arbitrary-corruption guarantee. No renderer,
+  visual baseline, output lifecycle or dependency change.
+
 ## [0.1.1] - 2026-11-04
 
 ### Documentation

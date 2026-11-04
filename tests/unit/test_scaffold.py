@@ -1,16 +1,15 @@
 import json
 import tomllib
 
-from typer.testing import CliRunner
-
 from ewp_waveform import __version__
 from ewp_waveform.application.results import build_run_summary
 from ewp_waveform.cli import app
 from ewp_waveform.paths import project_root
+from typer.testing import CliRunner
 
 
 def test_scaffold_version_is_defined() -> None:
-    assert __version__ == "0.1.1"
+    assert __version__ == "0.1.2"
 
 
 def test_product_version_declarations_agree() -> None:

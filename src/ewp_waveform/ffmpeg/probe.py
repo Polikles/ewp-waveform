@@ -24,9 +24,10 @@ class VideoStreamInfo:
     nb_frames: int | None
     duration_seconds: float
     avg_frame_rate: str
+    profile: str = ""
 
 
-def _probe_json(path: Path) -> dict[str, Any]:
+def _probe_json(path: Path, *, first_frame: bool = False) -> dict[str, Any]:
     ffprobe = require_tool("ffprobe")
     argv = [
         str(ffprobe),
@@ -36,10 +37,12 @@ def _probe_json(path: Path) -> dict[str, Any]:
         "json",
         "-show_format",
         "-show_streams",
-        str(path),
     ]
+    if first_frame:
+        argv.extend(["-read_intervals", "%+#1", "-show_frames"])
+    argv.append(str(path))
     completed = run_argv(argv)
-    if completed.returncode != 0:
+    if completed.returncode != 0 or (first_frame and completed.stderr.strip()):
         msg = completed.stderr.strip() or f"ffprobe failed for {path}"
         raise ProbeError(msg)
     return cast(dict[str, Any], json.loads(completed.stdout))
@@ -66,7 +69,11 @@ def probe_media(path: Path) -> SourceMedia:
 
 
 def probe_video(path: Path) -> VideoStreamInfo:
-    payload = _probe_json(path)
+    # Decode only the first packet, not the complete movie, on this hot path.
+    payload = _probe_json(path, first_frame=True)
+    frames = payload.get("frames") or []
+    if not any(frame.get("media_type") == "video" for frame in frames):
+        raise ProbeError(f"No readable video frame in {path}")
     streams = payload.get("streams") or []
     video = next((item for item in streams if item.get("codec_type") == "video"), None)
     if video is None:
@@ -88,4 +95,39 @@ def probe_video(path: Path) -> VideoStreamInfo:
         nb_frames=nb_frames,
         duration_seconds=duration,
         avg_frame_rate=str(video.get("avg_frame_rate") or ""),
+        profile=str(video.get("profile") or ""),
     )
+
+
+def probe_png_sequence(directory: Path) -> list[dict[str, Any]]:
+    """Decode sequence frames once; return only geometry/pixel-format metadata.
+
+    ffprobe can report decode errors on stderr while exiting zero. Reject both.
+    Names/count/file presence are checked by the caller before image2 traversal.
+    """
+    ffprobe = require_tool("ffprobe")
+    completed = run_argv(
+        [
+            str(ffprobe),
+            "-v",
+            "error",
+            "-f",
+            "image2",
+            "-start_number",
+            "1",
+            "-i",
+            str(directory / "frame_%06d.png"),
+            "-show_frames",
+            "-show_entries",
+            "stream=codec_name:frame=width,height,pix_fmt",
+            "-of",
+            "json",
+        ]
+    )
+    if completed.returncode != 0 or completed.stderr.strip():
+        raise ProbeError(completed.stderr.strip() or "PNG sequence inspection failed")
+    payload = json.loads(completed.stdout)
+    streams = payload.get("streams") or []
+    if len(streams) != 1 or streams[0].get("codec_name") != "png":
+        raise ProbeError("PNG sequence does not contain PNG images")
+    return cast(list[dict[str, Any]], payload.get("frames") or [])

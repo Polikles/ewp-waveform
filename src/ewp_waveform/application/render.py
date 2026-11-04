@@ -11,11 +11,11 @@ from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-
 from ewp_waveform import __version__
 from ewp_waveform.analysis.cache import (
     analysis_cache_digest,
@@ -115,7 +115,7 @@ from ewp_waveform.ffmpeg.encode import (
     encode_rgba_stream,
     glow_sigma,
 )
-from ewp_waveform.ffmpeg.probe import ProbeError, probe_media, probe_video
+from ewp_waveform.ffmpeg.probe import ProbeError, probe_media, probe_png_sequence, probe_video
 from ewp_waveform.identity import (
     VISUAL_CONTRACT_VERSION,
     render_signature,
@@ -831,30 +831,39 @@ def _filter_wav(
     return filtered, hop
 
 
-def _png_frame_count(directory: Path) -> int:
-    return len(list(directory.glob("frame_*.png")))
-
-
 def _validate_mov(
     path: Path,
     *,
     width: int,
     height: int,
     expected_frames: int,
+    fps: float,
 ) -> dict[str, Any]:
-    info = probe_video(path)
-    frames_ok = True
-    if info.nb_frames is not None:
-        frames_ok = abs(info.nb_frames - expected_frames) <= 1
-    passed = (
-        path.is_file()
-        and path.stat().st_size > 0
-        and "prores" in info.codec_name
-        and "yuva" in info.pix_fmt
-        and info.width == width
-        and info.height == height
-        and frames_ok
-    )
+    """Check metadata plus one decoded frame, not every ProRes frame."""
+    try:
+        if not path.is_file() or path.stat().st_size <= 0:
+            return {"passed": False}
+        info = probe_video(path)
+        rate_ok = Fraction(info.avg_frame_rate) == Fraction(str(fps))
+        duration_ok = (
+            math.isfinite(info.duration_seconds)
+            and info.duration_seconds > 0
+            # MOV/ffprobe durations are rounded to microseconds.
+            and abs(info.duration_seconds - expected_frames / fps) <= 1 / fps + 1e-6
+        )
+        passed = (
+            info.codec_name == "prores"
+            and info.profile in {"4444", "XQ"}
+            and info.pix_fmt.startswith("yuva444p")
+            and info.width == width
+            and info.height == height
+            and info.nb_frames is not None
+            and abs(info.nb_frames - expected_frames) <= 1
+            and rate_ok
+            and duration_ok
+        )
+    except (ProbeError, OSError, ValueError, ZeroDivisionError):
+        return {"passed": False}
     return {
         "passed": passed,
         "codec": info.codec_name,
@@ -866,9 +875,36 @@ def _validate_mov(
     }
 
 
-def _validate_png(directory: Path, *, expected_frames: int) -> dict[str, Any]:
-    count = _png_frame_count(directory)
-    passed = directory.is_dir() and count == expected_frames
+def _validate_png(
+    directory: Path, *, expected_frames: int, width: int, height: int
+) -> dict[str, Any]:
+    """Require contiguous readable RGBA PNGs, including every frame's geometry."""
+    count = 0
+    passed = False
+    try:
+        frames = sorted(directory.glob("frame_*.png"))
+        count = len(frames)
+        if (
+            not directory.is_dir()
+            or expected_frames < 1
+            or count != expected_frames
+            or any(
+                frame.name != f"frame_{index:06d}.png"
+                or not frame.is_file()
+                or frame.stat().st_size <= 0
+                for index, frame in enumerate(frames, 1)
+            )
+        ):
+            return {"passed": False, "frames": count, "format": "png"}
+        decoded = probe_png_sequence(directory)
+        passed = len(decoded) == expected_frames and all(
+            frame.get("width") == width
+            and frame.get("height") == height
+            and frame.get("pix_fmt") in {"rgba", "rgba64be", "rgba64le"}
+            for frame in decoded
+        )
+    except (ProbeError, OSError, ValueError):
+        pass
     return {"passed": passed, "frames": count, "format": "png"}
 
 
@@ -1025,6 +1061,7 @@ def render_job(
                 width=preset.canvas.width,
                 height=preset.canvas.height,
                 expected_frames=expected_frames,
+                fps=job.fps,
             )
         except (ProbeError, OSError):
             skip_validation = {"passed": False}
@@ -1034,7 +1071,12 @@ def render_job(
             skip_outputs.append({"path": str(mov_dest), "format": "prores4444"})
     if want_png and skip_png:
         assert png_dest is not None
-        png_report = _validate_png(png_dest, expected_frames=expected_frames)
+        png_report = _validate_png(
+            png_dest,
+            expected_frames=expected_frames,
+            width=preset.canvas.width,
+            height=preset.canvas.height,
+        )
         if not png_report.get("passed"):
             skip_png = False
         else:
@@ -1464,14 +1506,20 @@ def render_job(
                     width=preset.canvas.width,
                     height=preset.canvas.height,
                     expected_frames=expected_frames,
+                    fps=job.fps,
                 )
                 if not validation.get("passed"):
                     raise EncodeError("spectrum output failed validation")
                 if mov_dest is not None:
                     shutil.move(str(mov_work), str(mov_dest))
                     outputs.append({"path": str(mov_dest), "format": "prores4444"})
-            if png_work is not None and png_work.is_dir():
-                png_report = _validate_png(png_work, expected_frames=expected_frames)
+            if png_work is not None:
+                png_report = _validate_png(
+                    png_work,
+                    expected_frames=expected_frames,
+                    width=preset.canvas.width,
+                    height=preset.canvas.height,
+                )
                 if not png_report.get("passed"):
                     raise EncodeError("png sequence failed validation")
                 if png_dest is not None and png_dest.exists():
@@ -1705,14 +1753,20 @@ def render_job(
                     width=preset.canvas.width,
                     height=preset.canvas.height,
                     expected_frames=expected_frames,
+                    fps=job.fps,
                 )
                 if not validation.get("passed"):
                     raise EncodeError("scroll output failed validation")
                 if mov_dest is not None:
                     shutil.move(str(tmp_mov), str(mov_dest))
                     outputs.append({"path": str(mov_dest), "format": "prores4444"})
-            if png_work is not None and png_work.is_dir():
-                png_report = _validate_png(png_work, expected_frames=expected_frames)
+            if png_work is not None:
+                png_report = _validate_png(
+                    png_work,
+                    expected_frames=expected_frames,
+                    width=preset.canvas.width,
+                    height=preset.canvas.height,
+                )
                 if not png_report.get("passed"):
                     raise EncodeError("png sequence failed validation")
                 if png_dest is not None and png_dest.exists():
@@ -1865,6 +1919,7 @@ def encode_scroll_chunk(
             width=task.preset.canvas.width,
             height=task.preset.canvas.height,
             expected_frames=task.n_frames,
+            fps=task.fps,
         )
         if not chunk_report.get("passed"):
             raise EncodeError(f"chunk {task.chunk_index:04d} failed validation")
