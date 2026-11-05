@@ -96,6 +96,7 @@ from ewp_waveform.application.chunks import (
 )
 from ewp_waveform.application.evidence import fingerprint_from_plan
 from ewp_waveform.application.formats import validate_output_formats
+from ewp_waveform.application.render_types import RenderContext, RendererOutcome, RenderOptions
 from ewp_waveform.application.results import elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
@@ -942,6 +943,84 @@ def _with_classic_alternate_opacity(preset: VisualPreset, opacity: float | None)
     return preset.model_copy(update={"signal": signal})
 
 
+def _render_options_from_legacy(
+    *,
+    output_dir: Path,
+    formats: list[str],
+    force: bool,
+    start: float | None = None,
+    duration: float | None = None,
+    keep_temp: bool = False,
+    fail_after_chunk: int | None = None,
+    progress: Callable[[str], None] | None = None,
+    spectrum_contour: bool = False,
+    spectrum_spatial_scale: float = 1.0,
+    spectrum_spatial_filter: str = "box",
+    spectrum_n_bands: int | None = None,
+    spectrum_tilt_db_per_octave: float = 0.0,
+    spectrum_compress: float = 1.0,
+    spectrum_recenter: bool = False,
+    spectrum_edge_taper: float = 0.0,
+    visual_geometry: str = "spectrum",
+    spectrum_layout: str = "linear",
+    spectrum_slot_sigma: float = 0.0,
+    ribbon_supersample: int | None = None,
+    render_path: str | None = None,
+    render_aa: str | None = None,
+    field_geometry: str = "ribbon",
+    bar_width: float | None = None,
+    bar_gap: float | None = None,
+    bar_count: int | None = None,
+    bar_fill: float | None = None,
+    bar_align: str | None = None,
+    bar_alternate: bool | None = None,
+    bar_color_b: str | None = None,
+    bar_center_line_width: float | None = None,
+    waveform_color: str | None = None,
+    glow_level: str | None = None,
+    classic_alternate_opacity: float | None = None,
+    phases: PhaseTimes | None = None,
+) -> RenderOptions:
+    """Transport legacy keyword values without resolving, copying or coercing them."""
+    return RenderOptions(
+        output_dir=output_dir,
+        formats=formats,
+        force=force,
+        start=start,
+        duration=duration,
+        keep_temp=keep_temp,
+        fail_after_chunk=fail_after_chunk,
+        progress=progress,
+        spectrum_contour=spectrum_contour,
+        spectrum_spatial_scale=spectrum_spatial_scale,
+        spectrum_spatial_filter=spectrum_spatial_filter,
+        spectrum_n_bands=spectrum_n_bands,
+        spectrum_tilt_db_per_octave=spectrum_tilt_db_per_octave,
+        spectrum_compress=spectrum_compress,
+        spectrum_recenter=spectrum_recenter,
+        spectrum_edge_taper=spectrum_edge_taper,
+        visual_geometry=visual_geometry,
+        spectrum_layout=spectrum_layout,
+        spectrum_slot_sigma=spectrum_slot_sigma,
+        ribbon_supersample=ribbon_supersample,
+        render_path=render_path,
+        render_aa=render_aa,
+        field_geometry=field_geometry,
+        bar_width=bar_width,
+        bar_gap=bar_gap,
+        bar_count=bar_count,
+        bar_fill=bar_fill,
+        bar_align=bar_align,
+        bar_alternate=bar_alternate,
+        bar_color_b=bar_color_b,
+        bar_center_line_width=bar_center_line_width,
+        waveform_color=waveform_color,
+        glow_level=glow_level,
+        classic_alternate_opacity=classic_alternate_opacity,
+        phases=phases,
+    )
+
+
 def render_job(
     job: PlannedJob,
     media: SourceMedia,
@@ -984,6 +1063,89 @@ def render_job(
     classic_alternate_opacity: float | None = None,
     phases: PhaseTimes | None = None,
 ) -> dict[str, Any]:
+    context = RenderContext(job=job, media=media, preset=preset, performance=performance)
+    options = _render_options_from_legacy(
+        output_dir=output_dir,
+        formats=formats,
+        force=force,
+        start=start,
+        duration=duration,
+        keep_temp=keep_temp,
+        fail_after_chunk=fail_after_chunk,
+        progress=progress,
+        spectrum_contour=spectrum_contour,
+        spectrum_spatial_scale=spectrum_spatial_scale,
+        spectrum_spatial_filter=spectrum_spatial_filter,
+        spectrum_n_bands=spectrum_n_bands,
+        spectrum_tilt_db_per_octave=spectrum_tilt_db_per_octave,
+        spectrum_compress=spectrum_compress,
+        spectrum_recenter=spectrum_recenter,
+        spectrum_edge_taper=spectrum_edge_taper,
+        visual_geometry=visual_geometry,
+        spectrum_layout=spectrum_layout,
+        spectrum_slot_sigma=spectrum_slot_sigma,
+        ribbon_supersample=ribbon_supersample,
+        render_path=render_path,
+        render_aa=render_aa,
+        field_geometry=field_geometry,
+        bar_width=bar_width,
+        bar_gap=bar_gap,
+        bar_count=bar_count,
+        bar_fill=bar_fill,
+        bar_align=bar_align,
+        bar_alternate=bar_alternate,
+        bar_color_b=bar_color_b,
+        bar_center_line_width=bar_center_line_width,
+        waveform_color=waveform_color,
+        glow_level=glow_level,
+        classic_alternate_opacity=classic_alternate_opacity,
+        phases=phases,
+    )
+    outcome = _render_job(context, options)
+    return outcome.payload
+
+
+def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutcome:
+    job = context.job
+    media = context.media
+    preset = context.preset
+    performance = context.performance
+    output_dir = options.output_dir
+    formats = options.formats
+    force = options.force
+    start = options.start
+    duration = options.duration
+    keep_temp = options.keep_temp
+    fail_after_chunk = options.fail_after_chunk
+    progress = options.progress
+    spectrum_contour = options.spectrum_contour
+    spectrum_spatial_scale = options.spectrum_spatial_scale
+    spectrum_spatial_filter = options.spectrum_spatial_filter
+    spectrum_n_bands = options.spectrum_n_bands
+    spectrum_tilt_db_per_octave = options.spectrum_tilt_db_per_octave
+    spectrum_compress = options.spectrum_compress
+    spectrum_recenter = options.spectrum_recenter
+    spectrum_edge_taper = options.spectrum_edge_taper
+    visual_geometry = options.visual_geometry
+    spectrum_layout = options.spectrum_layout
+    spectrum_slot_sigma = options.spectrum_slot_sigma
+    ribbon_supersample = options.ribbon_supersample
+    render_path = options.render_path
+    render_aa = options.render_aa
+    field_geometry = options.field_geometry
+    bar_width = options.bar_width
+    bar_gap = options.bar_gap
+    bar_count = options.bar_count
+    bar_fill = options.bar_fill
+    bar_align = options.bar_align
+    bar_alternate = options.bar_alternate
+    bar_color_b = options.bar_color_b
+    bar_center_line_width = options.bar_center_line_width
+    waveform_color = options.waveform_color
+    glow_level = options.glow_level
+    classic_alternate_opacity = options.classic_alternate_opacity
+    phases = options.phases
+
     validate_output_formats(formats)
     started = _utcnow()
     preset = _with_waveform_color(preset, waveform_color)
@@ -1087,27 +1249,29 @@ def render_job(
 
     if (not want_mov or skip_mov) and (not want_png or skip_png) and not force:
         note("skip: equivalent output already present")
-        return _result_payload(
-            job,
-            media,
-            preset,
-            performance,
-            source_sha,
-            sig,
-            started,
-            fixed_axis_recipe=fixed_axis_recipe,
-            status="SKIPPED",
-            outputs=skip_outputs,
-            warnings=[],
-            validation=skip_validation,
-            phase_report={
-                "extras": {
-                    "clip_start_seconds": clip_start,
-                    "effective_audio_seconds": clip_duration,
-                    "expected_frames": expected_frames,
-                    "reused_output_formats": [item["format"] for item in skip_outputs],
-                }
-            },
+        return RendererOutcome(
+            _result_payload(
+                job,
+                media,
+                preset,
+                performance,
+                source_sha,
+                sig,
+                started,
+                fixed_axis_recipe=fixed_axis_recipe,
+                status="SKIPPED",
+                outputs=skip_outputs,
+                warnings=[],
+                validation=skip_validation,
+                phase_report={
+                    "extras": {
+                        "clip_start_seconds": clip_start,
+                        "effective_audio_seconds": clip_duration,
+                        "expected_frames": expected_frames,
+                        "reused_output_formats": [item["format"] for item in skip_outputs],
+                    }
+                },
+            )
         )
 
     producing_mov = want_mov and not skip_mov
@@ -1837,31 +2001,33 @@ def render_job(
             resume_history=resume_history,
             phase_report=clock.snapshot(),
         )
-        return payload
+        return RendererOutcome(payload)
     else:
         if not keep_temp and not bool(performance.workdirs.get("keep_on_success", False)):
             shutil.rmtree(work, ignore_errors=True)
             work_out = None
         else:
             work_out = str(work)
-        return _result_payload(
-            job,
-            media,
-            preset,
-            performance,
-            source_sha,
-            sig,
-            started,
-            fixed_axis_recipe=fixed_axis_recipe,
-            status=status,
-            outputs=outputs,
-            warnings=warnings,
-            workdir=work_out,
-            validation=validation,
-            analysis=analysis,
-            normalization=normalization,
-            resume_history=resume_history,
-            phase_report=clock.snapshot(),
+        return RendererOutcome(
+            _result_payload(
+                job,
+                media,
+                preset,
+                performance,
+                source_sha,
+                sig,
+                started,
+                fixed_axis_recipe=fixed_axis_recipe,
+                status=status,
+                outputs=outputs,
+                warnings=warnings,
+                workdir=work_out,
+                validation=validation,
+                analysis=analysis,
+                normalization=normalization,
+                resume_history=resume_history,
+                phase_report=clock.snapshot(),
+            )
         )
 
 

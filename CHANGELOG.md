@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Introduce an internal typed render execution boundary while retaining the legacy
+  render/service interfaces, raw option values, result dictionary identity and
+  service/benchmark patch seams. Orchestration and worker helpers stay in place;
+  no lifecycle, algorithm, visual-contract, identity, schema or version change.
+
 - Benchmark manifests retain optional per-input start/duration seconds through
   planning, production rendering and reporting. Dry-run exposes requested/effective
   bounds; estimates use the effective interval. Invalid or empty intervals reject
