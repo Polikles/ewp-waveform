@@ -89,6 +89,8 @@ required output and work directories.
 
 Uses the real renderer over a short interval. Expected controls: `--start`, `--duration`, optional future `--template`. Preview uses the preset FPS (default **60**); `--fps 30` is a different identity and will look more stepped at the default scroll speed.
 
+The implemented `preview` command defaults to a start of 0.0 seconds (`--start`) and a duration of 8.0 seconds (`--duration`). In contrast, `render` processes the full file and accepts neither `--start` nor `--duration`.
+
 ## Inspect
 
 Reports source/grouping metadata without rendering.
