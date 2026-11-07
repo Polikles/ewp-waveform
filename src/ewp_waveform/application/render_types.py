@@ -1,4 +1,4 @@
-"""Internal raw render transport; resolution and lifecycle stay in application.render."""
+"""Internal raw render transport; resolution remains at the original execution use sites."""
 
 from __future__ import annotations
 

@@ -4,20 +4,19 @@ from __future__ import annotations
 
 import math
 import multiprocessing
-import shutil
+import shutil as shutil
 import sys
 import time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
-from ewp_waveform import __version__
+from ewp_waveform import __version__ as __version__
 from ewp_waveform.analysis.cache import (
     analysis_cache_digest,
     analysis_cache_payload,
@@ -26,19 +25,27 @@ from ewp_waveform.analysis.cache import (
 )
 from ewp_waveform.analysis.envelope import (
     bin_peak,
-    envelope_aa_from_signal,
     envelope_context_bins,
-    envelope_oversample_from_signal,
     envelope_preroll_seconds,
     hop_samples,
-    motion_cutoff_cyc_px,
-    motion_lpf_from_signal,
     normalize_bins,
     process_envelope_bins,
     published_bin_slice,
     rms_bins_from_wav,
     viewport_left_px,
     window_from_origin,
+)
+from ewp_waveform.analysis.envelope import (
+    envelope_aa_from_signal as envelope_aa_from_signal,
+)
+from ewp_waveform.analysis.envelope import (
+    envelope_oversample_from_signal as envelope_oversample_from_signal,
+)
+from ewp_waveform.analysis.envelope import (
+    motion_cutoff_cyc_px as motion_cutoff_cyc_px,
+)
+from ewp_waveform.analysis.envelope import (
+    motion_lpf_from_signal as motion_lpf_from_signal,
 )
 from ewp_waveform.analysis.frames import AnalysisSequence
 from ewp_waveform.analysis.spectrum import (
@@ -67,12 +74,15 @@ from ewp_waveform.analysis.temporal import (
     temporal_envelope_columns,
     temporal_envelope_peak,
 )
+from ewp_waveform.application import render_lifecycle
 from ewp_waveform.application.appearance import (
     FixedAxisAppearance,
-    resolve_fixed_axis_appearance,
 )
 from ewp_waveform.application.appearance import (
     normalize_spatial_filter as _spectrum_spatial_filter,
+)
+from ewp_waveform.application.appearance import (
+    resolve_fixed_axis_appearance as resolve_fixed_axis_appearance,
 )
 from ewp_waveform.application.checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
@@ -83,10 +93,14 @@ from ewp_waveform.application.checkpoint import (
     load_checkpoint,
     png_chunk_complete,
     reset_workdir,
-    resolve_workdir,
     reusable_chunk_indices,
-    workdir_key,
     write_checkpoint,
+)
+from ewp_waveform.application.checkpoint import (
+    resolve_workdir as resolve_workdir,
+)
+from ewp_waveform.application.checkpoint import (
+    workdir_key as workdir_key,
 )
 from ewp_waveform.application.chunks import (
     ProcessingWindow,
@@ -95,9 +109,9 @@ from ewp_waveform.application.chunks import (
     processing_window,
 )
 from ewp_waveform.application.evidence import fingerprint_from_plan
-from ewp_waveform.application.formats import validate_output_formats
+from ewp_waveform.application.formats import validate_output_formats as validate_output_formats
 from ewp_waveform.application.render_types import RenderContext, RendererOutcome, RenderOptions
-from ewp_waveform.application.results import elapsed_seconds
+from ewp_waveform.application.results import elapsed_seconds as elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
@@ -105,7 +119,9 @@ from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.concat import concat_videos
 from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
 from ewp_waveform.ffmpeg.draw import (
-    CLASSIC_SCROLL_ALTERNATE_OPACITY,
+    CLASSIC_SCROLL_ALTERNATE_OPACITY as CLASSIC_SCROLL_ALTERNATE_OPACITY,
+)
+from ewp_waveform.ffmpeg.draw import (
     RIBBON_SUPERSAMPLE,
     SCROLL_SUPERSAMPLE,
     draw_envelope_frame,
@@ -117,12 +133,20 @@ from ewp_waveform.ffmpeg.encode import (
     encode_rgba_stream,
     glow_sigma,
 )
-from ewp_waveform.ffmpeg.probe import ProbeError, probe_media, probe_png_sequence, probe_video
+from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
+from ewp_waveform.ffmpeg.probe import probe_png_sequence as probe_png_sequence
+from ewp_waveform.ffmpeg.probe import probe_video as probe_video
 from ewp_waveform.identity import (
-    VISUAL_CONTRACT_VERSION,
-    render_signature,
-    sha256_file,
-    short_signature,
+    VISUAL_CONTRACT_VERSION as VISUAL_CONTRACT_VERSION,
+)
+from ewp_waveform.identity import (
+    render_signature as render_signature,
+)
+from ewp_waveform.identity import (
+    sha256_file as sha256_file,
+)
+from ewp_waveform.identity import (
+    short_signature as short_signature,
 )
 from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
@@ -146,32 +170,21 @@ def _utcnow() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _lifecycle_hooks() -> render_lifecycle.LifecycleHooks:
+    """Expose live module helpers without copying callbacks or importing render back."""
+    return cast(render_lifecycle.LifecycleHooks, sys.modules[__name__])
+
+
 def output_root(source: Path, configured: Path | None, directory_name: str) -> Path:
-    if configured is not None:
-        return configured
-    parent = source.parent if source.is_file() else source
-    return parent / directory_name
+    return render_lifecycle.output_root(source, configured, directory_name)
 
 
 def next_version_path(path: Path) -> Path:
-    stem = path.stem
-    suffix = path.suffix
-    parent = path.parent
-    n = 2
-    while True:
-        candidate = parent / f"{stem}_v{n:03d}{suffix}"
-        if not candidate.exists():
-            return candidate
-        n += 1
+    return render_lifecycle.next_version_path(path)
 
 
 def output_is_complete(path: Path) -> bool:
-    """True when dest looks like a finished publish, not an empty leftover."""
-    if path.is_file():
-        return path.stat().st_size > 0
-    if path.is_dir():
-        return any(path.glob("frame_*.png"))
-    return False
+    return render_lifecycle.output_is_complete(path)
 
 
 def publish_path(
@@ -179,12 +192,7 @@ def publish_path(
     *,
     force: bool,
 ) -> tuple[Path, bool]:
-    """Return dest, skip. skip True means equivalent output already present."""
-    if not output_is_complete(dest):
-        return dest, False
-    if force:
-        return next_version_path(dest), False
-    return dest, True
+    return render_lifecycle.publish_path(_lifecycle_hooks(), dest, force=force)
 
 
 def planned_destinations(
@@ -198,26 +206,17 @@ def planned_destinations(
     clip_duration: float | None = None,
     fixed_axis_recipe: dict[str, Any] | None = None,
 ) -> tuple[str, Path | None, Path | None]:
-    """Return render signature and canonical dest paths (mov, png dir)."""
-    validate_output_formats(formats)
-    if fixed_axis_recipe is None and preset.waveform.domain == "frequency":
-        fixed_axis_recipe = resolve_fixed_axis_appearance(preset).identity()
-    sig = render_signature(
+    return render_lifecycle.planned_destinations(
+        _lifecycle_hooks(),
+        job,
+        preset,
         source_sha256=source_sha256,
-        preset=preset,
-        fps=job.fps,
+        output_dir=output_dir,
+        formats=formats,
         clip_start=clip_start,
         clip_duration=clip_duration,
         fixed_axis_recipe=fixed_axis_recipe,
     )
-    short = short_signature(sig)
-    project_dir = output_dir / job.project_id
-    stem = f"{job.path.stem}_{preset.name}_{short}"
-    want_png = "png" in formats
-    want_mov = "prores4444" in formats or not formats
-    mov = project_dir / f"{stem}.mov" if want_mov else None
-    png = project_dir / f"{stem}_png" if want_png else None
-    return sig, mov, png
 
 
 def _tick_frames(
@@ -841,73 +840,22 @@ def _validate_mov(
     expected_frames: int,
     fps: float,
 ) -> dict[str, Any]:
-    """Check metadata plus one decoded frame, not every ProRes frame."""
-    try:
-        if not path.is_file() or path.stat().st_size <= 0:
-            return {"passed": False}
-        info = probe_video(path, first_frame=True)
-        rate_ok = Fraction(info.avg_frame_rate) == Fraction(str(fps))
-        duration_ok = (
-            math.isfinite(info.duration_seconds)
-            and info.duration_seconds > 0
-            # MOV/ffprobe durations are rounded to microseconds.
-            and abs(info.duration_seconds - expected_frames / fps) <= 1 / fps + 1e-6
-        )
-        passed = (
-            info.codec_name == "prores"
-            and info.profile in {"4444", "XQ"}
-            and info.pix_fmt.startswith("yuva444p")
-            and info.width == width
-            and info.height == height
-            and info.nb_frames is not None
-            and abs(info.nb_frames - expected_frames) <= 1
-            and rate_ok
-            and duration_ok
-        )
-    except (ProbeError, OSError, ValueError, ZeroDivisionError):
-        return {"passed": False}
-    return {
-        "passed": passed,
-        "codec": info.codec_name,
-        "pix_fmt": info.pix_fmt,
-        "width": info.width,
-        "height": info.height,
-        "frames": info.nb_frames,
-        "duration_seconds": info.duration_seconds,
-    }
+    return render_lifecycle._validate_mov(
+        _lifecycle_hooks(),
+        path,
+        width=width,
+        height=height,
+        expected_frames=expected_frames,
+        fps=fps,
+    )
 
 
 def _validate_png(
     directory: Path, *, expected_frames: int, width: int, height: int
 ) -> dict[str, Any]:
-    """Require contiguous readable RGBA PNGs, including every frame's geometry."""
-    count = 0
-    passed = False
-    try:
-        frames = sorted(directory.glob("frame_*.png"))
-        count = len(frames)
-        if (
-            not directory.is_dir()
-            or expected_frames < 1
-            or count != expected_frames
-            or any(
-                frame.name != f"frame_{index:06d}.png"
-                or not frame.is_file()
-                or frame.stat().st_size <= 0
-                for index, frame in enumerate(frames, 1)
-            )
-        ):
-            return {"passed": False, "frames": count, "format": "png"}
-        decoded = probe_png_sequence(directory)
-        passed = len(decoded) == expected_frames and all(
-            frame.get("width") == width
-            and frame.get("height") == height
-            and frame.get("pix_fmt") in {"rgba", "rgba64be", "rgba64le"}
-            for frame in decoded
-        )
-    except (ProbeError, OSError, ValueError):
-        pass
-    return {"passed": passed, "frames": count, "format": "png"}
+    return render_lifecycle._validate_png(
+        _lifecycle_hooks(), directory, expected_frames=expected_frames, width=width, height=height
+    )
 
 
 def _with_glow_level(preset: VisualPreset, level: str | None) -> VisualPreset:
@@ -1190,130 +1138,56 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
 
     note(f"hashing {job.path}")
     source_sha = sha256_file(job.path)
-    after_hash = source_sha
     clip_start, clip_duration = _clip_bounds(media, start, duration)
-    sig, mov_dest, png_dest = planned_destinations(
+    selection = render_lifecycle.prepare_destinations(
+        _lifecycle_hooks(),
         job,
         preset,
-        source_sha256=source_sha,
+        source_sha=source_sha,
         output_dir=output_dir,
         formats=formats,
-        clip_start=clip_start,
-        clip_duration=duration if duration is not None and duration > 0 else None,
-        fixed_axis_recipe=fixed_axis_recipe,
-    )
-    project_dir = output_dir / job.project_id
-    project_dir.mkdir(parents=True, exist_ok=True)
-    want_png = png_dest is not None
-    want_mov = mov_dest is not None
-    skip_mov = False
-    skip_png = False
-    if mov_dest is not None:
-        mov_dest, skip_mov = publish_path(mov_dest, force=force)
-    if png_dest is not None:
-        png_dest, skip_png = publish_path(png_dest, force=force)
-
-    expected_frames = max(1, round(clip_duration * job.fps))
-    skip_outputs: list[dict[str, Any]] = []
-    skip_validation: dict[str, Any] = {"passed": True}
-    if want_mov and skip_mov:
-        assert mov_dest is not None
-        try:
-            skip_validation = _validate_mov(
-                mov_dest,
-                width=preset.canvas.width,
-                height=preset.canvas.height,
-                expected_frames=expected_frames,
-                fps=job.fps,
-            )
-        except (ProbeError, OSError):
-            skip_validation = {"passed": False}
-        if not skip_validation.get("passed"):
-            skip_mov = False
-        else:
-            skip_outputs.append({"path": str(mov_dest), "format": "prores4444"})
-    if want_png and skip_png:
-        assert png_dest is not None
-        png_report = _validate_png(
-            png_dest,
-            expected_frames=expected_frames,
-            width=preset.canvas.width,
-            height=preset.canvas.height,
-        )
-        if not png_report.get("passed"):
-            skip_png = False
-        else:
-            skip_outputs.append({"path": str(png_dest), "format": "png"})
-            if not (want_mov and skip_mov):
-                skip_validation = png_report
-
-    if (not want_mov or skip_mov) and (not want_png or skip_png) and not force:
-        note("skip: equivalent output already present")
-        return RendererOutcome(
-            _result_payload(
-                job,
-                media,
-                preset,
-                performance,
-                source_sha,
-                sig,
-                started,
-                fixed_axis_recipe=fixed_axis_recipe,
-                status="SKIPPED",
-                outputs=skip_outputs,
-                warnings=[],
-                validation=skip_validation,
-                phase_report={
-                    "extras": {
-                        "clip_start_seconds": clip_start,
-                        "effective_audio_seconds": clip_duration,
-                        "expected_frames": expected_frames,
-                        "reused_output_formats": [item["format"] for item in skip_outputs],
-                    }
-                },
-            )
-        )
-
-    producing_mov = want_mov and not skip_mov
-    producing_png = want_png and not skip_png
-    key = workdir_key(
-        render_signature=sig,
+        force=force,
         clip_start=clip_start,
         clip_duration=clip_duration,
-        want_mov=producing_mov,
-        want_png=producing_png,
+        identity_duration=duration if duration is not None and duration > 0 else None,
+        fixed_axis_recipe=fixed_axis_recipe,
     )
-    work = resolve_workdir(performance, key)
-    warnings: list[Diagnostic] = []
-    outputs: list[dict[str, Any]] = list(skip_outputs)
-    keep = keep_temp or bool(performance.workdirs.get("keep_on_failure", True))
+    sig = selection.signature
+    expected_frames = selection.expected_frames
+    lifecycle = render_lifecycle.RenderLifecycle(
+        RenderContext(job=job, media=media, preset=preset, performance=performance),
+        _lifecycle_hooks(),
+        selection,
+        source_sha,
+        started,
+        fixed_axis_recipe,
+        clip_start,
+        clip_duration,
+    )
+    if selection.all_reused(force):
+        return lifecycle.skipped(note)
+
+    producing_mov = selection.producing_mov
+    producing_png = selection.producing_png
+    policy = lifecycle.prepare_workdir(keep_temp=keep_temp)
+    work = policy.path
+    warnings = lifecycle.warnings
     analysis: dict[str, Any] = {}
     normalization: dict[str, Any] = {}
-    validation: dict[str, Any] = {"passed": False}
     resume_history: list[dict[str, Any]] = []
     clock = phases if phases is not None else PhaseTimes()
     clock.extras.update(
         clip_start_seconds=clip_start,
         effective_audio_seconds=clip_duration,
         expected_frames=expected_frames,
-        reused_output_formats=[item["format"] for item in skip_outputs],
+        reused_output_formats=[item["format"] for item in selection.skip_outputs],
         ffmpeg_threads_option_role=(
             "input_rawvideo_decoder" if producing_png and producing_mov else "output_encoder"
         ),
     )
     ribbon_ss = appearance.ribbon_ss if appearance is not None else RIBBON_SUPERSAMPLE
     try:
-        after_hash = sha256_file(job.path)
-        if after_hash != source_sha:
-            warnings.append(
-                Diagnostic(
-                    code=DiagnosticCode.E_OUTPUT_VALIDATION,
-                    severity=Severity.ERROR,
-                    message="Source hash changed during render; sources must be immutable.",
-                    path=str(job.path),
-                )
-            )
-            raise RuntimeError("source mutated")
+        lifecycle.verify_source()
         if clip_duration <= 0:
             raise DecodeError("source duration is zero")
         glow = _glow_sigma(preset)
@@ -1684,36 +1558,9 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
                     n_frames=expected_frames,
                 )
             if mov_work is not None:
-                validation = _validate_mov(
-                    mov_work,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                    expected_frames=expected_frames,
-                    fps=job.fps,
-                )
-                if not validation.get("passed"):
-                    raise EncodeError("spectrum output failed validation")
-                if mov_dest is not None:
-                    shutil.move(str(mov_work), str(mov_dest))
-                    outputs.append({"path": str(mov_dest), "format": "prores4444"})
+                lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")
             if png_work is not None:
-                png_report = _validate_png(
-                    png_work,
-                    expected_frames=expected_frames,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                )
-                if not png_report.get("passed"):
-                    raise EncodeError("png sequence failed validation")
-                if png_dest is not None and png_dest.exists():
-                    shutil.rmtree(png_dest)
-                if png_dest is not None:
-                    shutil.move(str(png_work), str(png_dest))
-                    outputs.append({"path": str(png_dest), "format": "png"})
-                if not producing_mov:
-                    validation = png_report
-                else:
-                    validation = {**validation, "png_frames": png_report.get("frames")}
+                lifecycle.publish_png(png_work)
             if geometry == "spectrum":
                 analysis = {
                     "chunk_count": spectrum_encode_workers if field_encoded else 1,
@@ -1936,98 +1783,27 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
                 note(f"concat {len(segments)} segment(s)")
                 tmp_mov = work / "out.mov"
                 concat_videos(segments, tmp_mov, list_path=work / "concat.txt")
-                validation = _validate_mov(
-                    tmp_mov,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                    expected_frames=expected_frames,
-                    fps=job.fps,
-                )
-                if not validation.get("passed"):
-                    raise EncodeError("scroll output failed validation")
-                if mov_dest is not None:
-                    shutil.move(str(tmp_mov), str(mov_dest))
-                    outputs.append({"path": str(mov_dest), "format": "prores4444"})
+                lifecycle.publish_mov(tmp_mov, failure_message="scroll output failed validation")
             if png_work is not None:
-                png_report = _validate_png(
-                    png_work,
-                    expected_frames=expected_frames,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                )
-                if not png_report.get("passed"):
-                    raise EncodeError("png sequence failed validation")
-                if png_dest is not None and png_dest.exists():
-                    shutil.rmtree(png_dest)
-                if png_dest is not None:
-                    shutil.move(str(png_work), str(png_dest))
-                    outputs.append({"path": str(png_dest), "format": "png"})
-                if not producing_mov:
-                    validation = png_report
-                else:
-                    validation = {**validation, "png_frames": png_report.get("frames")}
-        status = "SUCCEEDED"
-        validation["passed"] = True
+                lifecycle.publish_png(png_work)
+        lifecycle.mark_succeeded()
     except (DecodeError, EncodeError, OSError, RuntimeError, ProbeError) as exc:
-        status = "FAILED"
-        warnings.append(
-            Diagnostic(
-                code=DiagnosticCode.E_OUTPUT_VALIDATION
-                if "hash" in str(exc) or "validation" in str(exc)
-                else DiagnosticCode.E_RENDERER_CAPABILITY,
-                severity=Severity.ERROR,
-                message=str(exc),
-            )
-        )
-        validation = {**validation, "passed": False}
-        if not keep:
-            shutil.rmtree(work, ignore_errors=True)
-        payload = _result_payload(
-            job,
-            media,
-            preset,
-            performance,
-            source_sha,
-            sig,
-            started,
-            fixed_axis_recipe=fixed_axis_recipe,
-            status=status,
-            outputs=outputs,
-            warnings=warnings,
-            workdir=str(work) if Path(work).exists() else None,
-            validation=validation,
+        return lifecycle.failed(
+            exc,
+            policy,
             analysis=analysis,
             normalization=normalization,
             resume_history=resume_history,
-            phase_report=clock.snapshot(),
+            clock=clock,
         )
-        return RendererOutcome(payload)
     else:
-        if not keep_temp and not bool(performance.workdirs.get("keep_on_success", False)):
-            shutil.rmtree(work, ignore_errors=True)
-            work_out = None
-        else:
-            work_out = str(work)
-        return RendererOutcome(
-            _result_payload(
-                job,
-                media,
-                preset,
-                performance,
-                source_sha,
-                sig,
-                started,
-                fixed_axis_recipe=fixed_axis_recipe,
-                status=status,
-                outputs=outputs,
-                warnings=warnings,
-                workdir=work_out,
-                validation=validation,
-                analysis=analysis,
-                normalization=normalization,
-                resume_history=resume_history,
-                phase_report=clock.snapshot(),
-            )
+        return lifecycle.succeeded(
+            policy,
+            keep_temp=keep_temp,
+            analysis=analysis,
+            normalization=normalization,
+            resume_history=resume_history,
+            clock=clock,
         )
 
 
@@ -2320,80 +2096,23 @@ def _result_payload(
     phase_report: dict[str, Any] | None = None,
     fixed_axis_recipe: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    glow = preset.effects.get("glow") if isinstance(preset.effects.get("glow"), dict) else {}
-    report = validation if validation is not None else {"passed": status == "SUCCEEDED"}
-    return {
-        "schema_version": 1,
-        "tool": {"name": "ewp-waveform", "version": __version__},
-        "job": {
-            "job_id": f"{job.project_id}-{job.track_id}-{short_signature(sig)}",
-            "status": status,
-            "render_signature": sig,
-            "seed": 0,
-        },
-        "renderer": {
-            "name": "ffmpeg",
-            "version": "system",
-            "visual_contract_version": VISUAL_CONTRACT_VERSION,
-        },
-        "project": {"project_id": job.project_id, "track_id": job.track_id},
-        "inputs": [
-            {
-                "path": str(media.path),
-                "sha256": source_sha,
-                "size_bytes": media.size_bytes,
-                "duration_seconds": media.duration_seconds,
-                "codec": media.codec,
-                "sample_rate": media.sample_rate,
-                "channels": media.channels,
-            }
-        ],
-        "preset": {"name": preset.name, "source": "builtin"},
-        "resolved_visual_config": {
-            **({"fixed_axis_recipe": fixed_axis_recipe} if fixed_axis_recipe is not None else {}),
-            "fps": job.fps,
-            "style": preset.waveform.style,
-            "domain": preset.waveform.domain,
-            "time_mode": preset.waveform.time_mode,
-            "color": preset.waveform.color,
-            "window_seconds": preset.waveform.window_seconds,
-            "classic_alternate_opacity": preset.signal.get(
-                "classic_alternate_opacity", CLASSIC_SCROLL_ALTERNATE_OPACITY
-            ),
-            "envelope_oversample": envelope_oversample_from_signal(preset.signal),
-            "envelope_aa": envelope_aa_from_signal(preset.signal)[0],
-            "envelope_aa_support": envelope_aa_from_signal(preset.signal)[1],
-            "shutter_degrees": preset.signal.get("shutter_degrees", 0),
-            "shutter_mix": preset.signal.get("shutter_mix", 0.25),
-            "envelope_motion_lpf": motion_lpf_from_signal(preset.signal)[0],
-            "envelope_motion_cutoff": motion_cutoff_cyc_px(
-                width=preset.canvas.width,
-                window_seconds=preset.waveform.window_seconds,
-                fps=job.fps,
-                margin=motion_lpf_from_signal(preset.signal)[2],
-                explicit=motion_lpf_from_signal(preset.signal)[1],
-            ),
-            "glow": glow,
-        },
-        "resolved_performance_config": {
-            "profile": performance.name,
-            **performance.processing,
-        },
-        "analysis": analysis or {},
-        "normalization": normalization or {},
-        "warnings": [w.model_dump(mode="json") for w in warnings],
-        "outputs": outputs,
-        "validation": report,
-        "performance": phase_report or {},
-        "resume_history": resume_history or [],
-        "timestamps": {
-            "started_at": started,
-            "completed_at": (completed := _utcnow()),
-            "duration_seconds": elapsed_seconds(started, completed),
-        },
-        "execution": {
-            "workdir": workdir,
-            "capability": job.capability.value,
-            "resumed": bool(resume_history),
-        },
-    }
+    return render_lifecycle._result_payload(
+        _lifecycle_hooks(),
+        job,
+        media,
+        preset,
+        performance,
+        source_sha,
+        sig,
+        started,
+        status=status,
+        outputs=outputs,
+        warnings=warnings,
+        workdir=workdir,
+        validation=validation,
+        analysis=analysis,
+        normalization=normalization,
+        resume_history=resume_history,
+        phase_report=phase_report,
+        fixed_axis_recipe=fixed_axis_recipe,
+    )
