@@ -16,7 +16,6 @@ from typing import cast
 from unittest.mock import Mock, call
 
 import pytest
-from tests.unit.test_plan import _job
 
 from ewp_waveform.application import render_fixed, render_scroll
 from ewp_waveform.application.errors import AppError
@@ -33,6 +32,7 @@ from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.load import load_performance, load_preset
 from ewp_waveform.domain.diagnostics import DiagnosticCode
 from ewp_waveform.domain.models import SourceMedia
+from tests.unit.test_plan import _job
 
 
 @pytest.fixture
