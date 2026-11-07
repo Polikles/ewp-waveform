@@ -9,8 +9,8 @@ from typing import Any
 from unittest.mock import Mock, call
 
 import pytest
-from ewp_waveform.application.render_lifecycle import LifecycleHooks
 
+from ewp_waveform.application.render_lifecycle import LifecycleHooks
 from ewp_waveform.application.render_types import RenderContext, RendererOutcome, RenderOptions
 from ewp_waveform.config.load import load_performance, load_preset
 from ewp_waveform.domain.models import SourceMedia, VisualizationDomain
