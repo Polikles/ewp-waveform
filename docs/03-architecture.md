@@ -152,3 +152,42 @@ completion-order checkpoint writes and clip-relative resume-boundary reporting
 are unchanged. Public signatures/defaults, identity/visual-contract version and
 exact oracles remain unchanged. This extraction neither corrects existing failure
 windows nor claims performance, operator visual/NLE or aggregate acceptance.
+
+
+## Internal fixed-axis pipeline boundary (REF-004)
+
+`application.render_fixed` owns the pre-reuse fixed-axis appearance-option adapter,
+legacy spectrum and centered temporal frame iteration, field peak/staging, analysis
+cache orchestration, the field task payload, thresholded parallel encoding and
+ordered concat. The existing appearance resolver, analysis/cache implementation,
+raster/plan implementations and FFmpeg adapters are unchanged. The dispatcher
+retains shared preset color/glow/opacity overrides, clipping, source checks, timing
+allocation and the original catch boundary; lifecycle and scroll implementations
+are unchanged. No REF-005 registry or new renderer architecture is introduced.
+
+A typed `FixedHooks` view of the live dispatcher preserves helper, constant,
+constructor, module, encoder and test monkeypatch lookups, including replacements
+between yielded frames or in progress callbacks. Explicit compatibility forwards
+retain the original helper signatures/defaults in `render`; `FieldChunkTask` and
+the 1,800-frame threshold are re-exported there. The existing
+`render.encode_field_chunk` remains the spawn target. Only the unchanged frozen
+scalar task payload enters the pool, never a hook view or lifecycle object. The
+new payload definition is importable through both module paths, including the
+legacy path used to unpickle an older task.
+
+The fixed pipeline calls the existing lifecycle publication methods through a
+small structural view, rather than implementing validation or publication itself.
+This keeps MOV-before-PNG publication and the selected-base partial-report failure
+windows: temporal analysis is assigned before encode, spectrum analysis only after
+publication, and normalization only after publication. Caller-owned initially
+empty reports are updated at those exact original assignment boundaries. A failed
+PNG publication can still leave a MOV published; this extraction is not rollback
+or atomic multi-output publication.
+
+All selected-base analysis calls/data, frequency-span and normalization rules,
+cache keys/values/hit/corrupt behavior, physical supersampling/coverage taps,
+mask/RGBA selection and forced-path fallback, field geometry/bar/color/glow
+controls, pool threshold, canonical field rows, range ordering and PNG numbering
+remain unchanged. Public render/service interfaces, identity, visual-contract
+version, result and checkpoint schemas remain unchanged. Structural AST checks
+are not runtime, visual, performance or operator acceptance.

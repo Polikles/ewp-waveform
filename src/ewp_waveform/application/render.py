@@ -2,27 +2,24 @@
 
 from __future__ import annotations
 
-import multiprocessing
+import multiprocessing as multiprocessing
 import shutil as shutil
 import sys
-import time
+import time as time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor as ProcessPoolExecutor
 from concurrent.futures import as_completed as as_completed
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path as Path
 from typing import Any, cast
 
-import numpy as np
+import numpy as _np
 
 from ewp_waveform import __version__ as __version__
-from ewp_waveform.analysis.cache import (
-    analysis_cache_digest,
-    analysis_cache_payload,
-    load_analysis_cache,
-    store_analysis_cache,
-)
+from ewp_waveform.analysis.cache import analysis_cache_digest as analysis_cache_digest
+from ewp_waveform.analysis.cache import analysis_cache_payload as analysis_cache_payload
+from ewp_waveform.analysis.cache import load_analysis_cache as load_analysis_cache
+from ewp_waveform.analysis.cache import store_analysis_cache as store_analysis_cache
 from ewp_waveform.analysis.envelope import (
     bin_peak as bin_peak,
 )
@@ -66,38 +63,36 @@ from ewp_waveform.analysis.envelope import (
     window_from_origin as window_from_origin,
 )
 from ewp_waveform.analysis.frames import AnalysisSequence
+from ewp_waveform.analysis.spectrum import PIVOT_TAU_SECONDS as PIVOT_TAU_SECONDS
+from ewp_waveform.analysis.spectrum import FrequencySpan
+from ewp_waveform.analysis.spectrum import apply_edge_taper as apply_edge_taper
+from ewp_waveform.analysis.spectrum import apply_spectrum_spatial as apply_spectrum_spatial
+from ewp_waveform.analysis.spectrum import blend_columns as blend_columns
+from ewp_waveform.analysis.spectrum import build_analysis_sequence as build_analysis_sequence
+from ewp_waveform.analysis.spectrum import dominant_band_pivot as dominant_band_pivot
+from ewp_waveform.analysis.spectrum import ema_alpha as ema_alpha
+from ewp_waveform.analysis.spectrum import fold_bands_center_out as fold_bands_center_out
+from ewp_waveform.analysis.spectrum import gaussian_smooth as gaussian_smooth
+from ewp_waveform.analysis.spectrum import load_mono_pcm as load_mono_pcm
 from ewp_waveform.analysis.spectrum import (
-    PIVOT_TAU_SECONDS,
-    FrequencySpan,
-    apply_edge_taper,
-    apply_spectrum_spatial,
-    blend_columns,
-    build_analysis_sequence,
-    dominant_band_pivot,
-    ema_alpha,
-    fold_bands_center_out,
-    gaussian_smooth,
-    load_mono_pcm,
-    resolve_frequency_span_from_pcm,
-    spectrum_bands,
-    spectrum_columns,
-    spectrum_peak,
-    upsample_bands,
+    resolve_frequency_span_from_pcm as resolve_frequency_span_from_pcm,
 )
-from ewp_waveform.analysis.temporal import (
-    TEMPORAL_BINS,
-    TEMPORAL_PEAK_MIX,
-    TEMPORAL_WINDOW_SECONDS,
-    load_mono_f32,
-    temporal_envelope_columns,
-    temporal_envelope_peak,
-)
-from ewp_waveform.application import render_lifecycle, render_scroll
+from ewp_waveform.analysis.spectrum import spectrum_bands as spectrum_bands
+from ewp_waveform.analysis.spectrum import spectrum_columns as spectrum_columns
+from ewp_waveform.analysis.spectrum import spectrum_peak as spectrum_peak
+from ewp_waveform.analysis.spectrum import upsample_bands as upsample_bands
+from ewp_waveform.analysis.temporal import TEMPORAL_BINS as TEMPORAL_BINS
+from ewp_waveform.analysis.temporal import TEMPORAL_PEAK_MIX as TEMPORAL_PEAK_MIX
+from ewp_waveform.analysis.temporal import TEMPORAL_WINDOW_SECONDS as TEMPORAL_WINDOW_SECONDS
+from ewp_waveform.analysis.temporal import load_mono_f32 as load_mono_f32
+from ewp_waveform.analysis.temporal import temporal_envelope_columns as temporal_envelope_columns
+from ewp_waveform.analysis.temporal import temporal_envelope_peak as temporal_envelope_peak
+from ewp_waveform.application import render_fixed, render_lifecycle, render_scroll
 from ewp_waveform.application.appearance import (
     FixedAxisAppearance,
 )
 from ewp_waveform.application.appearance import (
-    normalize_spatial_filter as _spectrum_spatial_filter,
+    normalize_spatial_filter as _normalize_spatial_filter,
 )
 from ewp_waveform.application.appearance import (
     resolve_fixed_axis_appearance as resolve_fixed_axis_appearance,
@@ -150,8 +145,14 @@ from ewp_waveform.application.chunks import (
 from ewp_waveform.application.chunks import (
     processing_window as processing_window,
 )
-from ewp_waveform.application.evidence import fingerprint_from_plan
+from ewp_waveform.application.evidence import fingerprint_from_plan as fingerprint_from_plan
 from ewp_waveform.application.formats import validate_output_formats as validate_output_formats
+from ewp_waveform.application.render_fixed import (
+    _FIELD_POOL_MIN_FRAMES as _FIELD_POOL_MIN_FRAMES,
+)
+from ewp_waveform.application.render_fixed import (
+    FieldChunkTask as FieldChunkTask,
+)
 from ewp_waveform.application.render_scroll import (
     ChunkEncodeTask as ChunkEncodeTask,
 )
@@ -181,16 +182,14 @@ from ewp_waveform.ffmpeg.decode import decode_mono_wav as decode_mono_wav
 from ewp_waveform.ffmpeg.draw import (
     CLASSIC_SCROLL_ALTERNATE_OPACITY as CLASSIC_SCROLL_ALTERNATE_OPACITY,
 )
-from ewp_waveform.ffmpeg.draw import (
-    RIBBON_SUPERSAMPLE,
-    draw_spectrum_frame,
-)
+from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
 from ewp_waveform.ffmpeg.draw import (
     SCROLL_SUPERSAMPLE as SCROLL_SUPERSAMPLE,
 )
 from ewp_waveform.ffmpeg.draw import (
     draw_envelope_frame as draw_envelope_frame,
 )
+from ewp_waveform.ffmpeg.draw import draw_spectrum_frame as draw_spectrum_frame
 from ewp_waveform.ffmpeg.draw import (
     glow_overscan as glow_overscan,
 )
@@ -217,15 +216,19 @@ from ewp_waveform.identity import (
 from ewp_waveform.identity import (
     short_signature as short_signature,
 )
-from ewp_waveform.visual.bars import BarStyle
-from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS, CenterOutMapping
-from ewp_waveform.visual.plan import RenderPlan, resolve_render_plan
-from ewp_waveform.visual.raster import raster_field_columns
-from ewp_waveform.visual.ribbon import field_to_columns
-from ewp_waveform.visual.style_defaults import (
-    BAR_GEOMETRIES,
-    default_glow_level,
-)
+from ewp_waveform.visual.bars import BarStyle as BarStyle
+from ewp_waveform.visual.mapping import CENTER_OUT_SLOTS as CENTER_OUT_SLOTS
+from ewp_waveform.visual.mapping import CenterOutMapping as CenterOutMapping
+from ewp_waveform.visual.plan import RenderPlan as RenderPlan
+from ewp_waveform.visual.plan import resolve_render_plan as resolve_render_plan
+from ewp_waveform.visual.raster import raster_field_columns as raster_field_columns
+from ewp_waveform.visual.ribbon import field_to_columns as field_to_columns
+from ewp_waveform.visual.style_defaults import BAR_GEOMETRIES as BAR_GEOMETRIES
+from ewp_waveform.visual.style_defaults import default_glow_level
+
+# Explicit compatibility exports retain the same imported helper/module objects.
+np = _np
+_spectrum_spatial_filter = _normalize_spatial_filter
 
 
 def _glow_sigma(preset: VisualPreset) -> float:
@@ -242,6 +245,11 @@ def _utcnow() -> str:
 def _lifecycle_hooks() -> render_lifecycle.LifecycleHooks:
     """Expose live module helpers without copying callbacks or importing render back."""
     return cast(render_lifecycle.LifecycleHooks, sys.modules[__name__])
+
+
+def _fixed_hooks() -> render_fixed.FixedHooks:
+    """Keep fixed-axis helper/worker lookups live without a reverse import."""
+    return cast(render_fixed.FixedHooks, sys.modules[__name__])
 
 
 def _scroll_hooks() -> render_scroll.ScrollHooks:
@@ -354,106 +362,30 @@ def iter_spectrum_frames(
     slot_sigma: float = 0.0,
     supersample: int = RIBBON_SUPERSAMPLE,
 ) -> Iterator[bytes]:
-    """Fixed-axis frames: X is log-Hz, motion is vertical only.
-
-    ``contour`` is a visual-target experiment: PCHIP filled silhouette instead
-    of independent column spans. ``spatial_sigma`` / ``spatial_filter`` are
-    log-Hz LPF experiments; FFT, span, EMA, and gain are unchanged.
-    ``recenter`` / ``edge_taper`` are layout-only (not analysis or gain).
-    ``layout="center_out"`` is a static fold; X slots never move between frames.
-    """
-    width = preset.canvas.width
-    height = preset.canvas.height
-    stroke = preset.waveform.stroke_width or 3.0
-    center = bool(preset.waveform.center_line)
-    pad = glow_overscan(glow)
-    draw_w = width + 2 * pad
-    draw_h = height + 2 * pad
-    alpha = ema_alpha(fps, tau_seconds)
-    pivot_alpha = ema_alpha(fps, PIVOT_TAU_SECONDS)
-    previous: list[float] | None = None
-    pivot: float | None = None
-    filt = _spectrum_spatial_filter(spatial_filter)
-    taper = edge_taper if edge_taper > 0.0 else 0.0
-    ss = max(1, int(supersample))
-    for i in range(n_frames):
-        if n_bands is not None:
-            bands = spectrum_bands(
-                path,
-                frame_index=i,
-                fps=fps,
-                span=span,
-                scale=scale,
-                n_bands=n_bands,
-                tilt_db_per_octave=tilt_db_per_octave,
-                compress=compress,
-            )
-            if layout == "center_out":
-                slots = fold_bands_center_out(bands)
-                if slot_sigma > 0.0:
-                    slots = gaussian_smooth(slots, sigma=slot_sigma)
-                raw = upsample_bands(slots, draw_w, pivot=None)
-            else:
-                layout_pivot: float | None = None
-                if recenter:
-                    instant = dominant_band_pivot(bands)
-                    if pivot is None:
-                        pivot = instant
-                    else:
-                        pivot = pivot_alpha * instant + (1.0 - pivot_alpha) * pivot
-                    layout_pivot = pivot
-                raw = upsample_bands(bands, draw_w, pivot=layout_pivot)
-            raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
-        else:
-            raw = spectrum_columns(
-                path,
-                frame_index=i,
-                fps=fps,
-                width=draw_w,
-                span=span,
-                scale=scale,
-                smoothing_sigma=spatial_sigma,
-                spatial_filter=filt,
-            )
-        if peak is not None and peak > 0.0:
-            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
-        blended = blend_columns(previous, raw, alpha)
-        previous = blended
-        if taper > 0.0:
-            blended = apply_edge_taper(
-                blended,
-                content_width=width,
-                pad=pad,
-                fraction=taper,
-            )
-        if contour:
-            yield draw_spectrum_frame(
-                blended,
-                width=draw_w,
-                height=draw_h,
-                color=preset.waveform.color,
-                amplitude=preset.waveform.amplitude,
-                center_line=center,
-                content_height=height,
-                supersample=ss,
-                glow_sigma=glow,
-            )
-        else:
-            yield draw_envelope_frame(
-                blended,
-                width=draw_w,
-                height=draw_h,
-                color=preset.waveform.color,
-                amplitude=preset.waveform.amplitude,
-                stroke_width=stroke,
-                style=preset.waveform.style,
-                center_line=center,
-                scroll_phase=0.0,
-                content_height=height,
-                supersample=ss,
-                glow_sigma=glow,
-                envelope_oversample=1,
-            )
+    return render_fixed.iter_spectrum_frames(
+        _fixed_hooks(),
+        path,
+        n_frames=n_frames,
+        preset=preset,
+        fps=fps,
+        glow=glow,
+        span=span,
+        peak=peak,
+        scale=scale,
+        tau_seconds=tau_seconds,
+        soft_clip=soft_clip,
+        contour=contour,
+        spatial_sigma=spatial_sigma,
+        spatial_filter=spatial_filter,
+        n_bands=n_bands,
+        tilt_db_per_octave=tilt_db_per_octave,
+        compress=compress,
+        recenter=recenter,
+        edge_taper=edge_taper,
+        layout=layout,
+        slot_sigma=slot_sigma,
+        supersample=supersample,
+    )
 
 
 def _visual_field_peak(
@@ -464,16 +396,14 @@ def _visual_field_peak(
     spatial_filter: str,
     mapping: CenterOutMapping,
 ) -> float:
-    collected: list[float] = []
-    n_frames = len(sequence)
-    step = 1 if n_frames <= 240 else max(1, n_frames // 120)
-    filt = _spectrum_spatial_filter(spatial_filter)
-    for i in range(0, n_frames, step):
-        field = mapping.apply(sequence[i])
-        columns = field_to_columns(field, width)
-        columns = apply_spectrum_spatial(columns, sigma=spatial_sigma, kind=filt)
-        collected.extend(columns)
-    return bin_peak(collected)
+    return render_fixed._visual_field_peak(
+        _fixed_hooks(),
+        sequence,
+        width=width,
+        spatial_sigma=spatial_sigma,
+        spatial_filter=spatial_filter,
+        mapping=mapping,
+    )
 
 
 def iter_field_frames(
@@ -494,169 +424,42 @@ def iter_field_frames(
     bar_style: BarStyle | None = None,
     phases: PhaseTimes | None = None,
 ) -> Iterator[bytes]:
-    """AnalysisFrame -> static VisualField -> style geometry. X slots never move."""
-    height = preset.canvas.height
-    pad = glow_overscan(glow)
-    draw_w = preset.canvas.width + 2 * pad
-    draw_h = height + 2 * pad
-    alpha = ema_alpha(fps, tau_seconds)
-    filt = _spectrum_spatial_filter(spatial_filter)
-    previous: list[float] | None = None
-    resolved = plan or resolve_render_plan(
-        preset,
-        layout="field_center_out",
-        field_geometry="ribbon",
-        ribbon_supersample=supersample,
+    return render_fixed.iter_field_frames(
+        _fixed_hooks(),
+        sequence,
+        n_frames=n_frames,
+        preset=preset,
+        fps=fps,
+        glow=glow,
+        peak=peak,
+        tau_seconds=tau_seconds,
+        soft_clip=soft_clip,
+        spatial_sigma=spatial_sigma,
+        spatial_filter=spatial_filter,
+        mapping=mapping,
+        supersample=supersample,
+        plan=plan,
+        bar_style=bar_style,
+        phases=phases,
     )
-    # Bars: no decorative center line until that styling pass.
-    center = bool(preset.waveform.center_line) and resolved.geometry not in BAR_GEOMETRIES
-    count = min(n_frames, len(sequence))
-    for i in range(count):
-        t0 = time.perf_counter()
-        field = mapping.apply(sequence[i])
-        raw = field_to_columns(field, draw_w)
-        raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
-        if peak is not None and peak > 0.0:
-            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
-        blended = blend_columns(previous, raw, alpha)
-        previous = blended
-        t1 = time.perf_counter()
-        frame = raster_field_columns(
-            blended,
-            plan=resolved,
-            width=draw_w,
-            height=draw_h,
-            color=preset.waveform.color,
-            amplitude=preset.waveform.amplitude,
-            center_line=center,
-            content_height=preset.canvas.height,
-            glow_sigma=glow,
-            bar_style=bar_style,
-        )
-        t2 = time.perf_counter()
-        if phases is not None:
-            phases.add("visual_field", t1 - t0)
-            phases.add("raster", t2 - t1)
-        yield frame
 
 
 # Spawn+concat loses to the fused generator on short clips (8 s @ 60 fps).
-_FIELD_POOL_MIN_FRAMES = 1800
 
 
 def _field_frame_ranges(n_frames: int, workers: int) -> list[tuple[int, int]]:
-    """Split ``[0, n_frames)`` into contiguous ranges. Order is concat order."""
-    count = max(1, n_frames)
-    n_workers = min(max(1, workers), count)
-    base, extra = divmod(count, n_workers)
-    ranges: list[tuple[int, int]] = []
-    start = 0
-    for index in range(n_workers):
-        size = base + (1 if index < extra else 0)
-        ranges.append((start, size))
-        start += size
-    return ranges
-
-
-@dataclass(frozen=True)
-class FieldChunkTask:
-    """Pickleable payload for one independent field-ribbon encode range."""
-
-    chunk_index: int
-    n_chunks: int
-    first_frame: int
-    n_frames: int
-    columns_path: str
-    width: int
-    height: int
-    fps: float
-    color: str
-    amplitude: float
-    center_line: bool
-    content_height: int
-    glow: float
-    png_dir: str | None
-    prores_path: str | None
-    ffmpeg_threads: int
-    overscan: int
-    supersample: int
-    pix_fmt: str
-    aa_taps: int
-    plan_path: str
-    geometry: str
-    bar_width: float
-    bar_gap: float
-    bar_count: int
-    bar_fill: float
-    bar_align: str
-    bar_alternate: bool
-    bar_color_b: str
-    bar_center_line_width: float
+    return render_fixed._field_frame_ranges(
+        _fixed_hooks(),
+        n_frames,
+        workers,
+    )
 
 
 def encode_field_chunk(task: FieldChunkTask) -> Path | None:
-    """Raster and encode one precomputed column range. Spawn-pool safe."""
-    columns = np.load(task.columns_path, mmap_mode="r")
-    slc = columns[task.first_frame : task.first_frame + task.n_frames]
-    pad = task.overscan
-    draw_w = task.width + 2 * pad
-    draw_h = task.height + 2 * pad
-
-    plan = RenderPlan(
-        path="mask_fast" if task.plan_path == "mask_fast" else "rgba_2d",
-        pix_fmt="gray" if task.pix_fmt == "gray" else "rgba",
-        bytes_per_pixel=1 if task.pix_fmt == "gray" else 4,
-        supersample=task.supersample,
-        aa_mode="coverage_taps" if task.aa_taps > 1 and task.supersample == 1 else "physical_ss",
-        aa_taps=task.aa_taps,
-        colorize=task.pix_fmt == "gray",
-        geometry=task.geometry,
+    return render_fixed.encode_field_chunk(
+        _fixed_hooks(),
+        task,
     )
-    bars = BarStyle(
-        width=task.bar_width,
-        gap=task.bar_gap,
-        count=task.bar_count if task.bar_count > 0 else None,
-        fill=task.bar_fill,
-        align=task.bar_align,
-        alternate=task.bar_alternate,
-        color_b=task.bar_color_b,
-        center_line_width=task.bar_center_line_width,
-    )
-
-    def frames() -> Iterator[bytes]:
-        for row in slc:
-            yield raster_field_columns(
-                row.tolist(),
-                plan=plan,
-                width=draw_w,
-                height=draw_h,
-                color=task.color,
-                amplitude=task.amplitude,
-                center_line=task.center_line,
-                content_height=task.content_height,
-                glow_sigma=task.glow,
-                bar_style=bars,
-            )
-
-    png_dir = Path(task.png_dir) if task.png_dir is not None else None
-    prores_path = Path(task.prores_path) if task.prores_path is not None else None
-    encode_rgba_stream(
-        frames(),
-        width=task.width,
-        height=task.height,
-        fps=task.fps,
-        glow=task.glow,
-        png_dir=png_dir,
-        prores_path=prores_path,
-        ffmpeg_threads=task.ffmpeg_threads,
-        overscan=task.overscan,
-        supersample=task.supersample,
-        png_start_number=task.first_frame + 1,
-        pix_fmt=task.pix_fmt,
-        color=task.color if task.pix_fmt == "gray" else None,
-        n_frames=task.n_frames,
-    )
-    return prores_path
 
 
 def _precompute_field_columns(
@@ -673,24 +476,20 @@ def _precompute_field_columns(
     mapping: CenterOutMapping,
     phases: PhaseTimes | None = None,
 ) -> list[list[float]]:
-    alpha = ema_alpha(fps, tau_seconds)
-    filt = _spectrum_spatial_filter(spatial_filter)
-    previous: list[float] | None = None
-    rows: list[list[float]] = []
-    count = min(n_frames, len(sequence))
-    for i in range(count):
-        t0 = time.perf_counter()
-        field = mapping.apply(sequence[i])
-        raw = field_to_columns(field, draw_w)
-        raw = apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
-        if peak is not None and peak > 0.0:
-            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
-        blended = blend_columns(previous, raw, alpha)
-        previous = blended
-        if phases is not None:
-            phases.add("visual_field", time.perf_counter() - t0)
-        rows.append(blended)
-    return rows
+    return render_fixed._precompute_field_columns(
+        _fixed_hooks(),
+        sequence,
+        n_frames=n_frames,
+        draw_w=draw_w,
+        peak=peak,
+        tau_seconds=tau_seconds,
+        fps=fps,
+        soft_clip=soft_clip,
+        spatial_sigma=spatial_sigma,
+        spatial_filter=spatial_filter,
+        mapping=mapping,
+        phases=phases,
+    )
 
 
 def iter_temporal_frames(
@@ -707,39 +506,20 @@ def iter_temporal_frames(
     origin_seconds: float,
     peak_mix: float,
 ) -> Iterator[bytes]:
-    """Centered temporal envelope: X is time in a local window, current time at mid."""
-    width = preset.canvas.width
-    height = preset.canvas.height
-    center = bool(preset.waveform.center_line)
-    pad = glow_overscan(glow)
-    draw_w = width + 2 * pad
-    draw_h = height + 2 * pad
-    alpha = ema_alpha(fps, tau_seconds)
-    previous: list[float] | None = None
-    for i in range(n_frames):
-        time_seconds = origin_seconds + (i / fps if fps > 0 else 0.0)
-        raw = temporal_envelope_columns(
-            samples,
-            rate,
-            time_seconds=time_seconds,
-            width=draw_w,
-            peak_mix=peak_mix,
-        )
-        if peak is not None and peak > 0.0:
-            raw = normalize_bins(raw, peak=peak, soft_clip=soft_clip)
-        blended = blend_columns(previous, raw, alpha)
-        previous = blended
-        yield draw_spectrum_frame(
-            blended,
-            width=draw_w,
-            height=draw_h,
-            color=preset.waveform.color,
-            amplitude=preset.waveform.amplitude,
-            center_line=center,
-            content_height=height,
-            supersample=SCROLL_SUPERSAMPLE,
-            glow_sigma=glow,
-        )
+    return render_fixed.iter_temporal_frames(
+        _fixed_hooks(),
+        samples,
+        rate,
+        n_frames=n_frames,
+        preset=preset,
+        fps=fps,
+        glow=glow,
+        peak=peak,
+        tau_seconds=tau_seconds,
+        soft_clip=soft_clip,
+        origin_seconds=origin_seconds,
+        peak_mix=peak_mix,
+    )
 
 
 def _chunk_seconds(performance: PerformanceProfile) -> float:
@@ -1022,28 +802,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
     fail_after_chunk = options.fail_after_chunk
     progress = options.progress
     spectrum_contour = options.spectrum_contour
-    spectrum_spatial_scale = options.spectrum_spatial_scale
-    spectrum_spatial_filter = options.spectrum_spatial_filter
-    spectrum_n_bands = options.spectrum_n_bands
-    spectrum_tilt_db_per_octave = options.spectrum_tilt_db_per_octave
-    spectrum_compress = options.spectrum_compress
-    spectrum_recenter = options.spectrum_recenter
-    spectrum_edge_taper = options.spectrum_edge_taper
-    visual_geometry = options.visual_geometry
-    spectrum_layout = options.spectrum_layout
-    spectrum_slot_sigma = options.spectrum_slot_sigma
-    ribbon_supersample = options.ribbon_supersample
-    render_path = options.render_path
-    render_aa = options.render_aa
     field_geometry = options.field_geometry
-    bar_width = options.bar_width
-    bar_gap = options.bar_gap
-    bar_count = options.bar_count
-    bar_fill = options.bar_fill
-    bar_align = options.bar_align
-    bar_alternate = options.bar_alternate
-    bar_color_b = options.bar_color_b
-    bar_center_line_width = options.bar_center_line_width
     waveform_color = options.waveform_color
     glow_level = options.glow_level
     classic_alternate_opacity = options.classic_alternate_opacity
@@ -1059,32 +818,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
 
     appearance: FixedAxisAppearance | None = None
     if job.domain.value == "frequency":
-        appearance = resolve_fixed_axis_appearance(
-            preset,
-            spectrum_contour=spectrum_contour,
-            spectrum_spatial_scale=spectrum_spatial_scale,
-            spectrum_spatial_filter=spectrum_spatial_filter,
-            spectrum_n_bands=spectrum_n_bands,
-            spectrum_tilt_db_per_octave=spectrum_tilt_db_per_octave,
-            spectrum_compress=spectrum_compress,
-            spectrum_recenter=spectrum_recenter,
-            spectrum_edge_taper=spectrum_edge_taper,
-            visual_geometry=visual_geometry,
-            spectrum_layout=spectrum_layout,
-            spectrum_slot_sigma=spectrum_slot_sigma,
-            ribbon_supersample=ribbon_supersample,
-            render_path=render_path,
-            render_aa=render_aa,
-            field_geometry=field_geometry,
-            bar_width=bar_width,
-            bar_gap=bar_gap,
-            bar_count=bar_count,
-            bar_fill=bar_fill,
-            bar_align=bar_align,
-            bar_alternate=bar_alternate,
-            bar_color_b=bar_color_b,
-            bar_center_line_width=bar_center_line_width,
-        )
+        appearance = render_fixed.resolve_fixed_options(_fixed_hooks(), preset, options)
     fixed_axis_recipe = appearance.identity() if appearance is not None else None
 
     def note(message: str) -> None:
@@ -1150,408 +884,30 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
         threads = raw_threads if isinstance(raw_threads, int) else 0
         if job.domain.value == "frequency":
             assert appearance is not None
-            geometry = appearance.geometry
-            scale = str(preset.signal.get("scale") or "sqrt")
-            raw_smooth = preset.signal.get("smoothing", 0.0)
-            tau = 0.0
-            if isinstance(raw_smooth, int | float) and not isinstance(raw_smooth, bool):
-                tau = max(0.0, float(raw_smooth))
-            norm = preset.signal.get("normalization")
-            norm_mode = "auto"
-            soft = True
-            if isinstance(norm, dict):
-                norm_mode = str(norm.get("mode") or "auto")
-                soft = bool(norm.get("soft_clip", True))
-            note(
-                f"{'temporal' if geometry != 'spectrum' else 'spectrum'} decode "
-                f"{clip_duration:.1f}s -> {expected_frames} frames @ {job.fps:g} fps"
+            render_fixed.run_fixed_pipeline(
+                _fixed_hooks(),
+                job=job,
+                media=media,
+                preset=preset,
+                performance=performance,
+                appearance=appearance,
+                spectrum_contour=spectrum_contour,
+                ribbon_ss=ribbon_ss,
+                source_sha=source_sha,
+                clip_start=clip_start,
+                clip_duration=clip_duration,
+                expected_frames=expected_frames,
+                work=work,
+                producing_mov=producing_mov,
+                producing_png=producing_png,
+                glow=glow,
+                threads=threads,
+                note=note,
+                lifecycle=lifecycle,
+                analysis=analysis,
+                normalization=normalization,
+                clock=clock,
             )
-            reset_workdir(work)
-            decoded = work / "source.wav"
-            origin_seconds = 0.0
-            if geometry != "spectrum":
-                half = TEMPORAL_WINDOW_SECONDS / 2.0
-                pad_start = max(0.0, clip_start - half)
-                pad_end = min(media.duration_seconds, clip_start + clip_duration + half)
-                decode_mono_wav(
-                    job.path,
-                    decoded,
-                    start=pad_start if pad_start > 0 else None,
-                    duration=max(pad_end - pad_start, clip_duration),
-                )
-                origin_seconds = clip_start - pad_start
-            peak_mix = TEMPORAL_PEAK_MIX if geometry == "temporal_rms_peak" else 0.0
-            peak = None
-            field_chunk_movs: list[Path] | None = None
-            field_encoded = False
-            spectrum_encode_workers = 1
-            field_plan: RenderPlan | None = None
-            bars: BarStyle | None = None
-            if geometry != "spectrum":
-                samples, rate = load_mono_f32(decoded)
-                if norm_mode != "none":
-                    note("temporal peak scan")
-                    peak = temporal_envelope_peak(
-                        samples,
-                        rate,
-                        n_frames=expected_frames,
-                        fps=job.fps,
-                        origin_seconds=origin_seconds,
-                        width=preset.canvas.width,
-                        peak_mix=peak_mix,
-                    )
-                frames = iter_temporal_frames(
-                    samples,
-                    rate,
-                    n_frames=expected_frames,
-                    preset=preset,
-                    fps=job.fps,
-                    glow=glow,
-                    peak=peak,
-                    tau_seconds=tau,
-                    soft_clip=soft,
-                    origin_seconds=origin_seconds,
-                    peak_mix=peak_mix,
-                )
-                analysis = {
-                    "chunk_count": 1,
-                    "preroll_seconds": TEMPORAL_WINDOW_SECONDS / 2.0,
-                    "postroll_seconds": TEMPORAL_WINDOW_SECONDS / 2.0,
-                    "encode_workers": 1,
-                    "visual_geometry": geometry,
-                    "temporal_window_seconds": TEMPORAL_WINDOW_SECONDS,
-                    "temporal_bins": TEMPORAL_BINS,
-                    "temporal_peak_mix": peak_mix,
-                    "spectrum_raster": "contour",
-                }
-            else:
-                spatial_scale = appearance.spatial_scale
-                spatial_filter = appearance.spatial_filter
-                spatial_sigma = appearance.spatial_sigma
-                n_bands = appearance.n_bands
-                tilt_db = appearance.tilt_db
-                compress = appearance.compress
-                recenter = appearance.recenter
-                taper = appearance.taper
-                layout = appearance.layout
-                slot_sigma = appearance.slot_sigma
-                bars = appearance.bars
-                field_plan = appearance.field_plan
-                if layout == "field_center_out":
-                    field_bands = n_bands if n_bands is not None else 64
-                    mapping = CenterOutMapping(n_slots=CENTER_OUT_SLOTS, n_bands=field_bands)
-                    assert bars is not None and field_plan is not None
-                    cache_payload = analysis_cache_payload(
-                        source_sha256=source_sha,
-                        clip_start=clip_start,
-                        clip_duration=clip_duration,
-                        fps=job.fps,
-                        n_frames=expected_frames,
-                        n_bands=field_bands,
-                        scale=scale,
-                        tilt_db_per_octave=tilt_db,
-                        compress=compress,
-                        signal=preset.signal,
-                    )
-                    cache_digest = analysis_cache_digest(cache_payload)
-                    cached = load_analysis_cache(cache_digest)
-                    if cached is not None:
-                        sequence, span = cached
-                        clock.extras["analysis_cache"] = "hit"
-                        note("spectrum analysis cache hit")
-                    else:
-                        clock.extras["analysis_cache"] = "miss"
-                        with clock.span("decode"):
-                            decode_mono_wav(
-                                job.path,
-                                decoded,
-                                start=clip_start if clip_start > 0 else None,
-                                duration=clip_duration if clip_duration > 0 else None,
-                            )
-                        with clock.span("pcm_load"):
-                            pcm, pcm_rate = load_mono_pcm(decoded)
-                        with clock.span("frequency_span"):
-                            span = resolve_frequency_span_from_pcm(pcm, pcm_rate, preset.signal)
-                        note("spectrum analysis sequence")
-                        with clock.span("spectral_analysis"):
-                            sequence = build_analysis_sequence(
-                                pcm,
-                                pcm_rate,
-                                n_frames=expected_frames,
-                                fps=job.fps,
-                                span=span,
-                                scale=scale,
-                                n_bands=field_bands,
-                                tilt_db_per_octave=tilt_db,
-                                compress=compress,
-                            )
-                        store_analysis_cache(cache_digest, sequence, span)
-                    if norm_mode != "none":
-                        note("spectrum peak scan")
-                        with clock.span("peak_scan"):
-                            peak = _visual_field_peak(
-                                sequence,
-                                width=preset.canvas.width,
-                                spatial_sigma=spatial_sigma,
-                                spatial_filter=spatial_filter,
-                                mapping=mapping,
-                            )
-                    requested_workers = _job_workers(performance)
-                    use_pool = requested_workers > 1 and expected_frames >= _FIELD_POOL_MIN_FRAMES
-                    if use_pool:
-                        pad = glow_overscan(glow)
-                        draw_w = preset.canvas.width + 2 * pad
-                        with clock.span("visual_field"):
-                            column_rows = _precompute_field_columns(
-                                sequence,
-                                n_frames=expected_frames,
-                                draw_w=draw_w,
-                                peak=peak,
-                                tau_seconds=tau,
-                                fps=job.fps,
-                                soft_clip=soft,
-                                spatial_sigma=spatial_sigma,
-                                spatial_filter=spatial_filter,
-                                mapping=mapping,
-                            )
-                        columns_path = work / "field-columns.npy"
-                        np.save(columns_path, np.asarray(column_rows, dtype=np.float64))
-                        ranges = _field_frame_ranges(len(column_rows), requested_workers)
-                        spectrum_encode_workers = len(ranges)
-                        worker_threads = _encode_worker_threads(threads, spectrum_encode_workers)
-                        clock.extras["ffmpeg_threads_resolved_argument"] = worker_threads
-                        png_abs = str((work / "png").resolve()) if producing_png else None
-                        if producing_png:
-                            (work / "png").mkdir(parents=True, exist_ok=True)
-                        tasks = [
-                            FieldChunkTask(
-                                chunk_index=index,
-                                n_chunks=len(ranges),
-                                first_frame=start,
-                                n_frames=size,
-                                columns_path=str(columns_path.resolve()),
-                                width=preset.canvas.width,
-                                height=preset.canvas.height,
-                                fps=job.fps,
-                                color=preset.waveform.color,
-                                amplitude=preset.waveform.amplitude,
-                                center_line=(
-                                    bool(preset.waveform.center_line)
-                                    and (field_plan.geometry not in BAR_GEOMETRIES)
-                                ),
-                                content_height=preset.canvas.height,
-                                glow=glow,
-                                png_dir=png_abs,
-                                prores_path=(
-                                    str((work / f"field-{index:04d}.mov").resolve())
-                                    if producing_mov
-                                    else None
-                                ),
-                                ffmpeg_threads=worker_threads,
-                                overscan=pad,
-                                supersample=field_plan.supersample if field_plan else ribbon_ss,
-                                pix_fmt=field_plan.pix_fmt if field_plan else "rgba",
-                                aa_taps=field_plan.aa_taps if field_plan else 1,
-                                plan_path=field_plan.path if field_plan else "rgba_2d",
-                                geometry=field_plan.geometry if field_plan else "ribbon",
-                                bar_width=bars.width,
-                                bar_gap=bars.gap,
-                                bar_count=0 if bars.count is None else bars.count,
-                                bar_fill=bars.fill,
-                                bar_align=bars.align,
-                                bar_alternate=bars.alternate,
-                                bar_color_b=bars.color_b,
-                                bar_center_line_width=bars.center_line_width,
-                            )
-                            for index, (start, size) in enumerate(ranges)
-                        ]
-                        note(
-                            f"spectrum encode {len(column_rows)} frames "
-                            f"with {spectrum_encode_workers} process(es)"
-                        )
-                        with clock.span("field_encode_parallel"):
-                            ctx = multiprocessing.get_context("spawn")
-                            with ProcessPoolExecutor(
-                                max_workers=spectrum_encode_workers, mp_context=ctx
-                            ) as pool:
-                                parts = list(pool.map(encode_field_chunk, tasks))
-                        field_chunk_movs = [path for path in parts if path is not None]
-                        field_encoded = True
-                        frames = iter(())
-                    else:
-                        frames = iter_field_frames(
-                            sequence,
-                            n_frames=expected_frames,
-                            preset=preset,
-                            fps=job.fps,
-                            glow=glow,
-                            peak=peak,
-                            tau_seconds=tau,
-                            soft_clip=soft,
-                            spatial_sigma=spatial_sigma,
-                            spatial_filter=spatial_filter,
-                            mapping=mapping,
-                            supersample=ribbon_ss,
-                            plan=field_plan,
-                            bar_style=bars,
-                            phases=clock,
-                        )
-                else:
-                    with clock.span("decode"):
-                        decode_mono_wav(
-                            job.path,
-                            decoded,
-                            start=clip_start if clip_start > 0 else None,
-                            duration=clip_duration if clip_duration > 0 else None,
-                        )
-                    with clock.span("pcm_load"):
-                        pcm, pcm_rate = load_mono_pcm(decoded)
-                    with clock.span("frequency_span"):
-                        span = resolve_frequency_span_from_pcm(pcm, pcm_rate, preset.signal)
-                    if norm_mode != "none":
-                        note("spectrum peak scan")
-                        peak = spectrum_peak(
-                            decoded,
-                            n_frames=expected_frames,
-                            fps=job.fps,
-                            width=preset.canvas.width,
-                            span=span,
-                            scale=scale,
-                            smoothing_sigma=spatial_sigma,
-                            spatial_filter=spatial_filter,
-                            n_bands=n_bands,
-                            tilt_db_per_octave=tilt_db,
-                            compress=compress,
-                        )
-                    frames = iter_spectrum_frames(
-                        decoded,
-                        n_frames=expected_frames,
-                        preset=preset,
-                        fps=job.fps,
-                        glow=glow,
-                        span=span,
-                        peak=peak,
-                        scale=scale,
-                        tau_seconds=tau,
-                        soft_clip=soft,
-                        contour=spectrum_contour,
-                        spatial_sigma=spatial_sigma,
-                        spatial_filter=spatial_filter,
-                        n_bands=n_bands,
-                        tilt_db_per_octave=tilt_db,
-                        compress=compress,
-                        recenter=recenter,
-                        edge_taper=taper,
-                        layout=layout,
-                        slot_sigma=slot_sigma,
-                        supersample=ribbon_ss,
-                    )
-            png_work: Path | None = work / "png" if producing_png else None
-            mov_work: Path | None = work / "spectrum.mov" if producing_mov else None
-            encode_label = "temporal" if geometry != "spectrum" else "spectrum"
-            if field_plan is not None:
-                overscan = glow_overscan(glow)
-                clock.extras["render_path"] = field_plan.path
-                clock.extras["bytes_per_frame"] = field_plan.bytes_per_frame(
-                    preset.canvas.width, preset.canvas.height, overscan
-                )
-                clock.extras["fingerprint"] = fingerprint_from_plan(
-                    plan_path=field_plan.path,
-                    geometry=field_plan.geometry,
-                    style=preset.waveform.style,
-                    glow=glow > 0.0,
-                    particles=False,
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                    fps=job.fps,
-                    aa_mode=field_plan.aa_mode,
-                    supersample=field_plan.supersample,
-                    pix_fmt=field_plan.pix_fmt,
-                    codec="prores4444" if producing_mov else "png",
-                    jobs=spectrum_encode_workers,
-                    ffmpeg_threads=threads,
-                ).as_dict()
-            if field_encoded:
-                if mov_work is not None:
-                    note(f"{encode_label} concat {len(field_chunk_movs or [])} chunk(s)")
-                    with clock.span("concat"):
-                        concat_videos(
-                            field_chunk_movs or [],
-                            mov_work,
-                            list_path=work / "field.concat.txt",
-                        )
-            else:
-                note(f"{encode_label} encode")
-                encode_ss = (
-                    field_plan.supersample
-                    if field_plan is not None
-                    else (ribbon_ss if geometry == "spectrum" else SCROLL_SUPERSAMPLE)
-                )
-                encode_rgba_stream(
-                    _tick_frames(
-                        frames,
-                        n_frames=expected_frames,
-                        note=note,
-                        label=encode_label,
-                    ),
-                    width=preset.canvas.width,
-                    height=preset.canvas.height,
-                    fps=job.fps,
-                    glow=glow,
-                    png_dir=png_work,
-                    prores_path=mov_work,
-                    ffmpeg_threads=threads,
-                    overscan=glow_overscan(glow),
-                    supersample=encode_ss,
-                    phases=clock,
-                    pix_fmt=field_plan.pix_fmt if field_plan is not None else "rgba",
-                    color=(
-                        preset.waveform.color
-                        if field_plan is not None and field_plan.colorize
-                        else None
-                    ),
-                    n_frames=expected_frames,
-                )
-            if mov_work is not None:
-                lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")
-            if png_work is not None:
-                lifecycle.publish_png(png_work)
-            if geometry == "spectrum":
-                analysis = {
-                    "chunk_count": spectrum_encode_workers if field_encoded else 1,
-                    "preroll_seconds": 0.0,
-                    "postroll_seconds": 0.0,
-                    "encode_workers": spectrum_encode_workers,
-                    "visual_geometry": "spectrum",
-                    "fmin_hz": span.fmin_hz,
-                    "fmax_hz": span.fmax_hz,
-                    "frequency_range": span.source,
-                    "spectrum_raster": "contour" if spectrum_contour else "columns",
-                    "spectrum_spatial_filter": spatial_filter,
-                    "spectrum_spatial_sigma": spatial_sigma,
-                    "spectrum_spatial_scale": float(spatial_scale),
-                    "spectrum_n_bands": n_bands,
-                    "spectrum_tilt_db_per_octave": tilt_db,
-                    "spectrum_compress": compress,
-                    "spectrum_recenter": recenter,
-                    "spectrum_edge_taper": taper,
-                    "spectrum_layout": layout,
-                    "spectrum_slot_sigma": slot_sigma,
-                    "visual_pipeline": (
-                        "analysis_field_ribbon" if layout == "field_center_out" else "legacy"
-                    ),
-                    "field_geometry": (field_plan.geometry if field_plan is not None else "legacy"),
-                    "bar_width": bars.width if bars is not None else None,
-                    "bar_gap": bars.gap if bars is not None else None,
-                    "visual_slots": CENTER_OUT_SLOTS if layout == "field_center_out" else None,
-                    "ribbon_supersample": ribbon_ss,
-                    "render_path": field_plan.path if field_plan is not None else "rgba_2d",
-                    "render_pix_fmt": field_plan.pix_fmt if field_plan is not None else "rgba",
-                    "render_aa_mode": (
-                        field_plan.aa_mode if field_plan is not None else "physical_ss"
-                    ),
-                }
-            normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
             mov_work, png_work = render_scroll.run_scroll_pipeline(
                 _scroll_hooks(),

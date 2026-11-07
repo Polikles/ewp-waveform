@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Extract the maintained fixed-axis option/frame/field/cache/worker/parallel-encode/
+  concat pipeline into `application.render_fixed`. Preserve live helper and spawn
+  compatibility seams, original reports/publication failure ordering, all existing
+  analysis/raster/cache/identity behavior and public interfaces. Lifecycle and
+  scroll implementations are unchanged; no registry, visual fix or performance
+  claim is introduced.
+
 - Extract the existing time-scroll envelope/chunk/checkpoint/scheduling/concat
   pipeline into `application.render_scroll`, retaining live helper and spawn-worker
   compatibility forwards. Preserve analysis/raster/style/opacity, continuity,
