@@ -802,11 +802,57 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
     fail_after_chunk = options.fail_after_chunk
     progress = options.progress
     spectrum_contour = options.spectrum_contour
+    spectrum_spatial_scale = options.spectrum_spatial_scale
+    spectrum_spatial_filter = options.spectrum_spatial_filter
+    spectrum_n_bands = options.spectrum_n_bands
+    spectrum_tilt_db_per_octave = options.spectrum_tilt_db_per_octave
+    spectrum_compress = options.spectrum_compress
+    spectrum_recenter = options.spectrum_recenter
+    spectrum_edge_taper = options.spectrum_edge_taper
+    visual_geometry = options.visual_geometry
+    spectrum_layout = options.spectrum_layout
+    spectrum_slot_sigma = options.spectrum_slot_sigma
+    ribbon_supersample = options.ribbon_supersample
+    render_path = options.render_path
+    render_aa = options.render_aa
     field_geometry = options.field_geometry
+    bar_width = options.bar_width
+    bar_gap = options.bar_gap
+    bar_count = options.bar_count
+    bar_fill = options.bar_fill
+    bar_align = options.bar_align
+    bar_alternate = options.bar_alternate
+    bar_color_b = options.bar_color_b
+    bar_center_line_width = options.bar_center_line_width
     waveform_color = options.waveform_color
     glow_level = options.glow_level
     classic_alternate_opacity = options.classic_alternate_opacity
     phases = options.phases
+    # Preserve the complete legacy raw-binding prefix for compatibility.
+    # Fixed-only aliases remain carried unchanged in options for the pipeline.
+    del (
+        spectrum_spatial_scale,
+        spectrum_spatial_filter,
+        spectrum_n_bands,
+        spectrum_tilt_db_per_octave,
+        spectrum_compress,
+        spectrum_recenter,
+        spectrum_edge_taper,
+        visual_geometry,
+        spectrum_layout,
+        spectrum_slot_sigma,
+        ribbon_supersample,
+        render_path,
+        render_aa,
+        bar_width,
+        bar_gap,
+        bar_count,
+        bar_fill,
+        bar_align,
+        bar_alternate,
+        bar_color_b,
+        bar_center_line_width,
+    )
 
     validate_output_formats(formats)
     started = _utcnow()
