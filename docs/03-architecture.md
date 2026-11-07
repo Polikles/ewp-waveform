@@ -85,3 +85,43 @@ Typed context/options, callbacks and phase collectors are not new spawn-pool
 payloads; existing worker tasks remain unchanged. Product version, visual contract,
 identity, output/result schemas and exact equivalence oracles are unchanged. This
 boundary makes no performance or visual-acceptance claim.
+
+
+## Internal render lifecycle boundary (REF-002)
+
+`application.render_lifecycle` owns destination selection and reuse validation,
+workdir policy selection, final media validation/publication, terminal cleanup and
+job-result assembly. `DestinationSelection` and `WorkdirPolicy` carry those
+internal decisions; `RenderLifecycle` holds only per-invocation lifecycle state.
+The dispatcher still resolves options/appearance, hashes the input initially,
+selects the clip and runs the existing scroll/fixed-axis pipelines. Its original
+pre-try and try/except/else boundaries remain in place. No pipeline, worker task,
+chunk/checkpoint algorithm or analysis cache is extracted here.
+
+Existing helpers remain importable with the same signatures in
+`application.render`, forwarding to lifecycle implementations. A typed structural
+`LifecycleHooks` view of the live dispatcher module preserves late helper lookups
+(including destination planning, probing, hashing, result assembly and clock
+helpers), rather than capturing callbacks at import or lifecycle construction.
+The shared `shutil` module remains the move/removal patch seam. Workdir key/path
+resolution still uses `application.checkpoint`; result elapsed time still uses
+`application.results`. There is no duplicate checkpoint or result schema.
+
+The selected-base ordering is deliberately retained: project directory creation
+and SKIP validation precede work/clock allocation; all-reused jobs hash only once;
+processing jobs perform the existing second source check before rendering, not a
+new post-render hash. Partial reuse retains reused outputs first. Each produced
+MOV is validated and directly moved before PNG validation; existing PNG removal
+still precedes its move. A later failure can therefore leave an already-published
+MOV, and a failed PNG move can leave its prior destination removed. This is not
+atomic multi-output publication, rollback or stronger validation. The architecture
+and recovery documents' atomic-publication sequence describes the intended target,
+not a guarantee newly provided by this extraction.
+
+Failure classification, warnings, validation-report precedence and retained-work
+existence checks are unchanged. Success cleanup still reports no workdir after
+an ignored removal, even if removal did not succeed. Interrupts/unhandled errors
+retain the original catch behavior. Public render/service signatures/defaults,
+result payload/identity, visual-contract version, output ordering, force versioning
+and exact existing equivalence oracles remain unchanged. Behavioral fixes require
+separate increments; no performance or operator visual-acceptance claim is made.

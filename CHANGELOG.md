@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Extract the existing render destination/workdir/validation/publication/cleanup
+  and job-result lifecycle behind an internal typed application boundary. Preserve
+  legacy helper/import/patch seams, SKIP/force and recovery policy, direct-move
+  ordering and existing partial-publication/failure behavior. Scroll/fixed-axis
+  pipelines, production validation strength, identity, schemas and public APIs
+  are unchanged; this does not implement atomic publication or rollback.
+
 - Introduce an internal typed render execution boundary while retaining the legacy
   render/service interfaces, raw option values, result dictionary identity and
   service/benchmark patch seams. Orchestration and worker helpers stay in place;
