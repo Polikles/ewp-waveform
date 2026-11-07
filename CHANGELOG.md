@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Dispatch the existing FFmpeg fixed-axis and scroll implementations through a
+  narrow internal protocol and immutable built-in adapters. Keep common lifecycle,
+  raw option transport, live helper/worker compatibility and public interfaces;
+  preserve selection, invocation/publication order, identity and visual oracles.
+  No public plugins, new capability, visual fix or performance claim.
+
 - Extract the maintained fixed-axis option/frame/field/cache/worker/parallel-encode/
   concat pipeline into `application.render_fixed`. Preserve live helper and spawn
   compatibility seams, original reports/publication failure ordering, all existing

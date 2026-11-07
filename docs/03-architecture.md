@@ -191,3 +191,48 @@ controls, pool threshold, canonical field rows, range ordering and PNG numbering
 remain unchanged. Public render/service interfaces, identity, visual-contract
 version, result and checkpoint schemas remain unchanged. Structural AST checks
 are not runtime, visual, performance or operator acceptance.
+
+
+## Internal built-in pipeline selection (REF-005)
+
+`application.render_pipelines.RenderPipeline` defines only two phases already
+present in the dispatcher: `prepare` resolves the fixed-axis recipe before
+identity/reuse, and `run` forwards execution inside the existing error boundary.
+The immutable `BUILTIN_PIPELINES` mapping contains frozen, stateless adapters for
+`frequency` (fixed-axis) and `time` (scroll). It is not a public backend registry,
+capability validator, discovery mechanism or runtime registration API. Selection
+retains the exact `frequency`/else rule at both original decision points, including
+non-frequency fallback for direct internal calls. The service still rejects
+particles and playhead with its existing diagnostics before calling render.
+
+`PipelineRun` is a shallowly frozen per-call transport, not a validator or worker
+payload. It carries the REF-001 effective context references, resolved common
+execution values, entry-time raw contour/failure aliases, and the same mutable
+report/clock/lifecycle objects. `RenderOptions` is passed unchanged to preparation;
+no option is copied, coerced, defaulted or normalized by the registry. Scroll
+preparation does nothing. The fixed adapter forwards to `resolve_fixed_options`;
+its execution forwards to `run_fixed_pipeline`. The scroll adapter forwards to
+`run_scroll_pipeline`, then calls lifecycle MOV-before-PNG publication at the same
+boundary as before. Neither adapter implements analysis, raster, cache, checkpoint,
+FFmpeg options, output validation, cleanup or result assembly.
+
+`render.py` retains common preset overrides, source/clip/work/clock orchestration,
+compatibility exports/forwards and the unchanged try/except/else boundary. Typed
+`PipelineHooks` accesses the live module's original `_fixed_hooks`/`_scroll_hooks`
+functions at each original call site. Adapters retain module attribute lookups,
+not captured implementation callbacks. No pipeline imports `render` back. All
+helper/worker monkeypatch seams, legacy task import paths, spawn targets and the
+1,800-frame field-pool threshold remain unchanged. The complete 39-binding raw
+entry prefix and deliberate deletion of 21 now-unused fixed aliases remain intact.
+
+The two implemented adapters demonstrate the extension seam: a separately approved
+internal path can implement the same two methods and be selected by a reviewed
+static built-in table/selection change, while reusing common lifecycle and the
+unchanged public service interface. It need not duplicate source checks, identity,
+reuse, workdir handling, terminal results or publication implementation. Preparation
+and execution remain separate to avoid moving pre-reuse work into the render try
+block. Adding capability or identity behavior requires its own explicit review;
+this increment adds no future renderer, generic plugin machinery or public loader.
+Existing style/effect/encoder registries, unsupported paths, schemas, visual
+contract, identity/cache formats and exact oracles are unchanged. No runtime,
+performance, visual/NLE or operator-acceptance claim follows from static checks.

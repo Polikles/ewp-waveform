@@ -89,7 +89,7 @@ from ewp_waveform.analysis.temporal import temporal_envelope_columns as temporal
 from ewp_waveform.analysis.temporal import temporal_envelope_peak as temporal_envelope_peak
 from ewp_waveform.application import render_fixed, render_lifecycle, render_scroll
 from ewp_waveform.application.appearance import (
-    FixedAxisAppearance,
+    FixedAxisAppearance as FixedAxisAppearance,
 )
 from ewp_waveform.application.appearance import (
     normalize_spatial_filter as _normalize_spatial_filter,
@@ -153,6 +153,7 @@ from ewp_waveform.application.render_fixed import (
 from ewp_waveform.application.render_fixed import (
     FieldChunkTask as FieldChunkTask,
 )
+from ewp_waveform.application.render_pipelines import PipelineHooks, PipelineRun, select_pipeline
 from ewp_waveform.application.render_scroll import (
     ChunkEncodeTask as ChunkEncodeTask,
 )
@@ -255,6 +256,11 @@ def _fixed_hooks() -> render_fixed.FixedHooks:
 def _scroll_hooks() -> render_scroll.ScrollHooks:
     """Keep helper and worker lookups live without a reverse pipeline import."""
     return cast(render_scroll.ScrollHooks, sys.modules[__name__])
+
+
+def _pipeline_hooks() -> PipelineHooks:
+    """Expose live pipeline hook accessors without importing render back."""
+    return cast(PipelineHooks, sys.modules[__name__])
 
 
 def output_root(source: Path, configured: Path | None, directory_name: str) -> Path:
@@ -862,9 +868,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
     preset = _with_glow_level(preset, glow_level)
     preset = _with_classic_alternate_opacity(preset, classic_alternate_opacity)
 
-    appearance: FixedAxisAppearance | None = None
-    if job.domain.value == "frequency":
-        appearance = render_fixed.resolve_fixed_options(_fixed_hooks(), preset, options)
+    appearance = select_pipeline(job.domain.value).prepare(_pipeline_hooks(), preset, options)
     fixed_axis_recipe = appearance.identity() if appearance is not None else None
 
     def note(message: str) -> None:
@@ -928,38 +932,13 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
         glow = _glow_sigma(preset)
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
-        if job.domain.value == "frequency":
-            assert appearance is not None
-            render_fixed.run_fixed_pipeline(
-                _fixed_hooks(),
-                job=job,
-                media=media,
-                preset=preset,
-                performance=performance,
+        select_pipeline(job.domain.value).run(
+            _pipeline_hooks(),
+            PipelineRun(
+                context=RenderContext(job=job, media=media, preset=preset, performance=performance),
                 appearance=appearance,
                 spectrum_contour=spectrum_contour,
                 ribbon_ss=ribbon_ss,
-                source_sha=source_sha,
-                clip_start=clip_start,
-                clip_duration=clip_duration,
-                expected_frames=expected_frames,
-                work=work,
-                producing_mov=producing_mov,
-                producing_png=producing_png,
-                glow=glow,
-                threads=threads,
-                note=note,
-                lifecycle=lifecycle,
-                analysis=analysis,
-                normalization=normalization,
-                clock=clock,
-            )
-        else:
-            mov_work, png_work = render_scroll.run_scroll_pipeline(
-                _scroll_hooks(),
-                job=job,
-                preset=preset,
-                performance=performance,
                 source_sha=source_sha,
                 sig=sig,
                 clip_start=clip_start,
@@ -972,16 +951,14 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
                 threads=threads,
                 fail_after_chunk=fail_after_chunk,
                 note=note,
+                lifecycle=lifecycle,
                 analysis=analysis,
                 normalization=normalization,
                 warnings=warnings,
                 resume_history=resume_history,
                 clock=clock,
-            )
-            if mov_work is not None:
-                lifecycle.publish_mov(mov_work, failure_message="scroll output failed validation")
-            if png_work is not None:
-                lifecycle.publish_png(png_work)
+            ),
+        )
         lifecycle.mark_succeeded()
     except (DecodeError, EncodeError, OSError, RuntimeError, ProbeError) as exc:
         return lifecycle.failed(
