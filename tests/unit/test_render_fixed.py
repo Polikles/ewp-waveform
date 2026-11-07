@@ -11,11 +11,11 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from ewp_waveform.application.render_fixed import FixedHooks
 
 import ewp_waveform.application.render as typed_render
 from ewp_waveform.analysis.cache import load_analysis_cache as real_load_analysis_cache
 from ewp_waveform.application import render_fixed
+from ewp_waveform.application.render_fixed import FixedHooks
 from ewp_waveform.application.render_types import RenderContext, RendererOutcome, RenderOptions
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.load import load_performance, load_preset
