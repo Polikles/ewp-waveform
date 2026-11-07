@@ -125,3 +125,30 @@ retain the original catch behavior. Public render/service signatures/defaults,
 result payload/identity, visual-contract version, output ordering, force versioning
 and exact existing equivalence oracles remain unchanged. Behavioral fixes require
 separate increments; no performance or operator visual-acceptance claim is made.
+
+
+## Internal time-scroll pipeline boundary (REF-003)
+
+`application.render_scroll` owns scroll settings, overlapped envelope preparation,
+scroll frame iteration, chunk task payloads, checkpoint coordination, encode
+scheduling and ordered concat. `render` retains explicit compatibility forwards
+and re-exports the same payload classes. A typed `ScrollHooks` view of the live
+dispatcher preserves helper/encoder/worker/test monkeypatch lookups, including
+changes made during callbacks or frame iteration, without importing the dispatcher
+back from the pipeline. The existing `render.encode_scroll_chunk` forward stays
+the spawn-pool target; only the existing pickleable task travels to workers.
+
+The pipeline updates caller-owned analysis/normalization reports at the original
+assignment boundaries so caught failures retain the same partial reports. It
+returns staged MOV/PNG paths; final validation and MOV-before-PNG publication,
+source checks, cleanup and result assembly remain lifecycle responsibilities.
+Fixed-axis code and shared worker/thread/progress utilities stay in the dispatcher.
+There is no new renderer registry, cache, checkpoint schema or result model.
+
+The selected-base envelope math, bin origins, published-region global peak,
+canonical partitioning and preroll/postroll, 12x scroll raster, style/opacity,
+glow/shutter, thread pinning, PNG numbering, failure injection, stale rejection,
+completion-order checkpoint writes and clip-relative resume-boundary reporting
+are unchanged. Public signatures/defaults, identity/visual-contract version and
+exact oracles remain unchanged. This extraction neither corrects existing failure
+windows nor claims performance, operator visual/NLE or aggregate acceptance.

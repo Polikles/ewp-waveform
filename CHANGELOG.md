@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Extract the existing time-scroll envelope/chunk/checkpoint/scheduling/concat
+  pipeline into `application.render_scroll`, retaining live helper and spawn-worker
+  compatibility forwards. Preserve analysis/raster/style/opacity, continuity,
+  resume/failure reports, identity and public interfaces. Fixed-axis rendering and
+  final publication/lifecycle stay in place; no behavior fix or performance claim.
+
 - Extract the existing render destination/workdir/validation/publication/cleanup
   and job-result lifecycle behind an internal typed application boundary. Preserve
   legacy helper/import/patch seams, SKIP/force and recovery policy, direct-move

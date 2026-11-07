@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import math
 import multiprocessing
 import shutil as shutil
 import sys
 import time
 from collections.abc import Callable, Iterator, Sequence
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor as ProcessPoolExecutor
+from concurrent.futures import as_completed as as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,28 +24,46 @@ from ewp_waveform.analysis.cache import (
     store_analysis_cache,
 )
 from ewp_waveform.analysis.envelope import (
-    bin_peak,
-    envelope_context_bins,
-    envelope_preroll_seconds,
-    hop_samples,
-    normalize_bins,
-    process_envelope_bins,
-    published_bin_slice,
-    rms_bins_from_wav,
-    viewport_left_px,
-    window_from_origin,
+    bin_peak as bin_peak,
 )
 from ewp_waveform.analysis.envelope import (
     envelope_aa_from_signal as envelope_aa_from_signal,
 )
 from ewp_waveform.analysis.envelope import (
+    envelope_context_bins as envelope_context_bins,
+)
+from ewp_waveform.analysis.envelope import (
     envelope_oversample_from_signal as envelope_oversample_from_signal,
+)
+from ewp_waveform.analysis.envelope import (
+    envelope_preroll_seconds as envelope_preroll_seconds,
+)
+from ewp_waveform.analysis.envelope import (
+    hop_samples as hop_samples,
 )
 from ewp_waveform.analysis.envelope import (
     motion_cutoff_cyc_px as motion_cutoff_cyc_px,
 )
 from ewp_waveform.analysis.envelope import (
     motion_lpf_from_signal as motion_lpf_from_signal,
+)
+from ewp_waveform.analysis.envelope import (
+    normalize_bins as normalize_bins,
+)
+from ewp_waveform.analysis.envelope import (
+    process_envelope_bins as process_envelope_bins,
+)
+from ewp_waveform.analysis.envelope import (
+    published_bin_slice as published_bin_slice,
+)
+from ewp_waveform.analysis.envelope import (
+    rms_bins_from_wav as rms_bins_from_wav,
+)
+from ewp_waveform.analysis.envelope import (
+    viewport_left_px as viewport_left_px,
+)
+from ewp_waveform.analysis.envelope import (
+    window_from_origin as window_from_origin,
 )
 from ewp_waveform.analysis.frames import AnalysisSequence
 from ewp_waveform.analysis.spectrum import (
@@ -74,7 +92,7 @@ from ewp_waveform.analysis.temporal import (
     temporal_envelope_columns,
     temporal_envelope_peak,
 )
-from ewp_waveform.application import render_lifecycle
+from ewp_waveform.application import render_lifecycle, render_scroll
 from ewp_waveform.application.appearance import (
     FixedAxisAppearance,
 )
@@ -85,55 +103,106 @@ from ewp_waveform.application.appearance import (
     resolve_fixed_axis_appearance as resolve_fixed_axis_appearance,
 )
 from ewp_waveform.application.checkpoint import (
-    CHECKPOINT_SCHEMA_VERSION,
-    Checkpoint,
-    ChunkRecord,
-    checkpoint_path,
-    identity_matches,
-    load_checkpoint,
-    png_chunk_complete,
-    reset_workdir,
-    reusable_chunk_indices,
-    write_checkpoint,
+    CHECKPOINT_SCHEMA_VERSION as CHECKPOINT_SCHEMA_VERSION,
+)
+from ewp_waveform.application.checkpoint import (
+    Checkpoint as Checkpoint,
+)
+from ewp_waveform.application.checkpoint import (
+    ChunkRecord as ChunkRecord,
+)
+from ewp_waveform.application.checkpoint import (
+    checkpoint_path as checkpoint_path,
+)
+from ewp_waveform.application.checkpoint import (
+    identity_matches as identity_matches,
+)
+from ewp_waveform.application.checkpoint import (
+    load_checkpoint as load_checkpoint,
+)
+from ewp_waveform.application.checkpoint import (
+    png_chunk_complete as png_chunk_complete,
+)
+from ewp_waveform.application.checkpoint import (
+    reset_workdir as reset_workdir,
 )
 from ewp_waveform.application.checkpoint import (
     resolve_workdir as resolve_workdir,
 )
 from ewp_waveform.application.checkpoint import (
+    reusable_chunk_indices as reusable_chunk_indices,
+)
+from ewp_waveform.application.checkpoint import (
     workdir_key as workdir_key,
+)
+from ewp_waveform.application.checkpoint import (
+    write_checkpoint as write_checkpoint,
 )
 from ewp_waveform.application.chunks import (
     ProcessingWindow,
-    bin_origin,
-    plan_chunks,
-    processing_window,
+)
+from ewp_waveform.application.chunks import (
+    bin_origin as bin_origin,
+)
+from ewp_waveform.application.chunks import (
+    plan_chunks as plan_chunks,
+)
+from ewp_waveform.application.chunks import (
+    processing_window as processing_window,
 )
 from ewp_waveform.application.evidence import fingerprint_from_plan
 from ewp_waveform.application.formats import validate_output_formats as validate_output_formats
+from ewp_waveform.application.render_scroll import (
+    ChunkEncodeTask as ChunkEncodeTask,
+)
+from ewp_waveform.application.render_scroll import (
+    EnvelopeSettings as EnvelopeSettings,
+)
+from ewp_waveform.application.render_scroll import (
+    PreparedChunk as PreparedChunk,
+)
 from ewp_waveform.application.render_types import RenderContext, RendererOutcome, RenderOptions
 from ewp_waveform.application.results import elapsed_seconds as elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
-from ewp_waveform.domain.diagnostics import Diagnostic, DiagnosticCode, Severity
+from ewp_waveform.domain.diagnostics import (
+    Diagnostic,
+)
+from ewp_waveform.domain.diagnostics import (
+    DiagnosticCode as DiagnosticCode,
+)
+from ewp_waveform.domain.diagnostics import (
+    Severity as Severity,
+)
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
-from ewp_waveform.ffmpeg.concat import concat_videos
-from ewp_waveform.ffmpeg.decode import DecodeError, decode_mono_wav
+from ewp_waveform.ffmpeg.concat import concat_videos as concat_videos
+from ewp_waveform.ffmpeg.decode import DecodeError
+from ewp_waveform.ffmpeg.decode import decode_mono_wav as decode_mono_wav
 from ewp_waveform.ffmpeg.draw import (
     CLASSIC_SCROLL_ALTERNATE_OPACITY as CLASSIC_SCROLL_ALTERNATE_OPACITY,
 )
 from ewp_waveform.ffmpeg.draw import (
     RIBBON_SUPERSAMPLE,
-    SCROLL_SUPERSAMPLE,
-    draw_envelope_frame,
     draw_spectrum_frame,
-    glow_overscan,
+)
+from ewp_waveform.ffmpeg.draw import (
+    SCROLL_SUPERSAMPLE as SCROLL_SUPERSAMPLE,
+)
+from ewp_waveform.ffmpeg.draw import (
+    draw_envelope_frame as draw_envelope_frame,
+)
+from ewp_waveform.ffmpeg.draw import (
+    glow_overscan as glow_overscan,
 )
 from ewp_waveform.ffmpeg.encode import (
     EncodeError,
-    encode_rgba_stream,
     glow_sigma,
 )
-from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
+from ewp_waveform.ffmpeg.encode import (
+    encode_rgba_stream as encode_rgba_stream,
+)
+from ewp_waveform.ffmpeg.probe import ProbeError
+from ewp_waveform.ffmpeg.probe import probe_media as probe_media
 from ewp_waveform.ffmpeg.probe import probe_png_sequence as probe_png_sequence
 from ewp_waveform.ffmpeg.probe import probe_video as probe_video
 from ewp_waveform.identity import (
@@ -173,6 +242,11 @@ def _utcnow() -> str:
 def _lifecycle_hooks() -> render_lifecycle.LifecycleHooks:
     """Expose live module helpers without copying callbacks or importing render back."""
     return cast(render_lifecycle.LifecycleHooks, sys.modules[__name__])
+
+
+def _scroll_hooks() -> render_scroll.ScrollHooks:
+    """Keep helper and worker lookups live without a reverse pipeline import."""
+    return cast(render_scroll.ScrollHooks, sys.modules[__name__])
 
 
 def output_root(source: Path, configured: Path | None, directory_name: str) -> Path:
@@ -243,53 +317,17 @@ def iter_scroll_frames(
     n_frames: int | None = None,
     origin: float = 0.0,
 ) -> Iterator[bytes]:
-    width = preset.canvas.width
-    height = preset.canvas.height
-    total = n_frames if n_frames is not None else max(1, round(duration * fps))
-    stroke = preset.waveform.stroke_width or 6.0
-    center = bool(preset.waveform.center_line)
-    window_seconds = preset.waveform.window_seconds
-    pad = glow_overscan(glow)
-    draw_w = width + 2 * pad
-    draw_h = height + 2 * pad
-    ss = SCROLL_SUPERSAMPLE
-    oversample = envelope_oversample_from_signal(preset.signal)
-    raw_classic_opacity = preset.signal.get(
-        "classic_alternate_opacity", CLASSIC_SCROLL_ALTERNATE_OPACITY
+    return render_scroll.iter_scroll_frames(
+        _scroll_hooks(),
+        bins,
+        duration=duration,
+        preset=preset,
+        fps=fps,
+        glow=glow,
+        first_frame=first_frame,
+        n_frames=n_frames,
+        origin=origin,
     )
-    classic_opacity = (
-        min(max(float(raw_classic_opacity), 0.0), 1.0)
-        if isinstance(raw_classic_opacity, int | float)
-        and not isinstance(raw_classic_opacity, bool)
-        else CLASSIC_SCROLL_ALTERNATE_OPACITY
-    )
-    env_w = draw_w * oversample
-    for i in range(first_frame, first_frame + total):
-        vis_start = viewport_left_px(i, fps, window_seconds, width)
-        draw_start = vis_start - pad
-        draw_start_bins = draw_start * oversample
-        raw = window_from_origin(
-            bins,
-            global_end_exclusive=math.floor(draw_start_bins) + env_w + 1,
-            width=env_w + 1,
-            origin=origin,
-        )
-        yield draw_envelope_frame(
-            raw,
-            width=draw_w,
-            height=draw_h,
-            color=preset.waveform.color,
-            amplitude=preset.waveform.amplitude,
-            stroke_width=stroke,
-            style=preset.waveform.style,
-            center_line=center,
-            scroll_phase=draw_start,
-            content_height=height,
-            supersample=ss,
-            glow_sigma=glow,
-            envelope_oversample=oversample,
-            classic_alternate_opacity=classic_opacity,
-        )
 
 
 def iter_spectrum_frames(
@@ -704,26 +742,8 @@ def iter_temporal_frames(
         )
 
 
-@dataclass(frozen=True)
-class EnvelopeSettings:
-    oversample: int
-    aa_kind: str
-    aa_support: float
-    lpf_kind: str
-    lpf_cutoff: float
-    smoothing_sigma: float
-    scale: str
-    norm_mode: str
-    soft_clip: bool
-    preroll: float
-    postroll: float
-
-
 def _chunk_seconds(performance: PerformanceProfile) -> float:
-    raw = performance.processing.get("chunk_seconds", 60)
-    if isinstance(raw, bool) or not isinstance(raw, int | float):
-        return 60.0
-    return float(raw)
+    return render_scroll._chunk_seconds(_scroll_hooks(), performance)
 
 
 def _job_workers(performance: PerformanceProfile) -> int:
@@ -756,80 +776,15 @@ def _clip_bounds(
 
 
 def _envelope_settings(preset: VisualPreset, fps: float, glow: float) -> EnvelopeSettings:
-    oversample = envelope_oversample_from_signal(preset.signal)
-    aa_kind, aa_support = envelope_aa_from_signal(preset.signal)
-    lpf_kind, lpf_explicit, lpf_margin = motion_lpf_from_signal(preset.signal)
-    lpf_cutoff = motion_cutoff_cyc_px(
-        width=preset.canvas.width,
-        window_seconds=preset.waveform.window_seconds,
-        fps=fps,
-        margin=lpf_margin,
-        explicit=lpf_explicit,
-    )
-    raw_smooth = preset.signal.get("smoothing", 0.0)
-    smoothing = 0.0
-    if isinstance(raw_smooth, int | float) and not isinstance(raw_smooth, bool):
-        smoothing = float(raw_smooth)
-    smoothing_sigma = 0.0
-    if smoothing > 0.0:
-        smoothing_sigma = smoothing * (preset.canvas.width / preset.waveform.window_seconds)
-    scale = str(preset.signal.get("scale") or "sqrt")
-    norm = preset.signal.get("normalization")
-    norm_mode = "auto"
-    soft = True
-    if isinstance(norm, dict):
-        norm_mode = str(norm.get("mode") or "auto")
-        soft = bool(norm.get("soft_clip", True))
-    context = envelope_context_bins(
-        oversample=oversample,
-        aa_kind=aa_kind,
-        aa_support=aa_support,
-        lpf_kind=lpf_kind,
-        lpf_cutoff=lpf_cutoff,
-        smoothing_sigma=smoothing_sigma,
-    )
-    preroll, postroll = envelope_preroll_seconds(
-        window_seconds=preset.waveform.window_seconds,
-        width=preset.canvas.width,
-        oversample=oversample,
-        context_bins=context,
-        extra_px=glow_overscan(glow) + 1,
-    )
-    return EnvelopeSettings(
-        oversample=oversample,
-        aa_kind=aa_kind,
-        aa_support=aa_support,
-        lpf_kind=lpf_kind,
-        lpf_cutoff=lpf_cutoff,
-        smoothing_sigma=smoothing_sigma,
-        scale=scale,
-        norm_mode=norm_mode,
-        soft_clip=soft,
-        preroll=preroll,
-        postroll=postroll,
-    )
+    return render_scroll._envelope_settings(_scroll_hooks(), preset, fps, glow)
 
 
 def _filter_wav(
-    decoded: Path,
-    settings: EnvelopeSettings,
-    sample_rate: int,
-    width: int,
-    window_seconds: float,
+    decoded: Path, settings: EnvelopeSettings, sample_rate: int, width: int, window_seconds: float
 ) -> tuple[list[float], float]:
-    hop = hop_samples(sample_rate, width, window_seconds, oversample=settings.oversample)
-    bins = rms_bins_from_wav(decoded, hop)
-    filtered = process_envelope_bins(
-        bins,
-        scale=settings.scale,
-        smoothing_sigma=settings.smoothing_sigma,
-        oversample=settings.oversample,
-        aa_kind=settings.aa_kind,
-        aa_support=settings.aa_support,
-        lpf_kind=settings.lpf_kind,
-        lpf_cutoff=settings.lpf_cutoff,
+    return render_scroll._filter_wav(
+        _scroll_hooks(), decoded, settings, sample_rate, width, window_seconds
     )
-    return filtered, hop
 
 
 def _validate_mov(
@@ -1598,192 +1553,31 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
                 }
             normalization = {"mode": norm_mode, "soft_clip": soft, "peak": peak}
         else:
-            note(
-                f"scroll decode {clip_duration:.1f}s -> {expected_frames} frames @ {job.fps:g} fps"
-            )
-            settings = _envelope_settings(preset, job.fps, glow)
-            chunk_seconds = _chunk_seconds(performance)
-            chunks = plan_chunks(clip_duration, job.fps, chunk_seconds)
-            windows = [
-                processing_window(
-                    chunk,
-                    source_duration=clip_duration,
-                    preroll=settings.preroll,
-                    postroll=settings.postroll,
-                )
-                for chunk in chunks
-            ]
-            analysis = {
-                "chunk_count": len(chunks),
-                "preroll_seconds": settings.preroll,
-                "postroll_seconds": settings.postroll,
-            }
-            cp_file = checkpoint_path(work)
-            existing = load_checkpoint(cp_file)
-            completed_ok: set[int] = set()
-            peak = None
-            if existing is not None and identity_matches(
-                existing,
-                source_sha256=source_sha,
-                render_signature=sig,
-                visual_contract_version=VISUAL_CONTRACT_VERSION,
-                renderer="ffmpeg",
-                fps=job.fps,
+            mov_work, png_work = render_scroll.run_scroll_pipeline(
+                _scroll_hooks(),
+                job=job,
+                preset=preset,
+                performance=performance,
+                source_sha=source_sha,
+                sig=sig,
                 clip_start=clip_start,
                 clip_duration=clip_duration,
-                chunk_seconds=chunk_seconds,
                 expected_frames=expected_frames,
-                want_mov=producing_mov,
-                want_png=producing_png,
-            ):
-                completed_ok = set(
-                    reusable_chunk_indices(
-                        work,
-                        existing,
-                        windows,
-                        want_mov=producing_mov,
-                        want_png=producing_png,
-                    )
-                )
-                peak = existing.peak
-                checkpoint = existing
-                checkpoint.completed_chunks = [
-                    record for record in existing.completed_chunks if record.index in completed_ok
-                ]
-            else:
-                reset_workdir(work)
-                checkpoint = Checkpoint(
-                    schema_version=CHECKPOINT_SCHEMA_VERSION,
-                    source_sha256=source_sha,
-                    render_signature=sig,
-                    visual_contract_version=VISUAL_CONTRACT_VERSION,
-                    renderer="ffmpeg",
-                    fps=job.fps,
-                    clip_start=clip_start,
-                    clip_duration=clip_duration,
-                    chunk_seconds=chunk_seconds,
-                    expected_frames=expected_frames,
-                    want_mov=producing_mov,
-                    want_png=producing_png,
-                    peak=None,
-                    preroll_seconds=settings.preroll,
-                    postroll_seconds=settings.postroll,
-                    completed_chunks=[],
-                )
-            work.mkdir(parents=True, exist_ok=True)
-            incomplete = [window for window in windows if window.chunk.index not in completed_ok]
-            prepared_by_index: dict[int, PreparedChunk] = {}
-            if incomplete:
-                analyze_windows = windows if peak is None else incomplete
-                prepared = _prepare_chunk_envelopes(
-                    job.path,
-                    analyze_windows,
-                    settings,
-                    work=work,
-                    clip_start=clip_start,
-                    width=preset.canvas.width,
-                    window_seconds=preset.waveform.window_seconds,
-                )
-                if settings.norm_mode != "none" and peak is None:
-                    collected: list[float] = []
-                    bps = (
-                        float(preset.canvas.width * settings.oversample)
-                        / preset.waveform.window_seconds
-                    )
-                    for item in prepared:
-                        collected.extend(
-                            published_bin_slice(
-                                item.bins,
-                                start_seconds=item.window.chunk.start_seconds,
-                                end_seconds=item.window.chunk.end_seconds,
-                                origin_seconds=item.window.decode_start,
-                                bins_per_second=bps,
-                            )
-                        )
-                    peak = bin_peak(collected)
-                if settings.norm_mode != "none":
-                    prepared = [
-                        PreparedChunk(
-                            window=item.window,
-                            bins=normalize_bins(item.bins, soft_clip=settings.soft_clip, peak=peak),
-                            origin=item.origin,
-                        )
-                        for item in prepared
-                    ]
-                prepared_by_index = {item.window.chunk.index: item for item in prepared}
-                checkpoint.peak = peak
-                write_checkpoint(cp_file, checkpoint)
-            normalization = {
-                "mode": settings.norm_mode,
-                "soft_clip": settings.soft_clip,
-                "peak": peak,
-            }
-            png_work = work / "png" if producing_png else None
-            px_per_frame = preset.canvas.width / (preset.waveform.window_seconds * job.fps)
-            raw_shutter = preset.signal.get("shutter_degrees", 0)
-            shutter_deg = 0.0
-            if isinstance(raw_shutter, int | float) and not isinstance(raw_shutter, bool):
-                shutter_deg = max(0.0, float(raw_shutter))
-            shutter_px = px_per_frame * shutter_deg / 360.0
-            raw_mix = preset.signal.get("shutter_mix", 0.25)
-            shutter_mix = 0.25
-            if isinstance(raw_mix, int | float) and not isinstance(raw_mix, bool):
-                shutter_mix = min(max(float(raw_mix), 0.0), 1.0)
-            reused, encode_workers = _run_scroll_encodes(
-                windows=windows,
-                prepared_by_index=prepared_by_index,
-                completed_ok=completed_ok,
-                preset=preset,
-                clip_duration=clip_duration,
-                fps=job.fps,
-                glow=glow,
-                png_work=png_work,
                 work=work,
                 producing_mov=producing_mov,
-                ffmpeg_threads=threads,
-                shutter_px=shutter_px,
-                shutter_mix=shutter_mix,
-                workers=_job_workers(performance),
+                producing_png=producing_png,
+                glow=glow,
+                threads=threads,
                 fail_after_chunk=fail_after_chunk,
-                checkpoint=checkpoint,
-                cp_file=cp_file,
                 note=note,
+                analysis=analysis,
+                normalization=normalization,
+                warnings=warnings,
+                resume_history=resume_history,
+                clock=clock,
             )
-            analysis["encode_workers"] = encode_workers
-            clock.extras["ffmpeg_threads_resolved_argument"] = (
-                _encode_worker_threads(threads, encode_workers) if encode_workers else None
-            )
-            if reused:
-                remaining = [
-                    window.chunk.start_seconds
-                    for window in windows
-                    if window.chunk.index not in reused
-                ]
-                boundary = min(remaining) if remaining else clip_duration
-                warnings.append(
-                    Diagnostic(
-                        code=DiagnosticCode.W_JOB_RESUMED,
-                        severity=Severity.WARNING,
-                        message=(
-                            f"Resumed at source timestamp {boundary:.3f}s "
-                            f"(reused {len(reused)} chunk(s))."
-                        ),
-                        path=str(job.path),
-                    )
-                )
-                resume_history.append(
-                    {
-                        "resumed": True,
-                        "boundary_seconds": boundary,
-                        "reused_chunks": reused,
-                    }
-                )
-            if producing_mov:
-                segments = [work / f"chunk-{window.chunk.index:04d}.mov" for window in windows]
-                note(f"concat {len(segments)} segment(s)")
-                tmp_mov = work / "out.mov"
-                concat_videos(segments, tmp_mov, list_path=work / "concat.txt")
-                lifecycle.publish_mov(tmp_mov, failure_message="scroll output failed validation")
+            if mov_work is not None:
+                lifecycle.publish_mov(mov_work, failure_message="scroll output failed validation")
             if png_work is not None:
                 lifecycle.publish_png(png_work)
         lifecycle.mark_succeeded()
@@ -1807,102 +1601,10 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
         )
 
 
-@dataclass(frozen=True)
-class PreparedChunk:
-    window: ProcessingWindow
-    bins: list[float]
-    origin: float
-
-
-@dataclass(frozen=True)
-class ChunkEncodeTask:
-    """Pickleable payload for one independent scroll chunk (process-pool target)."""
-
-    chunk_index: int
-    n_windows: int
-    first_frame: int
-    n_frames: int
-    start_seconds: float
-    end_seconds: float
-    bins: list[float]
-    origin: float
-    clip_duration: float
-    preset: VisualPreset
-    fps: float
-    glow: float
-    png_dir: str | None
-    prores_path: str | None
-    ffmpeg_threads: int
-    overscan: int
-    supersample: int
-    shutter_px: float
-    shutter_mix: float
-
-
 def encode_scroll_chunk(
-    task: ChunkEncodeTask,
-    note: Callable[[str], None] | None = None,
+    task: ChunkEncodeTask, note: Callable[[str], None] | None = None
 ) -> ChunkRecord:
-    """Encode one logical chunk. Safe as a spawn process-pool target."""
-    progress = note if note is not None else _stderr_note
-    label = f"chunk {task.chunk_index + 1}/{task.n_windows}"
-    progress(f"{label} encode {task.n_frames} frames")
-    frames = _tick_frames(
-        iter_scroll_frames(
-            task.bins,
-            duration=task.clip_duration,
-            preset=task.preset,
-            fps=task.fps,
-            glow=task.glow,
-            first_frame=task.first_frame,
-            n_frames=task.n_frames,
-            origin=task.origin,
-        ),
-        n_frames=task.n_frames,
-        note=progress,
-        label=label,
-    )
-    png_dir = Path(task.png_dir) if task.png_dir is not None else None
-    prores_path = Path(task.prores_path) if task.prores_path is not None else None
-    encode_rgba_stream(
-        frames,
-        width=task.preset.canvas.width,
-        height=task.preset.canvas.height,
-        fps=task.fps,
-        glow=task.glow,
-        png_dir=png_dir,
-        prores_path=prores_path,
-        ffmpeg_threads=task.ffmpeg_threads,
-        overscan=task.overscan,
-        supersample=task.supersample,
-        shutter_px=task.shutter_px,
-        shutter_mix=task.shutter_mix,
-        png_start_number=task.first_frame + 1,
-    )
-    if prores_path is not None:
-        chunk_report = _validate_mov(
-            prores_path,
-            width=task.preset.canvas.width,
-            height=task.preset.canvas.height,
-            expected_frames=task.n_frames,
-            fps=task.fps,
-        )
-        if not chunk_report.get("passed"):
-            raise EncodeError(f"chunk {task.chunk_index:04d} failed validation")
-    if png_dir is not None and not png_chunk_complete(
-        png_dir, first_frame=task.first_frame, n_frames=task.n_frames
-    ):
-        raise EncodeError(f"chunk {task.chunk_index:04d} png frames missing")
-    return ChunkRecord(
-        index=task.chunk_index,
-        first_frame=task.first_frame,
-        n_frames=task.n_frames,
-        start_seconds=task.start_seconds,
-        end_seconds=task.end_seconds,
-        mov_name=prores_path.name if prores_path is not None else None,
-        mov_sha256=sha256_file(prores_path) if prores_path is not None else None,
-        png_count=task.n_frames if png_dir is not None else None,
-    )
+    return render_scroll.encode_scroll_chunk(_scroll_hooks(), task, note)
 
 
 def _chunk_task(
@@ -1921,26 +1623,19 @@ def _chunk_task(
     shutter_px: float,
     shutter_mix: float,
 ) -> ChunkEncodeTask:
-    chunk = window.chunk
-    chunk_mov = work / f"chunk-{chunk.index:04d}.mov" if producing_mov else None
-    return ChunkEncodeTask(
-        chunk_index=chunk.index,
+    return render_scroll._chunk_task(
+        _scroll_hooks(),
+        window,
+        prepared,
         n_windows=n_windows,
-        first_frame=chunk.first_frame,
-        n_frames=chunk.n_frames,
-        start_seconds=chunk.start_seconds,
-        end_seconds=chunk.end_seconds,
-        bins=prepared.bins,
-        origin=prepared.origin,
-        clip_duration=clip_duration,
         preset=preset,
+        clip_duration=clip_duration,
         fps=fps,
         glow=glow,
-        png_dir=str(png_work) if png_work is not None else None,
-        prores_path=str(chunk_mov) if chunk_mov is not None else None,
+        png_work=png_work,
+        work=work,
+        producing_mov=producing_mov,
         ffmpeg_threads=ffmpeg_threads,
-        overscan=glow_overscan(glow),
-        supersample=SCROLL_SUPERSAMPLE,
         shutter_px=shutter_px,
         shutter_mix=shutter_mix,
     )
@@ -1967,80 +1662,27 @@ def _run_scroll_encodes(
     cp_file: Path,
     note: Callable[[str], None],
 ) -> tuple[list[int], int]:
-    """Encode remaining chunks; concat order is applied by the caller.
-
-    ``jobs>1`` fans out independent chunks after the global peak is stored.
-    ``fail_after_chunk`` stays sequential so injected resume tests remain exact.
-    """
-    reused: list[int] = []
-    remaining: list[ProcessingWindow] = []
-    for window in windows:
-        if window.chunk.index in completed_ok:
-            note(f"chunk {window.chunk.index + 1}/{len(windows)} reuse")
-            reused.append(window.chunk.index)
-        else:
-            remaining.append(window)
-    if not remaining:
-        return reused, 0
-
-    work_abs = work.resolve()
-    png_abs = png_work.resolve() if png_work is not None else None
-    if png_abs is not None:
-        png_abs.mkdir(parents=True, exist_ok=True)
-
-    use_pool = workers > 1 and fail_after_chunk is None and len(remaining) > 1
-    encode_workers = min(workers, len(remaining)) if use_pool else 1
-    worker_threads = _encode_worker_threads(ffmpeg_threads, encode_workers)
-
-    def task_for(window: ProcessingWindow) -> ChunkEncodeTask:
-        return _chunk_task(
-            window,
-            prepared_by_index[window.chunk.index],
-            n_windows=len(windows),
-            preset=preset,
-            clip_duration=clip_duration,
-            fps=fps,
-            glow=glow,
-            png_work=png_abs,
-            work=work_abs,
-            producing_mov=producing_mov,
-            ffmpeg_threads=worker_threads,
-            shutter_px=shutter_px,
-            shutter_mix=shutter_mix,
-        )
-
-    def commit(record: ChunkRecord) -> None:
-        checkpoint.completed_chunks.append(record)
-        write_checkpoint(cp_file, checkpoint)
-
-    if not use_pool:
-        for window in remaining:
-            commit(encode_scroll_chunk(task_for(window), note=note))
-            if fail_after_chunk is not None and window.chunk.index >= fail_after_chunk:
-                raise RuntimeError("injected checkpoint stop")
-        return reused, encode_workers
-
-    note(f"encode {len(remaining)} remaining chunk(s) with {encode_workers} process(es)")
-    ctx = multiprocessing.get_context("spawn")
-    first_error: BaseException | None = None
-    with ProcessPoolExecutor(max_workers=encode_workers, mp_context=ctx) as pool:
-        pending = [pool.submit(encode_scroll_chunk, task_for(window)) for window in remaining]
-        try:
-            for future in as_completed(pending):
-                try:
-                    record = future.result()
-                except Exception as exc:
-                    if first_error is None:
-                        first_error = exc
-                    continue
-                commit(record)
-        except KeyboardInterrupt:
-            for future in pending:
-                future.cancel()
-            raise
-    if first_error is not None:
-        raise first_error
-    return reused, encode_workers
+    return render_scroll._run_scroll_encodes(
+        _scroll_hooks(),
+        windows=windows,
+        prepared_by_index=prepared_by_index,
+        completed_ok=completed_ok,
+        preset=preset,
+        clip_duration=clip_duration,
+        fps=fps,
+        glow=glow,
+        png_work=png_work,
+        work=work,
+        producing_mov=producing_mov,
+        ffmpeg_threads=ffmpeg_threads,
+        shutter_px=shutter_px,
+        shutter_mix=shutter_mix,
+        workers=workers,
+        fail_after_chunk=fail_after_chunk,
+        checkpoint=checkpoint,
+        cp_file=cp_file,
+        note=note,
+    )
 
 
 def _prepare_chunk_envelopes(
@@ -2053,27 +1695,16 @@ def _prepare_chunk_envelopes(
     width: int,
     window_seconds: float,
 ) -> list[PreparedChunk]:
-    prepared: list[PreparedChunk] = []
-    for window in windows:
-        decoded = work / f"chunk-{window.chunk.index:04d}.wav"
-        abs_start = clip_start + window.decode_start
-        decode_mono_wav(
-            source,
-            decoded,
-            start=abs_start if abs_start > 0 else None,
-            duration=window.decode_duration if window.decode_duration > 0 else None,
-        )
-        decoded_media = probe_media(decoded)
-        bins, hop = _filter_wav(
-            decoded,
-            settings,
-            decoded_media.sample_rate,
-            width,
-            window_seconds,
-        )
-        origin = bin_origin(window.decode_start, decoded_media.sample_rate, hop)
-        prepared.append(PreparedChunk(window=window, bins=bins, origin=origin))
-    return prepared
+    return render_scroll._prepare_chunk_envelopes(
+        _scroll_hooks(),
+        source,
+        windows,
+        settings,
+        work=work,
+        clip_start=clip_start,
+        width=width,
+        window_seconds=window_seconds,
+    )
 
 
 def _result_payload(
