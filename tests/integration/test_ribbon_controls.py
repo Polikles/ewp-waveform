@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from ewp_waveform.application import render as render_module
 from ewp_waveform.application.service import AppError, plan_jobs, render
 from ewp_waveform.cli import app
+from ewp_waveform.config.load import load_preset
 from ewp_waveform.identity import sha256_file
 from ewp_waveform.paths import builtin_presets_dir
 from tests.integration.test_render import NO_CHUNKS, _job_status, _write
@@ -200,3 +201,28 @@ def test_cli_invalid_is_clear_config_error(tmp_path: Path) -> None:
     )
     assert result.exit_code != 0 and "detail_level" in result.output
     assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("key", ["fmin_hz", "fmax_hz"])
+def test_saved_partial_frequency_bounds_fail_loading_and_public_plan(
+    tmp_path: Path, key: str
+) -> None:
+    preset_path = _preset(tmp_path)
+    preset_path.write_text(
+        preset_path.read_text().replace(
+            'frequency = { range = "auto" }',
+            'frequency = { range = "auto", ' + key + ' = 1000.0 }',
+        )
+    )
+    assert key in preset_path.read_text()
+    before = sha256_file(preset_path)
+    message = "both fmin_hz and fmax_hz or neither"
+    with pytest.raises(ValueError, match=message):
+        load_preset(str(preset_path))
+    source = tmp_path / "s0e00-Partial.wav"
+    _source(source)
+    output = tmp_path / "must-not-exist"
+    with pytest.raises(AppError, match=message):
+        plan_jobs(source, preset_name=str(preset_path), output_dir=output)
+    assert not output.exists()
+    assert sha256_file(preset_path) == before

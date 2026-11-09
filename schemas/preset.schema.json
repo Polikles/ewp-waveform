@@ -379,7 +379,7 @@
               },
               "color": {
                 "type": "string",
-                "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+                "pattern": "^#[0-9A-Fa-f]{6}$"
               },
               "amplitude": {
                 "type": "number",
@@ -491,6 +491,14 @@
                     "minimum": 0.01,
                     "maximum": 192000
                   }
+                },
+                "dependentRequired": {
+                  "fmin_hz": [
+                    "fmax_hz"
+                  ],
+                  "fmax_hz": [
+                    "fmin_hz"
+                  ]
                 }
               }
             }
@@ -518,7 +526,8 @@
                     ]
                   },
                   "color": {
-                    "type": "string"
+                    "type": "string",
+                    "$comment": "For filled-ribbon-v2, if supplied, this must exactly match waveform.color. Cross-property equality for arbitrary colors is semantic runtime validation by VisualPreset; schema validation alone is not sufficient."
                   }
                 },
                 "allOf": [

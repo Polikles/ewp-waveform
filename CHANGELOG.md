@@ -4,6 +4,13 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+### Fixed
+
+- Refined ribbon v2 now rejects incomplete explicit frequency-bound pairs in saved
+  presets and its JSON Schema before planning. Tighten only its waveform color
+  schema to six digits and document glow-color equality as runtime semantic
+  validation. Preserve legacy admission, rendering recipes and preset bytes.
+
 ### Added
 
 - Opt-in `iuris-ribbon-refined` with validated smooth/balanced/detailed audio-derived

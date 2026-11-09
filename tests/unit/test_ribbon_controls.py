@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import tomllib
 from copy import deepcopy
 from typing import Any
 
@@ -16,6 +18,7 @@ from ewp_waveform.config.load import load_preset
 from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.config.ribbon import BRAND_COLORS, DETAIL_SETTINGS, apply_public_appearance
 from ewp_waveform.identity import render_signature
+from ewp_waveform.paths import builtin_presets_dir, project_root
 from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
 
 
@@ -303,3 +306,88 @@ def test_unknown_service_and_helper_overrides_rejected() -> None:
     copy.signal["detail_level"] = "typo"
     with pytest.raises(ValueError):
         resolve_fixed_axis_appearance(copy)
+
+
+@pytest.mark.parametrize("key", ["fmin_hz", "fmax_hz"])
+def test_refined_partial_frequency_pair_rejected_but_legacy_unchanged(key: str) -> None:
+    data = _preset().model_dump()
+    data["signal"]["frequency"] = {"range": "auto", key: 1000.0}
+    with pytest.raises(ValidationError, match="both fmin_hz and fmax_hz or neither"):
+        VisualPreset.model_validate(data)
+    legacy = load_preset("iuris-ribbon-fixed").model_dump()
+    legacy["signal"]["frequency"] = data["signal"]["frequency"]
+    assert VisualPreset.model_validate(legacy).signal["frequency"] == data["signal"]["frequency"]
+
+
+@pytest.mark.parametrize("bounds", [{}, {"fmin_hz": 100.0, "fmax_hz": 1000.0}])
+def test_refined_complete_or_automatic_frequency_pair_stays_valid(bounds: dict[str, float]) -> None:
+    data = _preset().model_dump()
+    data["signal"]["frequency"] = {"range": "auto", **bounds}
+    assert VisualPreset.model_validate(data).signal["frequency"] == data["signal"]["frequency"]
+
+
+def _schema_and_raw_preset(name: str) -> tuple[Any, dict[str, Any]]:
+    # Optional validator tooling is not a production dependency. Never install it here.
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((project_root() / "schemas" / "preset.schema.json").read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    raw = tomllib.loads((builtin_presets_dir() / f"{name}.toml").read_text())
+    return jsonschema.Draft202012Validator(schema), raw
+
+
+@pytest.mark.parametrize(
+    ("bounds", "valid"),
+    [({}, True), ({"fmin_hz": 100.0, "fmax_hz": 1000.0}, True),
+     ({"fmin_hz": 1000.0}, False), ({"fmax_hz": 1000.0}, False)],
+)
+def test_refined_frequency_schema_and_model_agree(bounds: dict[str, float], valid: bool) -> None:
+    validator, data = _schema_and_raw_preset("iuris-ribbon-refined")
+    data["signal"]["frequency"] = {"range": "auto", **bounds}
+    assert validator.is_valid(data) is valid
+    if valid:
+        VisualPreset.model_validate(data)
+    else:
+        with pytest.raises(ValidationError, match="both fmin_hz and fmax_hz or neither"):
+            VisualPreset.model_validate(data)
+
+
+@pytest.mark.parametrize("key", ["fmin_hz", "fmax_hz"])
+def test_legacy_schema_and_model_keep_partial_bounds_and_eight_digit_color(key: str) -> None:
+    validator, data = _schema_and_raw_preset("iuris-ribbon-fixed")
+    data["signal"]["frequency"] = {"range": "auto", key: 1000.0}
+    data["waveform"]["color"] = "#C7E6EC80"
+    assert validator.is_valid(data)
+    assert VisualPreset.model_validate(data).waveform.color == "#C7E6EC80"
+
+
+@pytest.mark.parametrize("color,valid", [("#C7E6EC", True), ("#C7E6EC80", False)])
+def test_refined_color_schema_and_model_agree(color: str, valid: bool) -> None:
+    validator, data = _schema_and_raw_preset("iuris-ribbon-refined")
+    data["waveform"]["color"] = color
+    data["effects"]["glow"].pop("color", None)
+    assert validator.is_valid(data) is valid
+    if valid:
+        VisualPreset.model_validate(data)
+    else:
+        with pytest.raises(ValidationError, match=r"waveform\.color must be #RRGGBB"):
+            VisualPreset.model_validate(data)
+
+
+@pytest.mark.parametrize("glow_color", [None, "#123aBc", "#FFFFFF", "#123ABC"])
+def test_glow_color_equality_is_documented_runtime_semantics(glow_color: str | None) -> None:
+    validator, data = _schema_and_raw_preset("iuris-ribbon-refined")
+    data["waveform"]["color"] = "#123aBc"
+    if glow_color is None:
+        data["effects"]["glow"].pop("color", None)
+    else:
+        data["effects"]["glow"]["color"] = glow_color
+    assert validator.is_valid(data)  # Standard schema cannot compare arbitrary siblings.
+    comment = validator.schema["allOf"][2]["then"]["properties"]["effects"]["properties"][
+        "glow"
+    ]["properties"]["color"]["$comment"]
+    assert "semantic runtime validation" in comment
+    if glow_color in (None, "#123aBc"):
+        VisualPreset.model_validate(data)
+    else:
+        with pytest.raises(ValidationError, match="independent glow color is unsupported"):
+            VisualPreset.model_validate(data)

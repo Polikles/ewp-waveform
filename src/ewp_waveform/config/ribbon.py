@@ -134,6 +134,8 @@ def validate_refined_data(data: Any) -> Any:
     _keys(freq, {"range", "fmin_hz", "fmax_hz"}, "signal.frequency")
     if freq.get("range", "auto") != "auto":
         raise ValueError("refined ribbon supports frequency.range=auto or explicit Hz bounds")
+    if ("fmin_hz" in freq) != ("fmax_hz" in freq):
+        raise ValueError("signal.frequency requires both fmin_hz and fmax_hz or neither")
     for key in ("fmin_hz", "fmax_hz"):
         if key in freq:
             _number(freq[key], key, 0.01, 192000.0)

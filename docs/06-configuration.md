@@ -94,6 +94,20 @@ The five existing brand names resolve without changing old palettes:
 reference `#F2C55B`; this increment deliberately retains the existing preset value.
 Glow follows waveform color; a separate glow color/radius/intensity is not supported
 by the existing encoder and is rejected for v2, not a second ignored control.
+For v2, a supplied `effects.glow.color` must exactly match `waveform.color`
+(including letter case); omission follows the waveform color. This cross-property
+equality for arbitrary colors is semantic runtime validation by `VisualPreset`,
+not enforced by standard JSON Schema. Schema validation alone is not sufficient:
+validate saved presets through the public configuration model before planning.
+The v2 schema and runtime both require six-digit `#RRGGBB` waveform color; legacy
+color semantics remain unchanged.
+
+For v2, `signal.frequency` supports `range="auto"` with either no explicit Hz
+bounds (automatic span) or **both** `fmin_hz` and `fmax_hz` (explicit span). Each
+bound must be finite `0.01..192000` Hz and the minimum must be less than the
+maximum. A lone bound is rejected before planning instead of silently discarded.
+Legacy frequency admission and the spectrum consumer are unchanged.
+
 Thickness is a minimum full ribbon height at the baseline, independent of amplitude;
 1 px retains the thin centerline, thicker values fill a solid core. It is not an
 outline stroke. Centerline can be disabled only with no explicit thickness.
