@@ -1,7 +1,7 @@
 # Operator instructions
 
 These files describe internal-MVP checkout-based installation and operation of
-`waveform` 0.1.1 with uv, Python >=3.12,<3.13 and system FFmpeg. Ubuntu/WSL is a
+`waveform` 0.1.3 with uv, Python >=3.12,<3.13 and system FFmpeg. Ubuntu/WSL is a
 reference recipe, not a blanket clean-host qualification. They are not the
 architecture spec (`docs/`).
 

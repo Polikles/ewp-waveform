@@ -1,6 +1,17 @@
 # Changelog
 
+The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
+
 ## Unreleased
+
+## [0.1.3] - 2026-11-09
+
+### Changed
+
+- Batch opaque gapless envelope column interiors in bounded 64-row raster tiles,
+  preserving scalar fractional-edge coverage, RGB/alpha tie rules and invalid-
+  geometry fallback behavior. Gapped spans, visual contract, appearance recipes,
+  render identity and public interfaces remain unchanged; no dependency change.
 
 - Dispatch the existing FFmpeg fixed-axis and scroll implementations through a
   narrow internal protocol and immutable built-in adapters. Keep common lifecycle,
@@ -33,6 +44,8 @@
   service/benchmark patch seams. Orchestration and worker helpers stay in place;
   no lifecycle, algorithm, visual-contract, identity, schema or version change.
 
+### Fixed
+
 - Benchmark manifests retain optional per-input start/duration seconds through
   planning, production rendering and reporting. Dry-run exposes requested/effective
   bounds; estimates use the effective interval. Invalid or empty intervals reject
@@ -44,8 +57,12 @@
   scope, and explicit unavailable resource measurements. Renderer behavior unchanged;
   no speedup claim.
 
+### Documentation
 
-The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
+Documentation clarification (no runtime or version change): per-track independent
+assets, baseline/optimization/refinement sequence, complete per-style s0e00 acceptance,
+transparent-content verification and exact-identity download/comparison retention.
+Yellow remains unresolved; presets, visual fixtures and historical receipts unchanged.
 
 ## [0.1.2] - 2026-11-04
 
@@ -73,16 +90,6 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 - Planning/dry-run no longer creates the output root. Capacity warnings inspect an
   existing ancestor without changing destinations; unavailable space checks report
   `W_OUTPUT_SPACE`. Normal render directory creation remains supported.
-
-
-## Unreleased
-
-### Documentation
-
-Documentation clarification (no runtime or version change): per-track independent
-assets, baseline/optimization/refinement sequence, complete per-style s0e00 acceptance,
-transparent-content verification and exact-identity download/comparison retention.
-Yellow remains unresolved; presets, visual fixtures and historical receipts unchanged.
 
 ## 0.1.0 — 2026-11-04 (local development baseline; not a public release)
 

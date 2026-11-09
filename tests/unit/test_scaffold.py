@@ -10,7 +10,7 @@ from ewp_waveform.paths import project_root
 
 
 def test_scaffold_version_is_defined() -> None:
-    assert __version__ == "0.1.2"
+    assert __version__ == "0.1.3"
 
 
 def test_product_version_declarations_agree() -> None:

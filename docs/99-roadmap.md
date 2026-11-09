@@ -2,7 +2,7 @@
 
 No dates are assigned until evidence supports them.
 
-## Current navigation — 0.1.1 internal MVP
+## Current navigation — 0.1.3 internal MVP
 
 The internal MVP has been accepted; delivery is checkout + uv / Python
 >=3.12,<3.13 / system FFmpeg, not a public release or qualified deployment image.
