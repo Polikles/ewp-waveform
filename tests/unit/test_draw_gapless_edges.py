@@ -153,7 +153,7 @@ def test_small_eligible_batches_also_vectorize_edges(
 
 @pytest.mark.parametrize("seed_alpha", [0, 128, 255])
 def test_vector_edges_all_half_alpha_steps_and_neighbors(seed_alpha: int) -> None:
-    bounds = []
+    bounds: list[tuple[float, float]] = []
     for half_step in range(255):
         coverage = (half_step + 0.5) / 255.0
         for value in (
