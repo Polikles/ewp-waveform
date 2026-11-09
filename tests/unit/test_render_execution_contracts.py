@@ -172,7 +172,8 @@ def test_literal_legacy_signatures_and_defaults() -> None:
         # FR-LOOK-CONTROLS-001 intentionally adds three keyword-only controls to
         # the service only. Keep every frozen legacy parameter/type/default exact.
         if function is service.render:
-            expected = expected + [
+            expected = [
+                *expected,
                 ("detail_level", "KEYWORD_ONLY", "str | None", None),
                 ("amplitude", "KEYWORD_ONLY", "float | None", None),
                 ("stroke_width", "KEYWORD_ONLY", "float | None", None),
