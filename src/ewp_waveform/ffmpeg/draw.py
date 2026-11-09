@@ -146,6 +146,98 @@ def _put_span(
                 frame[off + 3] = alpha if alpha >= 255 else max(frame[off + 3], alpha)
 
 
+def _put_gapless_spans(
+    frame: bytearray,
+    *,
+    width: int,
+    height: int,
+    spans: Sequence[tuple[int, float, float]],
+    r: int,
+    g: int,
+    b: int,
+) -> None:
+    """Batch opaque interiors of disjoint integer unit-width, opacity-one spans.
+
+    Only the gapless envelope caller supplies these spans: one per X at most.
+    Fractional rows retain _put_span's scalar coverage and RGB tie rules. Full
+    rows always overwrite, including alpha-255 ties, so their order is immaterial.
+    A single frame view and 64-row tiles avoid per-span arrays or a full-frame
+    floating-point coverage grid. General/fractional-X spans stay on _put_span.
+    """
+    if not spans:
+        return
+    # Preserve scalar failure order and preceding writes for invalid geometry.
+    if any(not math.isfinite(y0) or not math.isfinite(y1) for _, y0, y1 in spans):
+        for x, y0, y1 in spans:
+            _put_span(
+                frame,
+                width=width,
+                height=height,
+                x0=float(x),
+                x1=float(x + 1),
+                y0=y0,
+                y1=y1,
+                r=r,
+                g=g,
+                b=b,
+            )
+        return
+    starts = np.zeros(width, dtype=np.intp)
+    stops = np.zeros(width, dtype=np.intp)
+    for x, y0, y1 in spans:
+        start = min(height, max(0, math.ceil(y0)))
+        stop = max(0, min(height, math.floor(y1)))
+        # No full row: leave clipping and same-row fractional edges to scalar.
+        if stop <= start:
+            _put_span(
+                frame,
+                width=width,
+                height=height,
+                x0=float(x),
+                x1=float(x + 1),
+                y0=y0,
+                y1=y1,
+                r=r,
+                g=g,
+                b=b,
+            )
+            continue
+        starts[x], stops[x] = start, stop
+        if y0 < start:
+            _put_span(
+                frame,
+                width=width,
+                height=height,
+                x0=float(x),
+                x1=float(x + 1),
+                y0=y0,
+                y1=float(start),
+                r=r,
+                g=g,
+                b=b,
+            )
+        if stop < y1:
+            _put_span(
+                frame,
+                width=width,
+                height=height,
+                x0=float(x),
+                x1=float(x + 1),
+                y0=float(stop),
+                y1=y1,
+                r=r,
+                g=g,
+                b=b,
+            )
+    pixels = np.frombuffer(frame, dtype=np.uint8).reshape(height, width, 4)
+    rgba = np.array((r, g, b, 255), dtype=np.uint8)
+    for row in range(0, height, 64):
+        end = min(height, row + 64)
+        yy = np.arange(row, end, dtype=np.intp)[:, np.newaxis]
+        full = (yy >= starts) & (yy < stops)
+        np.copyto(pixels[row:end], rgba, where=full[..., np.newaxis])
+
+
 def draw_envelope_frame(
     columns: Sequence[float],
     *,
@@ -189,9 +281,11 @@ def draw_envelope_frame(
     phase_env_floor = math.floor(scroll_phase * env_ss)
     phase_ss = scroll_phase * ss
     if columns:
+        gapless = gap_ss == 0 or period_ss <= 1
+        spans: list[tuple[int, float, float]] = []
         # Gapless styles: one ss-pixel column each, interpolated envelope.
         # Gapped styles keep discrete bars, still with fractional bin sampling.
-        if gap_ss == 0 or period_ss <= 1:
+        if gapless:
             xs: list[float] = [float(x) for x in range(out_w)]
             strips = [(x, 1.0, 1.0) for x in xs]
         else:
@@ -216,6 +310,9 @@ def draw_envelope_frame(
             half = min(half, cap)
             y0 = float(center) - half
             y1 = float(center) + half + 1.0
+            if gapless:
+                spans.append((int(x), y0, y1))
+                continue
             _put_span(
                 frame,
                 width=out_w,
@@ -228,6 +325,16 @@ def draw_envelope_frame(
                 g=g,
                 b=b,
                 opacity=opacity,
+            )
+        if gapless:
+            _put_gapless_spans(
+                frame,
+                width=out_w,
+                height=height,
+                spans=spans,
+                r=r,
+                g=g,
+                b=b,
             )
     if center_line:
         _draw_center_line(frame, width=out_w, height=height, center=center, r=r, g=g, b=b)
