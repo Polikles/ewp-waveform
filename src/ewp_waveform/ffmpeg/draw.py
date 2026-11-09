@@ -159,13 +159,80 @@ def _put_gapless_spans(
     """Batch opaque interiors of disjoint integer unit-width, opacity-one spans.
 
     Only the gapless envelope caller supplies these spans: one per X at most.
-    Fractional rows retain _put_span's scalar coverage and RGB tie rules. Full
-    rows always overwrite, including alpha-255 ties, so their order is immaterial.
-    A single frame view and 64-row tiles avoid per-span arrays or a full-frame
-    floating-point coverage grid. General/fractional-X spans stay on _put_span.
+    Ordered builtin batches prepare bounds and fractional edges in binary64
+    vectors. Ineligible batches retain the original scalar-edge
+    path, including its failure/write ordering. Full rows always overwrite,
+    including alpha-255 ties. A single frame view, O(width) preparation/edges and
+    64-row interior tiles avoid a full-frame floating-point coverage grid.
+    General/fractional-X spans stay on _put_span.
     """
     if not spans:
         return
+    # Specialize ordinary production batches without depending on instrumentation.
+    # Strict eligibility leaves exotic numerics, duplicate/unordered/out-of-range
+    # X, malformed buffers/colors and nonfinite bounds on the unchanged old path.
+    # This also retains its prefix writes before scalar exceptions.
+    if (
+        type(spans) in (list, tuple)
+        and type(width) is int
+        and type(height) is int
+        and 0 < width < 2**31
+        and 0 < height < 2**31
+        and len(spans) <= width
+        and type(frame) is bytearray
+        and len(frame) == width * height * 4
+        and all(type(value) is int and 0 <= value <= 255 for value in (r, g, b))
+        and all(
+            type(span) is tuple
+            and len(span) == 3
+            and type(span[0]) is int
+            and 0 <= span[0] < width
+            and type(span[1]) is float
+            and type(span[2]) is float
+            for span in spans
+        )
+    ):
+        bounds = np.asarray(spans, dtype=np.float64)
+        xs = bounds[:, 0].astype(np.intp)
+        if np.all(xs[1:] > xs[:-1]) and np.isfinite(bounds[:, 1:]).all():
+            lower, upper = bounds[:, 1], bounds[:, 2]
+            # Clip before converting: finite but huge bounds still clip normally.
+            full_start = np.clip(np.ceil(lower), 0, height).astype(np.intp)
+            full_stop = np.clip(np.floor(upper), 0, height).astype(np.intp)
+            starts = np.zeros(width, dtype=np.intp)
+            stops = np.zeros(width, dtype=np.intp)
+            full_spans = full_stop > full_start
+            starts[xs[full_spans]] = full_start[full_spans]
+            stops[xs[full_spans]] = full_stop[full_spans]
+            pixels = np.frombuffer(frame, dtype=np.uint8).reshape(height, width, 4)
+            # Each interval has at most two non-full rows, even without a full
+            # interior. Ignore offcanvas rows and submit a shared edge only once.
+            first = np.floor(np.clip(lower, -1, height)).astype(np.intp)
+            last = np.ceil(np.clip(upper, 0, height + 1)).astype(np.intp) - 1
+            for rows, distinct in ((first, np.ones(len(xs), dtype=bool)), (last, last != first)):
+                visible = distinct & (rows >= 0) & (rows < height)
+                edge_x = xs[visible]
+                edge_y = rows[visible]
+                edge_rows = edge_y.astype(np.float64)
+                coverage = np.minimum(edge_rows + 1.0, upper[visible]) - np.maximum(
+                    edge_rows, lower[visible]
+                )
+                coverage = np.clip(coverage, 0.0, 1.0)
+                # np.rint is ties-to-even like Python round on these binary64
+                # products. Keep the scalar near-full threshold and min-alpha 1.
+                alpha = np.maximum(1, np.rint(255.0 * coverage)).astype(np.uint8)
+                alpha[coverage >= 1.0 - 1e-6] = 255
+                write = (coverage > 0.0) & ((alpha == 255) | (pixels[edge_y, edge_x, 3] < alpha))
+                edge_x, edge_y, alpha = edge_x[write], edge_y[write], alpha[write]
+                pixels[edge_y, edge_x, :3] = (r, g, b)
+                pixels[edge_y, edge_x, 3] = alpha
+            rgba = np.array((r, g, b, 255), dtype=np.uint8)
+            for row in range(0, height, 64):
+                end = min(height, row + 64)
+                yy_tile = np.arange(row, end, dtype=np.intp)[:, np.newaxis]
+                full = (yy_tile >= starts) & (yy_tile < stops)
+                np.copyto(pixels[row:end], rgba, where=full[..., np.newaxis])
+            return
     # Preserve scalar failure order and preceding writes for invalid geometry.
     if any(not math.isfinite(y0) or not math.isfinite(y1) for _, y0, y1 in spans):
         for x, y0, y1 in spans:

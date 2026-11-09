@@ -187,7 +187,9 @@ def test_gapless_batches_full_rows_without_scalar_interior_work(
         g=2,
         b=3,
     )
-    assert len(scalar_calls) == 2 * width
+    # Fractional edges are vectorized too; no scalar call is required.
+    # Keep the opaque-interior, 64-row tile and single-view checks below.
+    assert scalar_calls == []
     assert tile_rows == [64, 64, 1]
     assert views == 1
     assert frame[(64 * width + 50) * 4 : (64 * width + 50) * 4 + 4] == bytes((1, 2, 3, 255))
