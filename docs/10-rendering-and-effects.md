@@ -102,6 +102,24 @@ The variant remains experimental pending independent operator comparison and Res
 import/playback/compositing review. Transparent content, codec metadata, full-s0e00
 acceptance and NLE acceptance are separate claims; no full render is implied here.
 
+## Refined opt-in ribbon
+
+`iuris-ribbon-refined` adds the validated controls documented in
+[configuration](06-configuration.md#refined-ribbon-controls-fr-look-controls-001).
+The v1 eleven-slot broadband-only core, broad shoulder floor and global side-peak
+cap caused a central mass and suppressed valleys. V2 replaces those only for its new
+profile with fixed interleaved band mixtures across all 65 slots: fine/coarse local
+spectral neighborhoods, homogeneous contrast, mild static center emphasis and an
+8%-level narrow broadband contribution. There is no broad mandatory center floor or
+side-to-apex cap. End taper, PCHIP and Gaussian spatial filtering retain continuous
+rounded contours, with temporal EMA explicit and independent. Resolution is unchanged:
+64 audio-derived bands for every level, not synthetic extra samples or random noise.
+Baseline thickness is applied after normalization/EMA identically in serial and
+pooled execution. Same-profile mask/RGBA and worker partition equivalence remain exact.
+No legacy oracle, performance profile, encoder or product version changes. Short
+comparisons are diagnostic; full production, operator visual/NLE acceptance and main
+integration remain separate.
+
 ## Effects
 
 Effects are separate from styles. Initial families:

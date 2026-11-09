@@ -147,3 +147,12 @@ Dry-run expands the Cartesian matrix and reports SKIP/PROCESS/BLOCKED/UNSUPPORTE
 ## Exit codes
 
 Frozen for `waveform` 0.0.0: 0 success; 2 config/CLI; 3 input; 4 capability; 5 render/output; 6 partial multi-job failure. See `09-state-errors-and-logging.md`.
+
+## Refined ribbon appearance overrides
+
+`dry-run`, `preview` and `render` accept `--detail-level`, `--waveform-color`,
+`--glow-level`, `--amplitude` and `--stroke-width`. They delegate to the shared
+validated application API. See [06](06-configuration.md#refined-ribbon-controls-fr-look-controls-001)
+for defaults/ranges/applicability, five brand colors, unresolved yellow and precedence.
+Unsupported settings fail as configuration errors; dry-run plans the same signature
+as rendering and creates no outputs.

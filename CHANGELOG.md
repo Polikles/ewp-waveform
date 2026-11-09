@@ -6,6 +6,15 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ### Added
 
+- Opt-in `iuris-ribbon-refined` with validated smooth/balanced/detailed audio-derived
+  contours, five named brand colors, existing glow levels, height and baseline
+  thickness controls shared by TOML/service/CLI. Explicit overrides reach rendering,
+  planning and identity; unsupported requests fail. Preserve v1 and legacy defaults,
+  palettes, visual-contract oracles and version. Record general selectable-appearance
+  requirement; no UI, full-episode production or automatic main integration.
+
+### Added
+
 - Opt-in experimental `iuris-ribbon-fixed` visual preset: continuous pale-cyan
   filled contours, stationary midpoint-organized activity and high glow, reusing
   the optimized center-out VisualField/ribbon/alpha pipeline. A validated named
