@@ -207,8 +207,19 @@
           }
         },
         "fixed_axis_profile": {
-          "const": "filled-ribbon-v1",
-          "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting."
+          "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting.",
+          "enum": [
+            "filled-ribbon-v1",
+            "filled-ribbon-v2"
+          ]
+        },
+        "detail_level": {
+          "enum": [
+            "smooth",
+            "balanced",
+            "detailed"
+          ],
+          "description": "Refined filled-ribbon-v2 only; default balanced."
         }
       }
     },
@@ -305,6 +316,215 @@
               },
               "style": {
                 "const": "filled"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "signal": {
+            "required": [
+              "detail_level"
+            ]
+          }
+        },
+        "required": [
+          "signal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "filled-ribbon-v2"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "filled-ribbon-v2"
+              }
+            }
+          }
+        },
+        "required": [
+          "signal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "waveform": {
+            "additionalProperties": false,
+            "properties": {
+              "style": {
+                "type": "string",
+                "minLength": 1
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+              },
+              "amplitude": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 1
+              },
+              "stroke_width": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "center_line": {
+                "type": "boolean"
+              },
+              "domain": {
+                "enum": [
+                  "time",
+                  "frequency"
+                ]
+              },
+              "time_mode": false,
+              "window_seconds": {
+                "const": 5
+              }
+            }
+          },
+          "signal": {
+            "additionalProperties": false,
+            "properties": {
+              "fixed_axis_profile": {
+                "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting.",
+                "enum": [
+                  "filled-ribbon-v1",
+                  "filled-ribbon-v2"
+                ]
+              },
+              "detail_level": {
+                "enum": [
+                  "smooth",
+                  "balanced",
+                  "detailed"
+                ],
+                "description": "Refined filled-ribbon-v2 only; default balanced."
+              },
+              "scale": {
+                "type": "string"
+              },
+              "smoothing": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Optional Gaussian-approx envelope blur in seconds. 0 disables."
+              },
+              "normalization": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "none",
+                      "auto",
+                      "project",
+                      "reference"
+                    ]
+                  },
+                  "soft_clip": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "frequency": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "range": {
+                    "enum": [
+                      "auto",
+                      "project"
+                    ]
+                  },
+                  "fmin_hz": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "fmax_hz": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "effects": {
+            "additionalProperties": false,
+            "properties": {
+              "glow": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "enabled",
+                  "level"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "level": {
+                    "enum": [
+                      "none",
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              },
+              "particles": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "motion": {
+                    "type": "string"
+                  },
+                  "interaction": {
+                    "type": "string"
+                  },
+                  "density": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "intensity": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
               }
             }
           }

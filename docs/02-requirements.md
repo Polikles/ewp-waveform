@@ -1,5 +1,17 @@
 # 02 — Requirements
 
+## FR-LOOK-CONTROLS-001 — selectable appearance
+
+Rendering styles must expose useful user-selectable appearance parameters through
+validated configuration, public application APIs and CLI conventions, reusable by a
+future UI. Keep presentation, style geometry, color and effects distinct. A preset
+supplies documented defaults and supported controls; explicit valid compatible values
+must reach rendering instead of being silently replaced by a hidden profile bundle.
+Reject unknown/incompatible/unsupported overrides. Document ranges, defaults,
+applicability and precedence. Include all appearance-affecting effective values in
+output/reuse identity. Preserve existing selections/defaults when adding an opt-in
+look. No GUI or public plugin framework is required now.
+
 ## Requirement ID glossary
 
 - **FR** — Functional Requirement
