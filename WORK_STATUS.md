@@ -7,7 +7,7 @@ Specification baseline accepted.
 License: EWP Waveform Community License 1.0.
 
 The operator accepted the internal MVP at 0.1.0; current development version is
-0.1.3 with compatible render-pipeline refactoring, gapless raster batching and
+0.1.4 with compatible render-pipeline refactoring, gapless raster batching and
 benchmark corrections, alongside production PNG/ProRes validation corrections,
 read-only planning and corrected operator guidance. Delivery remains
 checkout + uv / Python >=3.12,<3.13 / system FFmpeg. No release candidate or public

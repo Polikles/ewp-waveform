@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP, development version 0.1.3, checkout-based delivery only. Default look remains limited versus the Iuris et Logos boards. There is no public release or generally qualified deployment target.
+**Status:** accepted internal MVP, development version 0.1.4, checkout-based delivery only. Default look remains limited versus the Iuris et Logos boards. There is no public release or generally qualified deployment target.
 
 ## What this tool does
 

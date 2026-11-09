@@ -4,6 +4,16 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+## [0.1.4] - 2026-11-09
+
+### Changed
+
+- Vectorize fixed-axis gapless span preparation and fractional-edge coverage
+  for eligible batches, retaining exact scalar coverage and RGB/alpha tie
+  semantics. Keep bounded 64-row interior tiles, scalar fallback for ineligible
+  batches and general-span behavior. Visual contracts, render identity and
+  public interfaces remain unchanged; no dependency change.
+
 ## [0.1.3] - 2026-11-09
 
 ### Changed
