@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Self
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class GroupingConfig(BaseModel):
@@ -64,6 +66,17 @@ class VisualPreset(BaseModel):
     signal: dict[str, object] = Field(default_factory=dict)
     effects: dict[str, object] = Field(default_factory=dict)
     palette: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_fixed_axis_profile(self) -> Self:
+        """A named visual profile must never silently select an unrelated path."""
+        if "fixed_axis_profile" not in self.signal:
+            return self
+        if self.signal["fixed_axis_profile"] != "filled-ribbon-v1":
+            raise ValueError("Unsupported signal.fixed_axis_profile; expected filled-ribbon-v1")
+        if self.waveform.domain != "frequency" or self.waveform.style != "filled":
+            raise ValueError("filled-ribbon-v1 requires waveform.domain=frequency and style=filled")
+        return self
 
 
 class PerformanceProfile(BaseModel):

@@ -4,6 +4,16 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+### Added
+
+- Opt-in experimental `iuris-ribbon-fixed` visual preset: continuous pale-cyan
+  filled contours, stationary midpoint-organized activity and high glow, reusing
+  the optimized center-out VisualField/ribbon/alpha pipeline. A validated named
+  visual profile participates in effective appearance identity. Existing presets,
+  default selections, raster contracts and product version remain unchanged.
+  Add bounded alpha, reuse, immutability, representation and worker-equivalence
+  coverage; appearance/Resolve acceptance and full renders remain separate gates.
+
 ## [0.1.4] - 2026-11-09
 
 ### Changed

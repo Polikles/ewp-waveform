@@ -66,6 +66,42 @@ Target architecture: **AnalysisFrame** → static **VisualField** → style geom
 
 Default preset **`iuris-default`** (locked to operator pick `*ad0c99b500c0.mov`): mirrored, glow medium, 60 fps, 5 s window, oversample 4, motion sinc LOD, shutter 0, color `#C7E6EC`.
 
+## Opt-in fixed-axis filled-ribbon variant
+
+`iuris-ribbon-fixed` selects the existing `filled` geometry on the optimized
+AnalysisFrame -> stationary center-out VisualField -> continuous contour -> glow ->
+encoder path. It uses one existing pale-cyan color, `#C7E6EC`, and high glow. No spaced
+bars, segmented cells, moving time window or horizontal scrolling are introduced. The
+65-slot mapping has one broadband-organized central apex and independent side detail;
+it is a visual band mix, **not** a monotonically increasing Hz axis. X weights never
+follow framewise energy. Vertical contour halves are mirrored around the fixed baseline.
+The reference's large variant-3 panel motivates the continuous fill and rounded lobes;
+its dark board background, labels and speaker-composition thumbnails are not rendered.
+A still reference proves neither motion nor alpha.
+
+Selection is explicit, for example a bounded diagnostic (replace the example paths):
+
+```bash
+waveform preview /path/to/input.wav --preset iuris-ribbon-fixed \
+  --start 25 --duration 8 --output-dir /path/to/unique-preview
+```
+
+The preset/profile name, effective appearance recipe, canvas, signal, color and effects
+remain in render identity/results. MASK_FAST is eligible because the ribbon is
+monochrome with alternating bars explicitly disabled; the existing RGBA_2D reference
+path and physical supersampling remain selectable. No raster algorithm, encoder,
+worker scheduling, dependency, legacy fixture or existing preset is changed.
+
+Tests cover opt-in/invalid selection, legacy recipe preservation, fixed midpoint,
+read-only planning, interval-sensitive output, SKIP, source immutability, repeatability,
+high-glow mask/RGBA equivalence, worker-boundary equality, PNG/decoded-ProRes alpha and
+silent/active response. These are technical gates, not appearance acceptance. Keep all
+short diagnostics outside Git and evidence bundles, preserve baseline/download holds,
+and apply [23](23-visual-development-and-retention.md) before any complete render.
+The variant remains experimental pending independent operator comparison and Resolve
+import/playback/compositing review. Transparent content, codec metadata, full-s0e00
+acceptance and NLE acceptance are separate claims; no full render is implied here.
+
 ## Effects
 
 Effects are separate from styles. Initial families:

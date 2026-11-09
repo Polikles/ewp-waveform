@@ -1,6 +1,6 @@
 """Resolve existing fixed-axis controls before identity and output reuse.
 
-This is recipe bookkeeping, not a new raster or analysis configuration.
+Legacy controls remain unchanged unless a named visual profile is explicitly selected.
 """
 
 from __future__ import annotations
@@ -42,12 +42,15 @@ class FixedAxisAppearance:
     contour: bool = False
     bars: BarStyle | None = None
     field_plan: RenderPlan | None = None
+    profile: str | None = None
 
     def identity(self) -> dict[str, Any]:
         """Only branch-effective values; representation path is execution metadata."""
         recipe: dict[str, Any] = {"version": 1, "visual_geometry": self.geometry}
         if self.geometry != "spectrum":
             return recipe
+        if self.profile is not None:
+            recipe["profile"] = self.profile
         field = self.field_plan
         banded = self.n_bands is not None or field is not None
         recipe.update(
@@ -126,6 +129,28 @@ def resolve_fixed_axis_appearance(
     bar_color_b: str | None = None,
     bar_center_line_width: float | None = None,
 ) -> FixedAxisAppearance:
+    # Validation is also repeated here for application callers mutating a resolved copy.
+    preset.validate_fixed_axis_profile()
+    profile = "filled-ribbon-v1" if "fixed_axis_profile" in preset.signal else None
+    if profile is not None:
+        if visual_geometry != "spectrum" or field_geometry != "ribbon":
+            raise ValueError("filled-ribbon-v1 only supports spectrum ribbon geometry")
+        if spectrum_layout not in {"linear", "field_center_out"}:
+            raise ValueError("filled-ribbon-v1 owns the stationary field_center_out layout")
+        if bar_alternate:
+            raise ValueError("filled-ribbon-v1 is monochrome; alternating bars are unsupported")
+        # Named visual bundle, not a performance setting or a change to built-in defaults.
+        # Render path, AA and supersampling remain independent existing selections.
+        spectrum_layout = "field_center_out"
+        spectrum_n_bands = 64
+        spectrum_tilt_db_per_octave = 3.0
+        spectrum_compress = 0.75
+        spectrum_spatial_scale = 1.0
+        spectrum_spatial_filter = "gaussian"
+        spectrum_recenter = False
+        spectrum_edge_taper = 0.0
+        spectrum_slot_sigma = 0.0
+        bar_alternate = False
     geometry = (
         visual_geometry if visual_geometry in {"temporal_rms", "temporal_rms_peak"} else "spectrum"
     )
@@ -248,4 +273,5 @@ def resolve_fixed_axis_appearance(
         contour=bool(spectrum_contour),
         bars=bars,
         field_plan=field_plan,
+        profile=profile,
     )

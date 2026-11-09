@@ -1,0 +1,38 @@
+schema_version = 1
+name = "iuris-ribbon-fixed"
+description = "Opt-in experimental filled ribbon: stationary center-out activity, smooth cyan contours and high glow. Not a time-scroll or accepted reference match."
+
+[canvas]
+width = 1400
+height = 280
+fps = 60
+
+[waveform]
+style = "filled"
+domain = "frequency"
+color = "#C7E6EC"
+amplitude = 0.82
+center_line = true
+
+[signal]
+fixed_axis_profile = "filled-ribbon-v1"
+scale = "sqrt"
+smoothing = 0.15
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[signal.frequency]
+range = "auto"
+
+[effects.glow]
+enabled = true
+level = "high"
+color = "#C7E6EC"
+
+[effects.particles]
+enabled = false
+
+[palette]
+pale_cyan = "#C7E6EC"

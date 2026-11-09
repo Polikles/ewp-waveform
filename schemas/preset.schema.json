@@ -74,10 +74,16 @@
           "type": "boolean"
         },
         "domain": {
-          "enum": ["time", "frequency"]
+          "enum": [
+            "time",
+            "frequency"
+          ]
         },
         "time_mode": {
-          "enum": ["scroll", "playhead"]
+          "enum": [
+            "scroll",
+            "playhead"
+          ]
         },
         "window_seconds": {
           "type": "number",
@@ -109,12 +115,21 @@
         },
         "envelope_oversample": {
           "type": "integer",
-          "enum": [1, 2, 4, 8],
+          "enum": [
+            1,
+            2,
+            4,
+            8
+          ],
           "description": "Real RMS bins per output pixel across window_seconds. Not interpolated 1x data."
         },
         "envelope_aa": {
           "type": "string",
-          "enum": ["none", "area", "lanczos"],
+          "enum": [
+            "none",
+            "area",
+            "lanczos"
+          ],
           "description": "Reconstruction filter on the dense envelope, matched to output pixel width. Independent of smoothing."
         },
         "envelope_aa_support": {
@@ -129,7 +144,11 @@
         },
         "envelope_motion_lpf": {
           "type": "string",
-          "enum": ["none", "sinc", "gaussian"],
+          "enum": [
+            "none",
+            "sinc",
+            "gaussian"
+          ],
           "description": "Temporal-Nyquist low-pass on envelope amplitude vs X. Adaptive with fps and scroll speed."
         },
         "envelope_motion_cutoff": {
@@ -140,7 +159,7 @@
         "envelope_motion_margin": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Safety factor on the derived temporal Nyquist. 0.85 → ~0.09 cyc/px at default scroll."
+          "description": "Safety factor on the derived temporal Nyquist. 0.85 \u2192 ~0.09 cyc/px at default scroll."
         },
         "shutter_mix": {
           "type": "number",
@@ -172,7 +191,10 @@
           "additionalProperties": true,
           "properties": {
             "range": {
-              "enum": ["auto", "project"]
+              "enum": [
+                "auto",
+                "project"
+              ]
             },
             "fmin_hz": {
               "type": "number",
@@ -183,6 +205,10 @@
               "exclusiveMinimum": 0
             }
           }
+        },
+        "fixed_axis_profile": {
+          "const": "filled-ribbon-v1",
+          "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting."
         }
       }
     },
@@ -252,5 +278,38 @@
         "type": "string"
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ]
+          }
+        },
+        "required": [
+          "signal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "waveform": {
+            "required": [
+              "domain"
+            ],
+            "properties": {
+              "domain": {
+                "const": "frequency"
+              },
+              "style": {
+                "const": "filled"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

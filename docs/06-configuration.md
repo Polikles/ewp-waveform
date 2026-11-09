@@ -50,6 +50,29 @@ name; it never edits or replaces the built-in preset or its style defaults.
 Executable geometry extensions are a separate later feature. They are not required
 for saving configuration-only variants.
 
+## Opt-in fixed-axis filled ribbon
+
+`iuris-ribbon-fixed` is a distinct experimental visual preset. Select it explicitly;
+application defaults, `iuris-default`, `iuris-spectrum`, and all existing style defaults
+remain unchanged. Presentation (`frequency` + stationary center-out field), geometry
+(`filled` ribbon), theme (high glow), and color (existing pale cyan `#C7E6EC`) are separate
+choices, not a new performance profile or a replacement of the built-in `filled` style.
+
+Its `signal.fixed_axis_profile = "filled-ribbon-v1"` selects a named visual bundle:
+64 analysis bands, 65 stationary center-out slots, +3 dB/octave tilt, 0.75 compression,
+Gaussian spatial filtering at the existing width/200 scale when smoothing is enabled,
+and a monochrome continuous filled contour. The preset sets 0.15-second temporal
+smoothing, amplitude 0.82, a center line and high glow. Color, amplitude, smoothing and
+glow can be saved in a distinct preset copy; the profile owns the band/layout/shape
+bundle, taking precedence over lower-level spectrum shaping arguments. Existing render
+path, AA and supersampling controls retain their identity/equivalence semantics.
+
+Unknown profile values and incompatible domain/style fail validation; profile requests
+for temporal geometry, another field geometry, another non-default layout or alternating
+bars fail rather than silently selecting an unrelated look. Omitting the profile retains
+legacy resolution, including the old field path's inherited alternating-bar fallback.
+No schema-version or product-version bump is implied by this opt-in variant.
+
 ## No inheritance
 
 Preset inheritance (`extends`) is intentionally excluded from MVP for simplicity, portability, and predictable backup behavior.
