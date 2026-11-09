@@ -65,10 +65,11 @@ def test_public_overrides_plan_render_identity_reuse_and_source_immutability(
     assert _recipe(payload)["detail_level"] == "detailed"
     resolved = payload["resolved_visual_config"]
     assert isinstance(resolved, dict)
-    assert resolved["waveform"]["color"] == "#3D5D73"
-    assert resolved["waveform"]["amplitude"] == 0.4
-    assert resolved["waveform"]["stroke_width"] == 5
-    assert resolved["effects"]["glow"]["level"] == "none"
+    assert resolved["color"] == "#3D5D73"
+    assert resolved["effective_preset"]["waveform"]["amplitude"] == 0.4
+    assert resolved["effective_preset"]["waveform"]["stroke_width"] == 5
+    assert resolved["glow"]["level"] == "none"
+    assert resolved["effective_preset"] == effective.model_dump(mode="json")
     again = render(source, **common, **options)[0]
     assert _job_status(again) == "SKIPPED" and _signature(again) == _signature(payload)
     changed = plan_jobs(source, **common, **{**options, "stroke_width": 6})[3][0]

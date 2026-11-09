@@ -375,6 +375,11 @@ def _result_payload(
         ],
         "preset": {"name": preset.name, "source": "builtin"},
         "resolved_visual_config": {
+            **(
+                {"effective_preset": preset.model_dump(mode="json")}
+                if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2"
+                else {}
+            ),
             **({"fixed_axis_recipe": fixed_axis_recipe} if fixed_axis_recipe is not None else {}),
             "fps": job.fps,
             "style": preset.waveform.style,

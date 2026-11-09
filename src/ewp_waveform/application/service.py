@@ -421,7 +421,7 @@ def render(
             bar_alternate=bar_alternate,
             bar_color_b=bar_color_b,
             bar_center_line_width=bar_center_line_width,
-            waveform_color=waveform_color,
+            waveform_color=preset.waveform.color if waveform_color is not None else None,
             glow_level=glow_level,
             classic_alternate_opacity=classic_alternate_opacity,
         )

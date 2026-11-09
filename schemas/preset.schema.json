@@ -404,7 +404,26 @@
               "window_seconds": {
                 "const": 5
               }
-            }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "stroke_width"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "center_line"
+                  ],
+                  "properties": {
+                    "center_line": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            ]
           },
           "signal": {
             "additionalProperties": false,
@@ -425,25 +444,29 @@
                 "description": "Refined filled-ribbon-v2 only; default balanced."
               },
               "scale": {
-                "type": "string"
+                "enum": [
+                  "linear",
+                  "sqrt",
+                  "cbrt",
+                  "log"
+                ]
               },
               "smoothing": {
                 "type": "number",
                 "minimum": 0,
-                "description": "Optional Gaussian-approx envelope blur in seconds. 0 disables."
+                "maximum": 0.5
               },
               "normalization": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": [
                   "mode"
                 ],
                 "properties": {
                   "mode": {
                     "enum": [
-                      "none",
                       "auto",
-                      "project",
-                      "reference"
+                      "none"
                     ]
                   },
                   "soft_clip": {
@@ -453,21 +476,20 @@
               },
               "frequency": {
                 "type": "object",
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "properties": {
                   "range": {
-                    "enum": [
-                      "auto",
-                      "project"
-                    ]
+                    "const": "auto"
                   },
                   "fmin_hz": {
                     "type": "number",
-                    "exclusiveMinimum": 0
+                    "minimum": 0.01,
+                    "maximum": 192000
                   },
                   "fmax_hz": {
                     "type": "number",
-                    "exclusiveMinimum": 0
+                    "minimum": 0.01,
+                    "maximum": 192000
                   }
                 }
               }
@@ -478,7 +500,7 @@
             "properties": {
               "glow": {
                 "type": "object",
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "required": [
                   "enabled",
                   "level"
@@ -498,31 +520,42 @@
                   "color": {
                     "type": "string"
                   }
-                }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "level": {
+                          "const": "none"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "enabled": {
+                          "const": false
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "enabled": {
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                ]
               },
               "particles": {
                 "type": "object",
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "required": [
                   "enabled"
                 ],
                 "properties": {
                   "enabled": {
-                    "type": "boolean"
-                  },
-                  "motion": {
-                    "type": "string"
-                  },
-                  "interaction": {
-                    "type": "string"
-                  },
-                  "density": {
-                    "type": "number",
-                    "minimum": 0
-                  },
-                  "intensity": {
-                    "type": "number",
-                    "minimum": 0
+                    "const": false
                   }
                 }
               }

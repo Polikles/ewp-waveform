@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-from ewp_waveform.config.ribbon import BRAND_COLORS, DETAIL_SETTINGS, apply_public_appearance
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -15,6 +14,7 @@ from ewp_waveform.application.render_fixed import _ribbon_baseline
 from ewp_waveform.cli import app
 from ewp_waveform.config.load import load_preset
 from ewp_waveform.config.models import VisualPreset
+from ewp_waveform.config.ribbon import BRAND_COLORS, DETAIL_SETTINGS, apply_public_appearance
 from ewp_waveform.identity import render_signature
 from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
 
@@ -88,6 +88,8 @@ def test_each_control_changes_effective_identity(options: dict[str, Any]) -> Non
         {"detail_level": "ultra"},
         {"detail_level": ""},
         {"waveform_color": "yellow"},
+        {"waveform_color": 1},
+        {"waveform_color": []},
         {"waveform_color": "#12345678"},
         {"glow_level": "maximum"},
         {"amplitude": 0},
@@ -217,7 +219,20 @@ def test_detail_has_audio_information_and_multi_scale_variation_not_just_size() 
     def variation(row: np.ndarray) -> float:
         return float(np.sum(np.abs(np.diff(row))))
 
-    assert variation(shapes[2]) > variation(shapes[1]) > variation(shapes[0])
+    # Total variation normalized by each frame's maximum need not be monotone:
+    # one narrow dominant peak can reduce that sum. Test fine-scale information
+    # and peak width instead, not hashes or decorative sample-count differences.
+    assert variation(shapes[1]) > variation(shapes[0])
+    fine_power = []
+    for shape in shapes:
+        power = np.abs(np.fft.rfft(shape - shape.mean())) ** 2
+        fine_power.append(float(power[12:].sum() / power[1:].sum()))
+    assert fine_power[2] > fine_power[1] > fine_power[0]
+    assert (
+        np.count_nonzero(shapes[2] > 0.5)
+        < np.count_nonzero(shapes[1] > 0.5)
+        < np.count_nonzero(shapes[0] > 0.5)
+    )
     assert np.count_nonzero(shapes[2] < 0.1) > np.count_nonzero(shapes[0] < 0.1)
     old = np.array(CenterOutMapping().apply(frame).amplitude)
     assert np.count_nonzero(shapes[2] >= 0.5) < np.count_nonzero(old / old.max() >= 0.5)
@@ -237,7 +252,7 @@ def test_baseline_thickness_is_independent_and_legacy_is_exact_noop() -> None:
 
 @pytest.mark.parametrize("command", ["dry-run", "preview", "render"])
 def test_cli_propagates_controls(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    import ewp_waveform.cli as cli
+    import ewp_waveform.application.service as service
 
     seen: dict[str, Any] = {}
 
@@ -248,7 +263,7 @@ def test_cli_propagates_controls(command: str, monkeypatch: pytest.MonkeyPatch) 
         seen.update(kwargs)
         raise Stop
 
-    monkeypatch.setattr(cli.app_service, "plan_jobs" if command == "dry-run" else "render", capture)
+    monkeypatch.setattr(service, "plan_jobs" if command == "dry-run" else "render", capture)
     result = CliRunner().invoke(
         app,
         [

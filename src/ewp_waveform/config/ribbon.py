@@ -31,6 +31,8 @@ DETAIL_SETTINGS = MappingProxyType(
 
 
 def resolve_color(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("waveform_color must be a brand color name or #RRGGBB")
     resolved = BRAND_COLORS.get(value, value)
     if re.fullmatch(r"#[0-9A-Fa-f]{6}", resolved) is None:
         raise ValueError("waveform_color must be a brand color name or #RRGGBB")
