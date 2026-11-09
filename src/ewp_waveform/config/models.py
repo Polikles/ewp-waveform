@@ -67,7 +67,6 @@ class VisualPreset(BaseModel):
     effects: dict[str, object] = Field(default_factory=dict)
     palette: dict[str, str] = Field(default_factory=dict)
 
-    @model_validator(mode="after")
     def validate_fixed_axis_profile(self) -> Self:
         """A named visual profile must never silently select an unrelated path."""
         if "fixed_axis_profile" not in self.signal:
@@ -77,6 +76,10 @@ class VisualPreset(BaseModel):
         if self.waveform.domain != "frequency" or self.waveform.style != "filled":
             raise ValueError("filled-ribbon-v1 requires waveform.domain=frequency and style=filled")
         return self
+
+    @model_validator(mode="after")
+    def _validate_fixed_axis_profile(self) -> Self:
+        return self.validate_fixed_axis_profile()
 
 
 class PerformanceProfile(BaseModel):
