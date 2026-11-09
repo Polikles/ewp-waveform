@@ -167,9 +167,16 @@ def test_literal_legacy_signatures_and_defaults() -> None:
     ):
         signature = inspect.signature(function)
         actual = [
-            (p.name, p.kind.name, p.annotation, p.default)
-            for p in signature.parameters.values()
+            (p.name, p.kind.name, p.annotation, p.default) for p in signature.parameters.values()
         ]
+        # FR-LOOK-CONTROLS-001 intentionally adds three keyword-only controls to
+        # the service only. Keep every frozen legacy parameter/type/default exact.
+        if function is service.render:
+            expected = expected + [
+                ("detail_level", "KEYWORD_ONLY", "str | None", None),
+                ("amplitude", "KEYWORD_ONLY", "float | None", None),
+                ("stroke_width", "KEYWORD_ONLY", "float | None", None),
+            ]
         assert actual == expected
         for got, want in zip(actual, expected, strict=True):
             assert type(got[3]) is type(want[3])  # False must not silently become 0.
@@ -220,8 +227,15 @@ def test_adapter_and_executor_use_explicit_complete_typed_mapping() -> None:
 
 @pytest.mark.parametrize(
     "formats",
-    [[], ["png"], ["prores4444"], ["png", "prores4444"], ["prores4444", "png"],
-     ["png", "png"], ["PNG", "legacy-invalid", "png"]],
+    [
+        [],
+        ["png"],
+        ["prores4444"],
+        ["png", "prores4444"],
+        ["prores4444", "png"],
+        ["png", "png"],
+        ["PNG", "legacy-invalid", "png"],
+    ],
 )
 def test_adapter_keeps_format_order_duplicates_case_and_invalid_tokens(
     tmp_path: Path, formats: list[str]
@@ -234,10 +248,16 @@ def test_adapter_keeps_format_order_duplicates_case_and_invalid_tokens(
 
 def test_dataclass_fields_annotations_and_defaults_match_literal_contract(tmp_path: Path) -> None:
     assert [field.name for field in fields(RenderContext)] == [
-        "job", "media", "preset", "performance"
+        "job",
+        "media",
+        "preset",
+        "performance",
     ]
     assert [field.type for field in fields(RenderContext)] == [
-        "PlannedJob", "SourceMedia", "VisualPreset", "PerformanceProfile"
+        "PlannedJob",
+        "SourceMedia",
+        "VisualPreset",
+        "PerformanceProfile",
     ]
     assert [(field.name, field.type) for field in fields(RenderOptions)] == [
         (name, annotation) for name, _, annotation, _ in RENDER_PARAMETERS[4:]
@@ -362,12 +382,15 @@ def test_frozen_contracts_are_shallow_and_keep_reference_identity(tmp_path: Path
 def test_contract_module_has_no_renderer_or_domain_reverse_dependencies() -> None:
     module = importlib.import_module("ewp_waveform.application.render_types")
     tree = ast.parse(inspect.getsource(module))
-    imported = {
-        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
-    }
+    imported = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
     assert imported == {
-        "__future__", "collections.abc", "dataclasses", "pathlib", "typing",
-        "ewp_waveform.application.timing", "ewp_waveform.config.models",
+        "__future__",
+        "collections.abc",
+        "dataclasses",
+        "pathlib",
+        "typing",
+        "ewp_waveform.application.timing",
+        "ewp_waveform.config.models",
         "ewp_waveform.domain.models",
     }
     assert not any(isinstance(node, ast.Import) for node in ast.walk(tree))

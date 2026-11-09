@@ -336,14 +336,17 @@ def render(
         formats=formats,
     )
     try:
-        preset = apply_public_appearance(
-            preset,
-            detail_level=detail_level,
-            waveform_color=waveform_color,
-            glow_level=glow_level,
-            amplitude=amplitude,
-            stroke_width=stroke_width,
-        )
+        if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2" or any(
+            value is not None for value in (detail_level, amplitude, stroke_width)
+        ):
+            preset = apply_public_appearance(
+                preset,
+                detail_level=detail_level,
+                waveform_color=waveform_color,
+                glow_level=glow_level,
+                amplitude=amplitude,
+                stroke_width=stroke_width,
+            )
     except ValueError as exc:
         raise AppError(ExitCode.CONFIG, str(exc)) from exc
     if any(d.severity == Severity.ERROR for d in diagnostics):
@@ -421,7 +424,12 @@ def render(
             bar_alternate=bar_alternate,
             bar_color_b=bar_color_b,
             bar_center_line_width=bar_center_line_width,
-            waveform_color=preset.waveform.color if waveform_color is not None else None,
+            waveform_color=(
+                preset.waveform.color
+                if waveform_color is not None
+                and preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2"
+                else waveform_color
+            ),
             glow_level=glow_level,
             classic_alternate_opacity=classic_alternate_opacity,
         )
