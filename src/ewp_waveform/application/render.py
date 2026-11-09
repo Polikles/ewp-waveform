@@ -167,6 +167,7 @@ from ewp_waveform.application.render_types import RenderContext, RendererOutcome
 from ewp_waveform.application.results import elapsed_seconds as elapsed_seconds
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
+from ewp_waveform.config.ribbon import REFINED_RIBBON, apply_public_appearance
 from ewp_waveform.domain.diagnostics import (
     Diagnostic,
 )
@@ -862,6 +863,14 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
 
     validate_output_formats(formats)
     started = _utcnow()
+    if preset.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+        if classic_alternate_opacity is not None:
+            raise ValueError("filled-ribbon-v2 does not support classic_alternate_opacity")
+        preset = apply_public_appearance(
+            preset, waveform_color=waveform_color, glow_level=glow_level
+        )
+        waveform_color = None
+        glow_level = None
     preset = _with_waveform_color(preset, waveform_color)
     if glow_level is None:
         glow_level = default_glow_level(field_geometry)

@@ -40,6 +40,7 @@ from ewp_waveform.config.models import (
     PerformanceProfile,
     VisualPreset,
 )
+from ewp_waveform.config.ribbon import apply_public_appearance
 from ewp_waveform.discovery.scan import DiscoveryError, discover_paths
 from ewp_waveform.domain.diagnostics import (
     CapabilityItem,
@@ -190,6 +191,11 @@ def plan_jobs(
     force: bool = False,
     start: float | None = None,
     duration: float | None = None,
+    waveform_color: str | None = None,
+    glow_level: str | None = None,
+    detail_level: str | None = None,
+    amplitude: float | None = None,
+    stroke_width: float | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -200,6 +206,17 @@ def plan_jobs(
         fps_override=fps_override,
         formats=formats,
     )
+    try:
+        preset = apply_public_appearance(
+            preset,
+            detail_level=detail_level,
+            waveform_color=waveform_color,
+            glow_level=glow_level,
+            amplitude=amplitude,
+            stroke_width=stroke_width,
+        )
+    except ValueError as exc:
+        raise AppError(ExitCode.CONFIG, str(exc)) from exc
     performance = load_performance(performance_name or app_cfg.defaults.performance)
     fmts = formats or app_cfg.output.formats
     plans: list[JobPlan] = []
@@ -305,6 +322,9 @@ def render(
     waveform_color: str | None = None,
     glow_level: str | None = None,
     classic_alternate_opacity: float | None = None,
+    detail_level: str | None = None,
+    amplitude: float | None = None,
+    stroke_width: float | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -315,6 +335,17 @@ def render(
         fps_override=fps_override,
         formats=formats,
     )
+    try:
+        preset = apply_public_appearance(
+            preset,
+            detail_level=detail_level,
+            waveform_color=waveform_color,
+            glow_level=glow_level,
+            amplitude=amplitude,
+            stroke_width=stroke_width,
+        )
+    except ValueError as exc:
+        raise AppError(ExitCode.CONFIG, str(exc)) from exc
     if any(d.severity == Severity.ERROR for d in diagnostics):
         raise AppError(ExitCode.INPUT, diagnostics[-1].message, diagnostics[-1])
     particles = preset.effects.get("particles")

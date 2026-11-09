@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -67,12 +67,24 @@ class VisualPreset(BaseModel):
     effects: dict[str, object] = Field(default_factory=dict)
     palette: dict[str, str] = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_refined_data(cls, data: Any) -> Any:
+        from ewp_waveform.config.ribbon import validate_refined_data
+
+        return validate_refined_data(data)
+
     def validate_fixed_axis_profile(self) -> Self:
         """A named visual profile must never silently select an unrelated path."""
+        from ewp_waveform.config.ribbon import REFINED_RIBBON, validate_refined_data
+
+        validate_refined_data(self.model_dump())
+        if self.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+            return self
         if "fixed_axis_profile" not in self.signal:
             return self
         if self.signal["fixed_axis_profile"] != "filled-ribbon-v1":
-            raise ValueError("Unsupported signal.fixed_axis_profile; expected filled-ribbon-v1")
+            raise ValueError("Unsupported signal.fixed_axis_profile; expected filled-ribbon-v1/v2")
         if self.waveform.domain != "frequency" or self.waveform.style != "filled":
             raise ValueError("filled-ribbon-v1 requires waveform.domain=frequency and style=filled")
         return self

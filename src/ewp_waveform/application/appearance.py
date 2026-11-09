@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ewp_waveform.config.models import VisualPreset
+from ewp_waveform.config.ribbon import DETAIL_SETTINGS, REFINED_RIBBON
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, parse_rgb
 from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.plan import MASK_GEOMETRIES, RenderPlan, resolve_render_plan
@@ -43,6 +44,8 @@ class FixedAxisAppearance:
     bars: BarStyle | None = None
     field_plan: RenderPlan | None = None
     profile: str | None = None
+    detail_level: str | None = None
+    baseline_thickness: float | None = None
 
     def identity(self) -> dict[str, Any]:
         """Only branch-effective values; representation path is execution metadata."""
@@ -51,6 +54,12 @@ class FixedAxisAppearance:
             return recipe
         if self.profile is not None:
             recipe["profile"] = self.profile
+        if self.detail_level is not None:
+            recipe.update(
+                detail_level=self.detail_level,
+                mapping_revision=2,
+                baseline_thickness=self.baseline_thickness,
+            )
         field = self.field_plan
         banded = self.n_bands is not None or field is not None
         recipe.update(
@@ -131,14 +140,58 @@ def resolve_fixed_axis_appearance(
 ) -> FixedAxisAppearance:
     # Validation is also repeated here for application callers mutating a resolved copy.
     preset.validate_fixed_axis_profile()
-    profile = "filled-ribbon-v1" if "fixed_axis_profile" in preset.signal else None
+    profile = (
+        str(preset.signal["fixed_axis_profile"]) if "fixed_axis_profile" in preset.signal else None
+    )
+    refined = profile == REFINED_RIBBON
+    detail_level = str(preset.signal.get("detail_level", "balanced")) if refined else None
+    baseline_thickness = (preset.waveform.stroke_width or 1.0) if refined else None
+    if refined:
+        unsupported = {
+            "spectrum_contour": spectrum_contour,
+            "spectrum_spatial_scale": spectrum_spatial_scale != 1.0,
+            "spectrum_spatial_filter": spectrum_spatial_filter != "box",
+            "spectrum_n_bands": spectrum_n_bands is not None,
+            "spectrum_tilt_db_per_octave": spectrum_tilt_db_per_octave != 0.0,
+            "spectrum_compress": spectrum_compress != 1.0,
+            "spectrum_recenter": spectrum_recenter,
+            "spectrum_edge_taper": spectrum_edge_taper != 0.0,
+            "spectrum_slot_sigma": spectrum_slot_sigma != 0.0,
+            "bar controls": any(
+                x is not None
+                for x in (
+                    bar_width,
+                    bar_gap,
+                    bar_count,
+                    bar_fill,
+                    bar_align,
+                    bar_color_b,
+                    bar_center_line_width,
+                )
+            ),
+        }
+        rejected = [key for key, active in unsupported.items() if active]
+        if rejected:
+            raise ValueError(
+                "filled-ribbon-v2 unsupported low-level override(s): " + ", ".join(rejected)
+            )
+        if render_path not in (None, "mask_fast", "rgba_2d") or render_aa not in (
+            None,
+            "physical_ss",
+            "coverage_taps",
+        ):
+            raise ValueError("filled-ribbon-v2 unknown render path/AA")
+        if ribbon_supersample is not None and (
+            type(ribbon_supersample) is not int or not 1 <= ribbon_supersample <= 12
+        ):
+            raise ValueError("filled-ribbon-v2 supersample must be an integer in [1, 12]")
     if profile is not None:
         if visual_geometry != "spectrum" or field_geometry != "ribbon":
-            raise ValueError("filled-ribbon-v1 only supports spectrum ribbon geometry")
+            raise ValueError(f"{profile} only supports spectrum ribbon geometry")
         if spectrum_layout not in {"linear", "field_center_out"}:
-            raise ValueError("filled-ribbon-v1 owns the stationary field_center_out layout")
+            raise ValueError(f"{profile} owns the stationary field_center_out layout")
         if bar_alternate:
-            raise ValueError("filled-ribbon-v1 is monochrome; alternating bars are unsupported")
+            raise ValueError(f"{profile} is monochrome; alternating bars are unsupported")
         # Named visual bundle, not a performance setting or a change to built-in defaults.
         # Render path, AA and supersampling remain independent existing selections.
         spectrum_layout = "field_center_out"
@@ -151,6 +204,10 @@ def resolve_fixed_axis_appearance(
         spectrum_edge_taper = 0.0
         spectrum_slot_sigma = 0.0
         bar_alternate = False
+        if refined:
+            assert detail_level is not None
+            spectrum_compress = 1.0
+            spectrum_spatial_scale = DETAIL_SETTINGS[detail_level][3]
     geometry = (
         visual_geometry if visual_geometry in {"temporal_rms", "temporal_rms_peak"} else "spectrum"
     )
@@ -274,4 +331,6 @@ def resolve_fixed_axis_appearance(
         bars=bars,
         field_plan=field_plan,
         profile=profile,
+        detail_level=detail_level,
+        baseline_thickness=baseline_thickness,
     )

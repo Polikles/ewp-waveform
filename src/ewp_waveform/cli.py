@@ -106,6 +106,11 @@ def dry_run_cmd(
     force: bool = typer.Option(False, "--force"),
     start: float | None = typer.Option(None, "--start"),
     duration: float | None = typer.Option(None, "--duration"),
+    detail_level: str | None = typer.Option(None, "--detail-level"),
+    waveform_color: str | None = typer.Option(None, "--waveform-color"),
+    glow_level: str | None = typer.Option(None, "--glow-level"),
+    amplitude: float | None = typer.Option(None, "--amplitude"),
+    stroke_width: float | None = typer.Option(None, "--stroke-width"),
 ) -> None:
     """Resolve discovery, grouping, signatures, dests, and SKIP/PROCESS without rendering."""
     try:
@@ -121,6 +126,11 @@ def dry_run_cmd(
             force=force,
             start=start,
             duration=duration,
+            detail_level=detail_level,
+            waveform_color=waveform_color,
+            glow_level=glow_level,
+            amplitude=amplitude,
+            stroke_width=stroke_width,
         )
     except AppError as exc:
         _fail(exc)
@@ -166,6 +176,11 @@ def _run_render(
     start: float | None,
     duration: float | None,
     keep_temp: bool,
+    detail_level: str | None = None,
+    waveform_color: str | None = None,
+    glow_level: str | None = None,
+    amplitude: float | None = None,
+    stroke_width: float | None = None,
 ) -> None:
     try:
         results = app_service.render(
@@ -182,6 +197,11 @@ def _run_render(
             duration=duration,
             keep_temp=keep_temp,
             progress=_progress,
+            detail_level=detail_level,
+            waveform_color=waveform_color,
+            glow_level=glow_level,
+            amplitude=amplitude,
+            stroke_width=stroke_width,
         )
     except AppError as exc:
         _fail(exc)
@@ -235,6 +255,11 @@ def render(
     format_name: list[str] | None = typer.Option(None, "--format"),
     force: bool = typer.Option(False, "--force"),
     keep_temp: bool = typer.Option(False, "--keep-temp"),
+    detail_level: str | None = typer.Option(None, "--detail-level"),
+    waveform_color: str | None = typer.Option(None, "--waveform-color"),
+    glow_level: str | None = typer.Option(None, "--glow-level"),
+    amplitude: float | None = typer.Option(None, "--amplitude"),
+    stroke_width: float | None = typer.Option(None, "--stroke-width"),
 ) -> None:
     """Render waveform assets (scrolling envelope or experimental spectrum)."""
     _run_render(
@@ -250,6 +275,11 @@ def render(
         start=None,
         duration=None,
         keep_temp=keep_temp,
+        detail_level=detail_level,
+        waveform_color=waveform_color,
+        glow_level=glow_level,
+        amplitude=amplitude,
+        stroke_width=stroke_width,
     )
 
 
@@ -265,6 +295,11 @@ def preview(
     output_dir: str | None = typer.Option(None, "--output-dir"),
     format_name: list[str] | None = typer.Option(None, "--format"),
     force: bool = typer.Option(False, "--force"),
+    detail_level: str | None = typer.Option(None, "--detail-level"),
+    waveform_color: str | None = typer.Option(None, "--waveform-color"),
+    glow_level: str | None = typer.Option(None, "--glow-level"),
+    amplitude: float | None = typer.Option(None, "--amplitude"),
+    stroke_width: float | None = typer.Option(None, "--stroke-width"),
 ) -> None:
     """Render a short interval using the real production path."""
     _run_render(
@@ -280,6 +315,11 @@ def preview(
         start=start,
         duration=duration,
         keep_temp=False,
+        detail_level=detail_level,
+        waveform_color=waveform_color,
+        glow_level=glow_level,
+        amplitude=amplitude,
+        stroke_width=stroke_width,
     )
 
 

@@ -6,6 +6,7 @@ import math
 from collections.abc import Sequence
 
 from ewp_waveform.analysis.frames import AnalysisFrame
+from ewp_waveform.config.ribbon import DETAIL_SETTINGS
 from ewp_waveform.visual.models import VisualField
 
 CENTER_OUT_SLOTS = 65
@@ -138,6 +139,47 @@ class CenterOutMapping:
             floor = self.shoulder_gain[i] * center_amplitude
             if floor > amplitudes[i]:
                 amplitudes[i] = floor
+        return VisualField.from_amplitudes(amplitudes)
+
+
+class RefinedRibbonMapping(CenterOutMapping):
+    """Audio-derived fine/coarse band mixtures; no broad central floor or side cap."""
+
+    def __init__(self, n_bands: int = 64, detail_level: str = "balanced") -> None:
+        super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
+        sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
+        # Interleave stationary bands outwards. The center is no longer an eleven-slot
+        # broadband-only mass; independent spectral information reaches every slot.
+        order = sorted(range(self.n_slots), key=lambda i: (abs(i - self.center), i))
+        fine: list[tuple[float, ...]] = [()] * self.n_slots
+        coarse: list[tuple[float, ...]] = [()] * self.n_slots
+        for index, slot in enumerate(order):
+            band = index * (self.n_bands - 1) / (self.n_slots - 1)
+            for rows, spread in ((fine, sigma), (coarse, 4.0)):
+                weights = [math.exp(-0.5 * ((j - band) / spread) ** 2) for j in range(self.n_bands)]
+                total = sum(weights)
+                rows[slot] = tuple(value / total for value in weights)
+        self.fine_weights = tuple(fine)
+        self.coarse_weights = tuple(coarse)
+
+    def apply(self, frame: AnalysisFrame) -> VisualField:
+        src = frame.bands[: self.n_bands]
+        peak = max(src, default=0.0)
+        if peak <= 0.0:
+            return VisualField.from_amplitudes([0.0] * self.n_slots)
+        level = _broadband(frame)
+        amplitudes: list[float] = []
+        for slot in range(self.n_slots):
+            fine = sum(w * v for w, v in zip(self.fine_weights[slot], src, strict=False))
+            coarse = sum(w * v for w, v in zip(self.coarse_weights[slot], src, strict=False))
+            mixed = (1.0 - self.coarse_mix) * fine + self.coarse_mix * coarse
+            distance = abs(slot - self.center)
+            # Contrast is amplitude-homogeneous; absolute audio dynamics remain.
+            shaped = peak * (max(0.0, mixed) / peak) ** self.contrast
+            emphasis = 0.6 + 0.4 * _gaussian(distance, 16.0)
+            edge = min(1.0, (self.center - distance) / 3.0)
+            central = 0.08 * level * _gaussian(distance, 1.5)
+            amplitudes.append(max(0.0, edge * (emphasis * shaped + central)))
         return VisualField.from_amplitudes(amplitudes)
 
 

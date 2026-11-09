@@ -21,10 +21,11 @@ from ewp_waveform.application.evidence import PerformanceFingerprint
 from ewp_waveform.application.render_types import RenderOptions
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
+from ewp_waveform.config.ribbon import REFINED_RIBBON
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
-from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE
+from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, peak_half_height
 from ewp_waveform.visual.bars import BarStyle
-from ewp_waveform.visual.mapping import CenterOutMapping
+from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
 from ewp_waveform.visual.models import VisualField
 from ewp_waveform.visual.plan import AAMode, RenderPath, RenderPlan
 
@@ -665,6 +666,18 @@ def _visual_field_peak(
     return hooks.bin_peak(collected)
 
 
+def _ribbon_baseline(columns: list[float], preset: VisualPreset, glow: float) -> list[float]:
+    """Full baseline thickness in output pixels, independent of amplitude and detail."""
+    if preset.signal.get("fixed_axis_profile") != REFINED_RIBBON:
+        return columns
+    thickness = preset.waveform.stroke_width or 1.0
+    if not preset.waveform.center_line or thickness <= 1.0:
+        return columns
+    half = peak_half_height(preset.canvas.height, glow, preset.waveform.amplitude)
+    floor = (thickness - 1.0) / (2.0 * half)
+    return [max(value, floor) for value in columns]
+
+
 def iter_field_frames(
     hooks: FixedHooks,
     sequence: AnalysisSequence,
@@ -712,7 +725,7 @@ def iter_field_frames(
         previous = blended
         t1 = hooks.time.perf_counter()
         frame = hooks.raster_field_columns(
-            blended,
+            _ribbon_baseline(blended, preset, glow),
             plan=resolved,
             width=draw_w,
             height=draw_h,
@@ -1043,7 +1056,13 @@ def run_fixed_pipeline(
         field_plan = appearance.field_plan
         if layout == "field_center_out":
             field_bands = n_bands if n_bands is not None else 64
-            mapping = hooks.CenterOutMapping(n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands)
+            mapping = (
+                RefinedRibbonMapping(
+                    n_bands=field_bands, detail_level=appearance.detail_level or "balanced"
+                )
+                if appearance.profile == REFINED_RIBBON
+                else hooks.CenterOutMapping(n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands)
+            )
             assert bars is not None and field_plan is not None
             cache_payload = hooks.analysis_cache_payload(
                 source_sha256=source_sha,
@@ -1118,6 +1137,8 @@ def run_fixed_pipeline(
                         spatial_filter=spatial_filter,
                         mapping=mapping,
                     )
+                if appearance.profile == REFINED_RIBBON:
+                    column_rows = [_ribbon_baseline(row, preset, glow) for row in column_rows]
                 columns_path = work / "field-columns.npy"
                 hooks.np.save(columns_path, hooks.np.asarray(column_rows, dtype=hooks.np.float64))
                 ranges = hooks._field_frame_ranges(len(column_rows), requested_workers)
