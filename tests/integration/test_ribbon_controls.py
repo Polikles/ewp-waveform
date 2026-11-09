@@ -210,8 +210,8 @@ def test_saved_partial_frequency_bounds_fail_loading_and_public_plan(
     preset_path = _preset(tmp_path)
     preset_path.write_text(
         preset_path.read_text().replace(
-            'frequency = { range = "auto" }',
-            'frequency = { range = "auto", ' + key + ' = 1000.0 }',
+            '[signal.frequency]\nrange = "auto"',
+            '[signal.frequency]\nrange = "auto"\n' + key + ' = 1000.0',
         )
     )
     assert key in preset_path.read_text()
