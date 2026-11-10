@@ -1,7 +1,8 @@
 """Fixed-axis settings, frame generation, field staging, cache and encode orchestration.
 
 The typed hook view is the live dispatcher, not a registry or callback snapshot.
-Only existing scalar task payloads cross the spawn boundary. Lifecycle retains
+Only primitive task payloads cross the spawn boundary (legacy scalars plus
+the optional filled-ribbon alpha/horizon tuple). Lifecycle retains
 validation/publication implementation; calls retain their report/failure ordering.
 """
 

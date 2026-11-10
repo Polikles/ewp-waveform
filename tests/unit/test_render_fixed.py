@@ -464,7 +464,7 @@ def test_live_hook_view_and_payload_alias() -> None:
     assert render._FIELD_POOL_MIN_FRAMES == render_fixed._FIELD_POOL_MIN_FRAMES == 1800
 
 
-def test_field_payload_contains_only_existing_scalar_fields() -> None:
+def test_field_payload_preserves_scalars_and_appends_primitive_ribbon_finish() -> None:
     assert [f.name for f in fields(render.FieldChunkTask)] == [
         "chunk_index",
         "n_chunks",
@@ -496,4 +496,8 @@ def test_field_payload_contains_only_existing_scalar_fields() -> None:
         "bar_alternate",
         "bar_color_b",
         "bar_center_line_width",
+        "ribbon_finish",
     ]
+    finish = fields(render.FieldChunkTask)[-1]
+    assert finish.default is None
+    assert finish.type == "tuple[float, bool, float, float, float] | None"
