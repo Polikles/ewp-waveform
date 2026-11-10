@@ -53,9 +53,8 @@ def test_mapping_revision_invalidates_old_output_without_changing_v1_identity() 
     recipe = resolve_fixed_axis_appearance(preset).identity()
     assert recipe["mapping_revision"] == 3
     old = dict(recipe, mapping_revision=2)
-    common = dict(source_sha256="fixture", preset=preset, fps=60)
-    assert render_signature(**common, fixed_axis_recipe=recipe) != render_signature(
-        **common, fixed_axis_recipe=old
-    )
+    assert render_signature(
+        source_sha256="fixture", preset=preset, fps=60, fixed_axis_recipe=recipe
+    ) != render_signature(source_sha256="fixture", preset=preset, fps=60, fixed_axis_recipe=old)
     v1 = resolve_fixed_axis_appearance(load_preset("iuris-ribbon-fixed")).identity()
     assert "mapping_revision" not in v1
