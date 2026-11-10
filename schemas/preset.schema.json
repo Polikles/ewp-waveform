@@ -210,7 +210,8 @@
           "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting.",
           "enum": [
             "filled-ribbon-v1",
-            "filled-ribbon-v2"
+            "filled-ribbon-v2",
+            "moving-mouth-v1"
           ]
         },
         "detail_level": {
@@ -343,7 +344,10 @@
             ],
             "properties": {
               "fixed_axis_profile": {
-                "const": "filled-ribbon-v2"
+                "enum": [
+                  "filled-ribbon-v2",
+                  "moving-mouth-v1"
+                ]
               }
             }
           }
@@ -359,7 +363,10 @@
             ],
             "properties": {
               "fixed_axis_profile": {
-                "const": "filled-ribbon-v2"
+                "enum": [
+                  "filled-ribbon-v2",
+                  "moving-mouth-v1"
+                ]
               }
             }
           }
@@ -432,7 +439,8 @@
                 "description": "Opt-in stationary center-out filled ribbon visual bundle, not a performance setting.",
                 "enum": [
                   "filled-ribbon-v1",
-                  "filled-ribbon-v2"
+                  "filled-ribbon-v2",
+                  "moving-mouth-v1"
                 ]
               },
               "detail_level": {

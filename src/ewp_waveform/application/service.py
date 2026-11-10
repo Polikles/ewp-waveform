@@ -336,9 +336,10 @@ def render(
         formats=formats,
     )
     try:
-        if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2" or any(
-            value is not None for value in (detail_level, amplitude, stroke_width)
-        ):
+        if preset.signal.get("fixed_axis_profile") in (
+            "filled-ribbon-v2",
+            "moving-mouth-v1",
+        ) or any(value is not None for value in (detail_level, amplitude, stroke_width)):
             preset = apply_public_appearance(
                 preset,
                 detail_level=detail_level,
@@ -427,7 +428,8 @@ def render(
             waveform_color=(
                 preset.waveform.color
                 if waveform_color is not None
-                and preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2"
+                and preset.signal.get("fixed_axis_profile")
+                in ("filled-ribbon-v2", "moving-mouth-v1")
                 else waveform_color
             ),
             glow_level=glow_level,

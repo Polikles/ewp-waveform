@@ -21,11 +21,11 @@ from ewp_waveform.application.evidence import PerformanceFingerprint
 from ewp_waveform.application.render_types import RenderOptions
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
-from ewp_waveform.config.ribbon import REFINED_RIBBON
+from ewp_waveform.config.ribbon import CONFIGURABLE_RIBBON_PROFILES, MOVING_MOUTH
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, peak_half_height
 from ewp_waveform.visual.bars import BarStyle
-from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
+from ewp_waveform.visual.mapping import CenterOutMapping, MovingMouthMapping, RefinedRibbonMapping
 from ewp_waveform.visual.models import VisualField
 from ewp_waveform.visual.plan import AAMode, RenderPath, RenderPlan
 
@@ -668,7 +668,7 @@ def _visual_field_peak(
 
 def _ribbon_baseline(columns: list[float], preset: VisualPreset, glow: float) -> list[float]:
     """Full baseline thickness in output pixels, independent of amplitude and detail."""
-    if preset.signal.get("fixed_axis_profile") != REFINED_RIBBON:
+    if preset.signal.get("fixed_axis_profile") not in CONFIGURABLE_RIBBON_PROFILES:
         return columns
     thickness = preset.waveform.stroke_width or 1.0
     if not preset.waveform.center_line or thickness <= 1.0:
@@ -1057,12 +1057,16 @@ def run_fixed_pipeline(
         if layout == "field_center_out":
             field_bands = n_bands if n_bands is not None else 64
             mapping = (
-                RefinedRibbonMapping(
+                (
+                    MovingMouthMapping
+                    if appearance.profile == MOVING_MOUTH
+                    else RefinedRibbonMapping
+                )(
                     n_bands=field_bands,
                     detail_level=appearance.detail_level or "balanced",
                     fps=job.fps,
                 )
-                if appearance.profile == REFINED_RIBBON
+                if appearance.profile in CONFIGURABLE_RIBBON_PROFILES
                 else hooks.CenterOutMapping(n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands)
             )
             assert bars is not None and field_plan is not None
@@ -1139,7 +1143,7 @@ def run_fixed_pipeline(
                         spatial_filter=spatial_filter,
                         mapping=mapping,
                     )
-                if appearance.profile == REFINED_RIBBON:
+                if appearance.profile in CONFIGURABLE_RIBBON_PROFILES:
                     column_rows = [_ribbon_baseline(row, preset, glow) for row in column_rows]
                 columns_path = work / "field-columns.npy"
                 hooks.np.save(columns_path, hooks.np.asarray(column_rows, dtype=hooks.np.float64))

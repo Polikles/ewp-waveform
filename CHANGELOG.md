@@ -4,6 +4,11 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+### Added
+- Additional `iuris-moving-mouth` / `moving-mouth-v1` preserves revision-4 activity
+  behavior independently of evolving filled ribbon. Shared controls/pipeline; the
+  supplied short-look acceptance is not full-episode/NLE/performance qualification.
+
 ### Fixed
 
 - Replace refined ribbon's frequency-position-led silhouette with a stationary

@@ -155,3 +155,28 @@ Preset inheritance (`extends`) is intentionally excluded from MVP for simplicity
 ## Auditability
 
 Results store the fully resolved effective configuration, not only the preset name.
+
+
+## Moving mouth — preserved activity style
+
+`iuris-moving-mouth` selects `signal.fixed_axis_profile="moving-mouth-v1"`.
+This additional style freezes revision-4 activity behavior: 65 stationary slots,
+the designed broad carrier with fixed multiscale ribs, immediate current processed
+band-RMS broadband height, and at most +/-24% local spectral deformation. The
+shape descriptor uses a causal exponential0.24s decay with inclusive ceil(0.60*fps)
+lookback; the separate existing contour EMA defaults to0.06s. Silence produces
+zero new field and settles to the thin baseline. It is not a faithful Hz plot.
+
+It shares analysis, interpolation, raster, glow and encoding, not a second
+pipeline. Its concrete mapping and detail constants are independent from the
+evolving filled ribbon. It supports the same validated smooth/balanced/detailed,
+color, glow, amplitude and baseline thickness controls as refined ribbon; defaults
+are1400x280/60fps,pale cyan#C7E6EC,high glow,amplitude0.82,thickness1,balanced.
+The new profile/preset has a distinct identity even where pixels equal the
+historical refined revision4. Historical previews keep their original names.
+
+The operator positively accepted only the supplied short effect as Moving mouth.
+This is NOT filled-ribbon reference3 acceptance, full-episode, Resolve/NLE or
+performance qualification. Fine detail can remain restrained; lobes intentionally
+share the strong common activity pulse. Other effective appearance changes are
+identity-bound as for refined ribbon. Legacy/v1 presets are unchanged.

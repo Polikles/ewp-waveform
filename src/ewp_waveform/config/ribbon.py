@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from ewp_waveform.config.models import VisualPreset
 
 REFINED_RIBBON = "filled-ribbon-v2"
+MOVING_MOUTH = "moving-mouth-v1"
+CONFIGURABLE_RIBBON_PROFILES = (REFINED_RIBBON, MOVING_MOUTH)
 BRAND_COLORS = MappingProxyType(
     {
         "steel_blue": "#3D5D73",
@@ -22,6 +24,16 @@ BRAND_COLORS = MappingProxyType(
 )
 # Fixed 64-band analysis for every detail. (band sigma, coarse mix, contrast, spatial scale).
 DETAIL_SETTINGS = MappingProxyType(
+    {
+        "smooth": (2.6, 0.65, 1.15, 1.2),
+        "balanced": (1.2, 0.30, 1.6, 0.45),
+        "detailed": (0.45, 0.08, 1.95, 0.18),
+    }
+)
+
+
+# Revision-4 preservation contract: independent of future refined-ribbon tuning.
+MOVING_MOUTH_DETAIL_SETTINGS = MappingProxyType(
     {
         "smooth": (2.6, 0.65, 1.15, 1.2),
         "balanced": (1.2, 0.30, 1.6, 0.45),
@@ -64,9 +76,9 @@ def validate_refined_data(data: Any) -> Any:
     if not isinstance(signal, dict):
         return data
     profile = signal.get("fixed_axis_profile")
-    if "detail_level" in signal and profile != REFINED_RIBBON:
+    if "detail_level" in signal and profile not in CONFIGURABLE_RIBBON_PROFILES:
         raise ValueError("signal.detail_level requires filled-ribbon-v2")
-    if profile != REFINED_RIBBON:
+    if profile not in CONFIGURABLE_RIBBON_PROFILES:
         return data
     _keys(
         data,
@@ -170,7 +182,7 @@ def apply_public_appearance(
     """Explicit overrides beat preset defaults, on a fully validated private copy."""
     from ewp_waveform.config.models import VisualPreset
 
-    refined = preset.signal.get("fixed_axis_profile") == REFINED_RIBBON
+    refined = preset.signal.get("fixed_axis_profile") in CONFIGURABLE_RIBBON_PROFILES
     if not refined and any(x is not None for x in (detail_level, amplitude, stroke_width)):
         raise ValueError("New detail/height/thickness overrides require filled-ribbon-v2")
     if all(x is None for x in (detail_level, waveform_color, glow_level, amplitude, stroke_width)):

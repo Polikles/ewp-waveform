@@ -377,7 +377,8 @@ def _result_payload(
         "resolved_visual_config": {
             **(
                 {"effective_preset": preset.model_dump(mode="json")}
-                if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2"
+                if preset.signal.get("fixed_axis_profile")
+                in ("filled-ribbon-v2", "moving-mouth-v1")
                 else {}
             ),
             **({"fixed_axis_recipe": fixed_axis_recipe} if fixed_axis_recipe is not None else {}),

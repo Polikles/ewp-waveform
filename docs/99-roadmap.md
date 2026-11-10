@@ -125,3 +125,15 @@ reference; this documentation update does not regenerate it or qualify new looks
 
 ## Governance
 - [x] source-available license adopted (EWP Waveform Community License 1.0).
+
+
+## Maintained style collection
+
+The four requested reference variants remain classic line, mirrored line, filled
+ribbon (variant3), and segmented impulse. Moving mouth is an ADDITIONAL style,
+not a replacement for any of those four. `iuris-moving-mouth` / `moving-mouth-v1`
+preserves revision4 activity-driven behavior, positively accepted for the supplied
+short look only; full-style/full-episode, Resolve/NLE and performance qualification
+remain open. `iuris-ribbon-refined` continues separately toward reference3; its
+new local dynamics still require operator visual assessment. No plugin framework
+or duplicate analysis/raster/encoder pipeline is introduced.

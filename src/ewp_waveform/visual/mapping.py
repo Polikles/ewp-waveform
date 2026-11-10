@@ -6,7 +6,7 @@ import math
 from collections.abc import Sequence
 
 from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
-from ewp_waveform.config.ribbon import DETAIL_SETTINGS
+from ewp_waveform.config.ribbon import MOVING_MOUTH_DETAIL_SETTINGS
 from ewp_waveform.visual.models import VisualField
 
 CENTER_OUT_SLOTS = 65
@@ -146,7 +146,7 @@ class CenterOutMapping:
         return VisualField.from_amplitudes(amplitudes)
 
 
-class RefinedRibbonMapping(CenterOutMapping):
+class MovingMouthMapping(CenterOutMapping):
     """Speech activity on a stationary designed carrier, not a faithful Hz plot.
 
     Broadband level controls height now; bounded normalized spectral detail has a
@@ -161,7 +161,7 @@ class RefinedRibbonMapping(CenterOutMapping):
         self, n_bands: int = 64, detail_level: str = "balanced", fps: float = 60.0
     ) -> None:
         super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
-        sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
+        sigma, self.coarse_mix, self.contrast, _ = MOVING_MOUTH_DETAIL_SETTINGS[detail_level]
         self.fps = max(1.0, float(fps))
         fine: list[tuple[float, ...]] = []
         coarse: list[tuple[float, ...]] = []
@@ -201,8 +201,10 @@ class RefinedRibbonMapping(CenterOutMapping):
     def _compose(self, frame: AnalysisFrame, detail: Sequence[float]) -> VisualField:
         level = _broadband(frame)
         return VisualField.from_amplitudes(
-            [level * gain * (1.0 + self.DETAIL_BOUND * value)
-             for gain, value in zip(self.carrier, detail, strict=True)]
+            [
+                level * gain * (1.0 + self.DETAIL_BOUND * value)
+                for gain, value in zip(self.carrier, detail, strict=True)
+            ]
         )
 
     def apply(self, frame: AnalysisFrame) -> VisualField:
@@ -223,6 +225,10 @@ class RefinedRibbonMapping(CenterOutMapping):
                 detail[slot] += weight * value
             total += weight
         return self._compose(frame, [value / total for value in detail])
+
+
+class RefinedRibbonMapping(MovingMouthMapping):
+    """Refined ribbon; separated from preserved Moving mouth for future evolution."""
 
 
 def apply_static_weights(bands: Sequence[float], weights: Sequence[Sequence[float]]) -> VisualField:

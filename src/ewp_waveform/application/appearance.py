@@ -9,7 +9,12 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ewp_waveform.config.models import VisualPreset
-from ewp_waveform.config.ribbon import DETAIL_SETTINGS, REFINED_RIBBON
+from ewp_waveform.config.ribbon import (
+    CONFIGURABLE_RIBBON_PROFILES,
+    DETAIL_SETTINGS,
+    MOVING_MOUTH,
+    MOVING_MOUTH_DETAIL_SETTINGS,
+)
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, parse_rgb
 from ewp_waveform.visual.bars import BarStyle
 from ewp_waveform.visual.plan import MASK_GEOMETRIES, RenderPlan, resolve_render_plan
@@ -143,7 +148,7 @@ def resolve_fixed_axis_appearance(
     profile = (
         str(preset.signal["fixed_axis_profile"]) if "fixed_axis_profile" in preset.signal else None
     )
-    refined = profile == REFINED_RIBBON
+    refined = profile in CONFIGURABLE_RIBBON_PROFILES
     detail_level = str(preset.signal.get("detail_level", "balanced")) if refined else None
     baseline_thickness = (preset.waveform.stroke_width or 1.0) if refined else None
     if refined:
@@ -207,7 +212,8 @@ def resolve_fixed_axis_appearance(
         if refined:
             assert detail_level is not None
             spectrum_compress = 1.0
-            spectrum_spatial_scale = DETAIL_SETTINGS[detail_level][3]
+            settings = MOVING_MOUTH_DETAIL_SETTINGS if profile == MOVING_MOUTH else DETAIL_SETTINGS
+            spectrum_spatial_scale = settings[detail_level][3]
     geometry = (
         visual_geometry if visual_geometry in {"temporal_rms", "temporal_rms_peak"} else "spectrum"
     )

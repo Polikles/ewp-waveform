@@ -76,10 +76,10 @@ class VisualPreset(BaseModel):
 
     def validate_fixed_axis_profile(self) -> Self:
         """A named visual profile must never silently select an unrelated path."""
-        from ewp_waveform.config.ribbon import REFINED_RIBBON, validate_refined_data
+        from ewp_waveform.config.ribbon import CONFIGURABLE_RIBBON_PROFILES, validate_refined_data
 
         validate_refined_data(self.model_dump())
-        if self.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+        if self.signal.get("fixed_axis_profile") in CONFIGURABLE_RIBBON_PROFILES:
             return self
         if "fixed_axis_profile" not in self.signal:
             return self
