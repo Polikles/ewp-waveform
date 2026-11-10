@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 
@@ -15,7 +17,7 @@ from ewp_waveform.visual.ribbon import field_to_columns
 def test_spectral_neighbors_cross_fixed_midpoint_without_radial_split(detail: str) -> None:
     mapping = RefinedRibbonMapping(detail_level=detail)
     centers = [sum(j * w for j, w in enumerate(row)) for row in mapping.fine_weights]
-    assert all(a < b for a, b in zip(centers, centers[1:]))
+    assert all(a < b for a, b in pairwise(centers))
     assert centers[32] == pytest.approx(31.5)
     # A middle-band feature forms one local middle region, not distant twins.
     bands = [0.0] * 64
