@@ -6,12 +6,16 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ### Fixed
 
-- Organize the refined ribbon around the fixed horizontal midpoint by keeping
-  spectral neighbors adjacent rather than splitting mid-band activity into two
-  radial lobes. Preserve articulated detail and all appearance controls; no
-  framewise centroid translation or broad center floor. Bump only the refined
-  effective mapping recipe to revision 3 to prevent stale render reuse. V1,
-  legacy defaults and product version are unchanged.
+- Replace refined ribbon's frequency-position-led silhouette with a stationary
+  designed midpoint-organized speech-activity carrier. Existing broadband activity
+  controls current height; bounded audio-derived detail has a separate calmer finite
+  response, without collapsing weak-band regions, random animation, panning or peak
+  tracking. Preserve selectable detail/color/glow/height/thickness and legacy/v1;
+  bump only refined mapping identity to revision 4. No new public control/version.
+- Preserve the revision-3 centering attempt as REQUEST_CHANGES: monotone spectral
+  midpoint did not establish the actual-audio compositional target. The new activity
+  target is separately clarified; technical checks are not operator motion/NLE or
+  full-style acceptance.
 
 - Refined ribbon v2 now rejects incomplete explicit frequency-bound pairs in saved
   presets and its JSON Schema before planning. Tighten only its waveform color

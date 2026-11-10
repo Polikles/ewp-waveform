@@ -106,37 +106,54 @@ acceptance and NLE acceptance are separate claims; no full render is implied her
 
 `iuris-ribbon-refined` adds the validated controls documented in
 [configuration](06-configuration.md#refined-ribbon-controls-fr-look-controls-001).
-The v1 eleven-slot broadband-only core, broad shoulder floor and global side-peak
-cap caused a central mass and suppressed valleys. V2 replaces those only for its new
-profile with fine/coarse local spectral mixtures across all 65 stationary slots,
-homogeneous contrast, mild static center emphasis and an
-8%-level narrow broadband contribution. There is no broad mandatory center floor or
-side-to-apex cap. End taper, PCHIP and Gaussian spatial filtering retain continuous
-rounded contours, with temporal EMA explicit and independent. Resolution is unchanged:
-64 audio-derived bands for every level, not synthetic extra samples or random noise.
-Baseline thickness is applied after normalization/EMA identically in serial and
-pooled execution. Same-profile mask/RGBA and worker partition equivalence remain exact.
-No legacy oracle, performance profile, encoder or product version changes. Short
-comparisons are diagnostic; full production, operator visual/NLE acceptance and main
-integration remain separate.
+### Speech activity mapping (WF-LOOK-ACTIVITY-01)
 
-### Midpoint composition (WF-LOOK-FIXED-CENTER-01)
+The refined ribbon communicates overall speech/audio activity, **not faithful
+frequency position**. Its configuration retains the existing frequency-analysis
+container for compatibility; X is a fixed designed visual coordinate, not Hz.
+Mapping revision 4 multiplies the existing broadband level (analysis-frame overall
+level, otherwise band RMS) by a deterministic, midpoint-organized, gently asymmetric
+multi-scale carrier across 65 stationary slots. Spatial ribs are fixed design,
+not fabricated temporal activity. No peak ordering/tracking, centroid translation,
+horizontal panning or random animation is used; exact symmetry/centroid is not a gate.
 
-Refined mapping revision 3 places the log-band range monotonically left-to-right,
-with its spectral midpoint at the horizontal midpoint. The former radial
-interleaving sent neighboring mid-frequency activity into opposite distant lobes
-while leaving only low-frequency bands at the center. Keeping neighbors adjacent
-organizes the articulated contour around one continuous middle region, without
-restoring a broadband dome or sorting/translating each frame by energy. Natural
-asymmetry and off-center peaks remain valid; this is not an exact-centroid rule.
+64-band fine/coarse mixtures retain useful audio-derived detail. The normalized
+shape residual is bounded to +/-24% of the carrier, so weak individual bands cannot
+independently flatten large speech-active regions. Only this residual uses a causal
+exponential weighted finite history: 0.24-second response, 0.60-second maximum
+lookback (inclusive endpoint), truncated and renormalized at the clip start. Current
+broadband height is not delayed by that shape response; the existing overall 0.06s
+EMA remains unchanged. This is not calming solely by spatial blur or delaying all
+response. Silence supplies zero current carrier amplitude, leaving the stable thin
+baseline after the existing short EMA release, with no ongoing decorative motion.
 
-Only the fixed band-to-slot recipe changes. Fine/coarse weights, contrast, static
-gains, interpolation, normalization, spatial/temporal filtering, color, glow,
-height and thickness are unchanged. Smooth/balanced/detailed stay selectable;
-balanced remains the provisional default. The effective mapping revision is in
-output/reuse identity so revision-2 media cannot be reused as corrected output.
-V1 and legacy mapping/identity remain unchanged. Short comparison acceptance,
-full production and NLE review remain separate.
+Shape calmness is fixed in this recipe and independent of selectable detail; no new
+public control is introduced. Smooth/balanced/detailed still choose spectral
+neighborhood/contrast and spatial filtering, not the shape time constant. Keep
+balanced provisional default and both balanced/detailed available. Color, glow,
+amplitude and baseline thickness controls remain unchanged. PCHIP, raster, alpha,
+normalization and worker scheduling retain their existing contracts. Peak scan,
+serial frames and pooled column preparation evaluate the same random-access
+finite-context mapping; no mutable mapping history can leak across chunk order.
+A separately requested clip initializes its own bounded history, as it does its
+existing overall EMA/normalization; it is not promised pixel-identical to an
+arbitrary full-render crop without the required analysis/EMA context.
+
+### Preserved centering history (WF-LOOK-FIXED-CENTER-01)
+
+Revision 3's monotone band ordering removed radial splitting but its actual short
+speech previews remained left-weighted and received REQUEST_CHANGES. A spectral
+midpoint did **not** establish the requested compositional midpoint; that attempt
+is not an accepted completed centering prerequisite. Earlier balanced AND detailed
+contour feedback was bounded positive feedback, not exclusive preference or final
+motion acceptance. Revision 4 implements the separately clarified activity target;
+short diagnostics, independent review, operator motion/NLE acceptance, full-style
+production and main integration remain separate. No acceptance is asserted here.
+
+The effective mapping revision is in output/reuse identity, so revision-3 media
+cannot be reused as revision-4 output. V1/legacy appearance, recipes, defaults,
+performance profiles and product version are unchanged. Preserve original and
+candidate media under the retention rules in [23](23-visual-development-and-retention.md).
 
 ## Effects
 

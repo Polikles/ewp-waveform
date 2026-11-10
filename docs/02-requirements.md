@@ -12,6 +12,25 @@ applicability and precedence. Include all appearance-affecting effective values 
 output/reuse identity. Preserve existing selections/defaults when adding an opt-in
 look. No GUI or public plugin framework is required now.
 
+## WF-LOOK-ACTIVITY-01 — refined speech activity ribbon
+
+For the opt-in refined ribbon, overall speech/audio activity takes precedence over
+faithful frequency position. Use responsive existing broadband energy/envelope for
+height, a stable deterministic midpoint-organized designed carrier and restrained,
+bounded audio-derived local detail with separate calmer temporal evolution. Weak
+local bands during speech must not independently collapse large regions. Genuine
+silence must settle to a stable thin baseline without invented ongoing activity.
+No per-frame centroid translation, peak tracking/reordering, horizontal panning or
+artificial random animation; exact bilateral symmetry/centroid is unnecessary.
+Do not achieve calmness solely by blur or delaying all response. Preserve useful
+balanced/detailed contours and color/glow/amplitude/thickness/detail controls;
+detail and calmness are distinct. Appearance changes require distinct effective
+mapping/output identity, leaving legacy/v1 unchanged. See section 10 for the exact
+recipe and preserved REQUEST_CHANGES history. This named designed activity profile
+is an explicit exception to the faithful Hz-axis description in FR-STYLE-006,
+not a redefinition of existing frequency displays. Continuous-motion assessment
+and operator/NLE acceptance are separate from diagnostic numerical measurements.
+
 ## Requirement ID glossary
 
 - **FR** — Functional Requirement
