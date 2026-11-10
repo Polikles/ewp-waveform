@@ -6,6 +6,13 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ### Fixed
 
+- Organize the refined ribbon around the fixed horizontal midpoint by keeping
+  spectral neighbors adjacent rather than splitting mid-band activity into two
+  radial lobes. Preserve articulated detail and all appearance controls; no
+  framewise centroid translation or broad center floor. Bump only the refined
+  effective mapping recipe to revision 3 to prevent stale render reuse. V1,
+  legacy defaults and product version are unchanged.
+
 - Refined ribbon v2 now rejects incomplete explicit frequency-bound pairs in saved
   presets and its JSON Schema before planning. Tighten only its waveform color
   schema to six digits and document glow-color equality as runtime semantic

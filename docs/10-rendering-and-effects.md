@@ -108,8 +108,8 @@ acceptance and NLE acceptance are separate claims; no full render is implied her
 [configuration](06-configuration.md#refined-ribbon-controls-fr-look-controls-001).
 The v1 eleven-slot broadband-only core, broad shoulder floor and global side-peak
 cap caused a central mass and suppressed valleys. V2 replaces those only for its new
-profile with fixed interleaved band mixtures across all 65 slots: fine/coarse local
-spectral neighborhoods, homogeneous contrast, mild static center emphasis and an
+profile with fine/coarse local spectral mixtures across all 65 stationary slots,
+homogeneous contrast, mild static center emphasis and an
 8%-level narrow broadband contribution. There is no broad mandatory center floor or
 side-to-apex cap. End taper, PCHIP and Gaussian spatial filtering retain continuous
 rounded contours, with temporal EMA explicit and independent. Resolution is unchanged:
@@ -119,6 +119,24 @@ pooled execution. Same-profile mask/RGBA and worker partition equivalence remain
 No legacy oracle, performance profile, encoder or product version changes. Short
 comparisons are diagnostic; full production, operator visual/NLE acceptance and main
 integration remain separate.
+
+### Midpoint composition (WF-LOOK-FIXED-CENTER-01)
+
+Refined mapping revision 3 places the log-band range monotonically left-to-right,
+with its spectral midpoint at the horizontal midpoint. The former radial
+interleaving sent neighboring mid-frequency activity into opposite distant lobes
+while leaving only low-frequency bands at the center. Keeping neighbors adjacent
+organizes the articulated contour around one continuous middle region, without
+restoring a broadband dome or sorting/translating each frame by energy. Natural
+asymmetry and off-center peaks remain valid; this is not an exact-centroid rule.
+
+Only the fixed band-to-slot recipe changes. Fine/coarse weights, contrast, static
+gains, interpolation, normalization, spatial/temporal filtering, color, glow,
+height and thickness are unchanged. Smooth/balanced/detailed stay selectable;
+balanced remains the provisional default. The effective mapping revision is in
+output/reuse identity so revision-2 media cannot be reused as corrected output.
+V1 and legacy mapping/identity remain unchanged. Short comparison acceptance,
+full production and NLE review remain separate.
 
 ## Effects
 

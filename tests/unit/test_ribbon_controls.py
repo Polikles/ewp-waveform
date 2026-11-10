@@ -35,7 +35,7 @@ def test_controls_defaults_and_original_preset_are_distinct() -> None:
     assert appearance.n_bands == 64
     assert appearance.compress == 1.0
     assert appearance.spatial_sigma == pytest.approx(3.15)
-    assert appearance.identity()["mapping_revision"] == 2
+    assert appearance.identity()["mapping_revision"] == 3
     assert preset.signal["smoothing"] == 0.06
     old = load_preset("iuris-ribbon-fixed")
     assert old.signal["fixed_axis_profile"] == "filled-ribbon-v1"

@@ -148,9 +148,11 @@ class RefinedRibbonMapping(CenterOutMapping):
     def __init__(self, n_bands: int = 64, detail_level: str = "balanced") -> None:
         super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
         sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
-        # Interleave stationary bands outwards. The center is no longer an eleven-slot
-        # broadband-only mass; independent spectral information reaches every slot.
-        order = sorted(range(self.n_slots), key=lambda i: (abs(i - self.center), i))
+        # Keep spectral neighbors adjacent across the midpoint. Radial interleaving
+        # split each mid-band feature into two distant lobes and left only the
+        # lowest bands at the center. This fixed monotone map needs no framewise
+        # pivot/translation and retains every fine/coarse spectral neighborhood.
+        order = range(self.n_slots)
         fine: list[tuple[float, ...]] = [()] * self.n_slots
         coarse: list[tuple[float, ...]] = [()] * self.n_slots
         for index, slot in enumerate(order):
