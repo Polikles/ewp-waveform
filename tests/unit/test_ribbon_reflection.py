@@ -88,12 +88,14 @@ def test_every_appearance_control_enters_standalone_and_recipe_identity(
     assert a["mapping_revision"] == b["mapping_revision"] == 7
     for recipe in [False, True]:
 
-        def sig(p: VisualPreset) -> str:
+        def sig(p: VisualPreset, include_recipe: bool = recipe) -> str:
             return render_signature(
                 source_sha256="fixture",
                 preset=p,
                 fps=60,
-                fixed_axis_recipe=resolve_fixed_axis_appearance(p).identity() if recipe else None,
+                fixed_axis_recipe=resolve_fixed_axis_appearance(p).identity()
+                if include_recipe
+                else None,
             )
 
         assert sig(original) != sig(modified)
