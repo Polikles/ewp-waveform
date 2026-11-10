@@ -7,6 +7,9 @@ from typing import Any
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
+from typer.testing import CliRunner
+
 from ewp_waveform.analysis.frames import AnalysisFrame
 from ewp_waveform.application.appearance import resolve_fixed_axis_appearance
 from ewp_waveform.application.render_fixed import _ribbon_baseline
@@ -21,8 +24,6 @@ from ewp_waveform.config.ribbon import (
 from ewp_waveform.identity import render_signature
 from ewp_waveform.paths import builtin_presets_dir, project_root
 from ewp_waveform.visual.mapping import RefinedRibbonMapping
-from pydantic import ValidationError
-from typer.testing import CliRunner
 
 
 def _preset() -> VisualPreset:

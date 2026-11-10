@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+
 from ewp_waveform import __version__
 from ewp_waveform.application import service as app_service
 from ewp_waveform.application.service import AppError

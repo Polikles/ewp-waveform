@@ -10,6 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from ewp_waveform.application.benchmark import (
     BenchmarkCell,
     load_and_expand,
@@ -63,7 +65,6 @@ from ewp_waveform.ffmpeg.doctor import check_environment
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
 from ewp_waveform.ffmpeg.process import ToolNotFoundError
 from ewp_waveform.identity import sha256_file
-from pydantic import ValidationError
 
 
 def doctor() -> list[str]:
