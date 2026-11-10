@@ -99,6 +99,7 @@ def validate_refined_data(data: Any) -> Any:
                     for k, v in APPEARANCE_DEFAULTS.items()
                 },
             }
+            wave.setdefault("center_line", True)
             data = {**data, "waveform": wave}
             for key in APPEARANCE_DEFAULTS:
                 _number(wave[key], "waveform." + key, 0.0, 1.0)

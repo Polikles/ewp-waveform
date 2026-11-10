@@ -150,3 +150,9 @@ def test_cli_forwards_false_zero_and_fractional_thickness(
         "center_line_opacity": 0.0,
         "stroke_width": 2.5,
     }
+
+
+def test_missing_line_uses_provisional_filled_default() -> None:
+    data = load_preset("iuris-ribbon-refined").model_dump()
+    data["waveform"].pop("center_line")
+    assert VisualPreset.model_validate(data).waveform.center_line is True
