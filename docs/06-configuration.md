@@ -263,3 +263,46 @@ tint framework is implemented. Other style defaults and Moving mouth are unchang
 new reflection/extent/opacity settings and public center-line overrides reject on
 unsupported profiles even at zero/false, rather than silently ignoring them.
 Saved legacy center_line retains its existing semantics.
+
+
+## Filled-ribbon foreground appearance modes
+
+`filled-ribbon-v2` / `iuris-ribbon-refined` adds saved `[waveform]` fields,
+matching service keywords and `dry-run` / `render` / `preview` options:
+
+- `background_mode` / `--background-mode`: `dark-background` or `light-background`.
+- `color_mode` / `--color-mode`: `auto` or `custom`.
+
+These select FOREGROUND appearance only. Production MOV and canonical PNG stay
+transparent. The standard preset explicitly sets `dark-background` + `auto`:
+bright existing `pale_cyan` / `#C7E6EC`. Selecting `light-background` on that
+preset actually resolves existing dark `slate_teal` / `#2F474F`. Body, halo and
+horizon share the resolved color. No independent halo/horizon tint is supported;
+semantic validation still rejects mismatched saved halo colors. Geometry, motion,
+detail/noise, reflection alpha and line extent/thickness/opacity are unchanged.
+
+Explicit non-None service/CLI mode overrides beat saved modes. An explicit
+`waveform_color` / `--waveform-color` (brand name or #RRGGBB) selects `custom`,
+including an explicitly selected stock cyan. In custom mode, switching background
+mode preserves that color exactly: no inference from RGB or color equality.
+`color_mode=auto` resets a saved custom color to the mode's brand default; supplying
+both explicit waveform_color and color_mode=auto is an error, not ignored intent.
+`color_mode=custom` alone freezes the currently saved/resolved color. To save a
+custom TOML preset, set color_mode="custom" and matching waveform.color/glow.color.
+Old saved filled-ribbon presets lacking mode fields use dark-background + custom
+to preserve their explicit colors; the stock preset's auto policy is explicit.
+Other profiles reject these new modes (even dark-background/auto); legacy and
+Moving mouth defaults stay unchanged. Both selections and effective RGB are retained
+in effective metadata, recipe and reuse identity, even where pixels coincide.
+
+Example foreground choice (not a composition background):
+
+```bash
+waveform preview /path/to/input.wav --preset iuris-ribbon-refined \
+  --background-mode light-background --start 25 --duration 8
+```
+
+Only inspection copies may be composited on dark/light backgrounds; do not bake
+those backgrounds into canonical assets. A decorative waveform has no imposed
+text-accessibility contrast threshold. Full-source assessment/NLE acceptance is
+separate from compact still checks and technical gates.

@@ -185,6 +185,8 @@ def test_literal_legacy_signatures_and_defaults() -> None:
                 ("center_line", "KEYWORD_ONLY", "bool | None", None),
                 ("center_line_extent", "KEYWORD_ONLY", "float | None", None),
                 ("center_line_opacity", "KEYWORD_ONLY", "float | None", None),
+                ("background_mode", "KEYWORD_ONLY", "str | None", None),
+                ("color_mode", "KEYWORD_ONLY", "str | None", None),
             ]
         assert actual == expected
         for got, want in zip(actual, expected, strict=True):

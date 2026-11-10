@@ -1,5 +1,7 @@
 # Changelog
 
+- Filled ribbon: explicit dark-background/light-background foreground modes with auto/custom color policy; transparent output and geometry preserved.
+
 - Filled ribbon: independent lower body/halo alpha and centered horizon opacity/extent/enable; existing stroke_width remains final-pixel baseline thickness. Mapping7 and other styles preserved.
 
 - Refined ribbon mapping7: irregular amplitude field, validated optional coherent noise/idle/rate/seed controls; exact Moving mouth and legacy defaults preserved. Future-only Mexican-wave/speaker-annotation proposals documented.
