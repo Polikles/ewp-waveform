@@ -16,6 +16,7 @@ from ewp_waveform.config.ribbon import (
     MOVING_MOUTH,
     MOVING_MOUTH_DETAIL_SETTINGS,
     REFINED_RIBBON,
+    ribbon_finish,
 )
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, parse_rgb
 from ewp_waveform.visual.bars import BarStyle
@@ -54,6 +55,7 @@ class FixedAxisAppearance:
     detail_level: str | None = None
     baseline_thickness: float | None = None
     motion: tuple[float, float, float, int] | None = None
+    ribbon_finish: tuple[float, bool, float, float, float] | None = None
 
     def identity(self) -> dict[str, Any]:
         """Only branch-effective values; representation path is execution metadata."""
@@ -70,6 +72,16 @@ class FixedAxisAppearance:
             )
         if self.motion is not None:
             recipe.update(zip(MOTION_DEFAULTS, self.motion, strict=True))
+        if self.ribbon_finish is not None:
+            reflection, enabled, thickness, extent, opacity = self.ribbon_finish
+            recipe.update(
+                ribbon_appearance_revision=1,
+                reflection_opacity=reflection,
+                center_line=enabled,
+                baseline_thickness=thickness,
+                center_line_extent=extent,
+                center_line_opacity=opacity,
+            )
         field = self.field_plan
         banded = self.n_bands is not None or field is not None
         recipe.update(
@@ -344,6 +356,7 @@ def resolve_fixed_axis_appearance(
         profile=profile,
         detail_level=detail_level,
         baseline_thickness=baseline_thickness,
+        ribbon_finish=ribbon_finish(preset),
         motion=(
             cast(float, preset.signal["visual_noise"]),
             cast(float, preset.signal["idle_activity"]),

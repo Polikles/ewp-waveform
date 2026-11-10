@@ -7,7 +7,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
-
 from ewp_waveform import __version__
 from ewp_waveform.application import service as app_service
 from ewp_waveform.application.service import AppError
@@ -33,7 +32,9 @@ def _progress(message: str) -> None:
 
 def _fail(exc: AppError) -> None:
     typer.secho(
-        exc.diagnostic.code.value if exc.diagnostic else "ERROR", fg=typer.colors.RED, err=True
+        exc.diagnostic.code.value if exc.diagnostic else "ERROR",
+        fg=typer.colors.RED,
+        err=True,
     )
     typer.echo(str(exc), err=True)
     raise typer.Exit(exc.numeric_exit)
@@ -111,6 +112,10 @@ def dry_run_cmd(
     idle_activity: float | None = typer.Option(None, "--idle-activity"),
     noise_rate: float | None = typer.Option(None, "--noise-rate"),
     noise_seed: int | None = typer.Option(None, "--noise-seed"),
+    reflection_opacity: float | None = typer.Option(None, "--reflection-opacity"),
+    center_line: bool | None = typer.Option(None, "--center-line/--no-center-line"),
+    center_line_extent: float | None = typer.Option(None, "--center-line-extent"),
+    center_line_opacity: float | None = typer.Option(None, "--center-line-opacity"),
     waveform_color: str | None = typer.Option(None, "--waveform-color"),
     glow_level: str | None = typer.Option(None, "--glow-level"),
     amplitude: float | None = typer.Option(None, "--amplitude"),
@@ -135,6 +140,10 @@ def dry_run_cmd(
             idle_activity=idle_activity,
             noise_rate=noise_rate,
             noise_seed=noise_seed,
+            reflection_opacity=reflection_opacity,
+            center_line=center_line,
+            center_line_extent=center_line_extent,
+            center_line_opacity=center_line_opacity,
             waveform_color=waveform_color,
             glow_level=glow_level,
             amplitude=amplitude,
@@ -189,6 +198,10 @@ def _run_render(
     idle_activity: float | None = None,
     noise_rate: float | None = None,
     noise_seed: int | None = None,
+    reflection_opacity: float | None = None,
+    center_line: bool | None = None,
+    center_line_extent: float | None = None,
+    center_line_opacity: float | None = None,
     waveform_color: str | None = None,
     glow_level: str | None = None,
     amplitude: float | None = None,
@@ -214,6 +227,10 @@ def _run_render(
             idle_activity=idle_activity,
             noise_rate=noise_rate,
             noise_seed=noise_seed,
+            reflection_opacity=reflection_opacity,
+            center_line=center_line,
+            center_line_extent=center_line_extent,
+            center_line_opacity=center_line_opacity,
             waveform_color=waveform_color,
             glow_level=glow_level,
             amplitude=amplitude,
@@ -276,6 +293,10 @@ def render(
     idle_activity: float | None = typer.Option(None, "--idle-activity"),
     noise_rate: float | None = typer.Option(None, "--noise-rate"),
     noise_seed: int | None = typer.Option(None, "--noise-seed"),
+    reflection_opacity: float | None = typer.Option(None, "--reflection-opacity"),
+    center_line: bool | None = typer.Option(None, "--center-line/--no-center-line"),
+    center_line_extent: float | None = typer.Option(None, "--center-line-extent"),
+    center_line_opacity: float | None = typer.Option(None, "--center-line-opacity"),
     waveform_color: str | None = typer.Option(None, "--waveform-color"),
     glow_level: str | None = typer.Option(None, "--glow-level"),
     amplitude: float | None = typer.Option(None, "--amplitude"),
@@ -300,6 +321,10 @@ def render(
         idle_activity=idle_activity,
         noise_rate=noise_rate,
         noise_seed=noise_seed,
+        reflection_opacity=reflection_opacity,
+        center_line=center_line,
+        center_line_extent=center_line_extent,
+        center_line_opacity=center_line_opacity,
         waveform_color=waveform_color,
         glow_level=glow_level,
         amplitude=amplitude,
@@ -324,6 +349,10 @@ def preview(
     idle_activity: float | None = typer.Option(None, "--idle-activity"),
     noise_rate: float | None = typer.Option(None, "--noise-rate"),
     noise_seed: int | None = typer.Option(None, "--noise-seed"),
+    reflection_opacity: float | None = typer.Option(None, "--reflection-opacity"),
+    center_line: bool | None = typer.Option(None, "--center-line/--no-center-line"),
+    center_line_extent: float | None = typer.Option(None, "--center-line-extent"),
+    center_line_opacity: float | None = typer.Option(None, "--center-line-opacity"),
     waveform_color: str | None = typer.Option(None, "--waveform-color"),
     glow_level: str | None = typer.Option(None, "--glow-level"),
     amplitude: float | None = typer.Option(None, "--amplitude"),
@@ -348,6 +377,10 @@ def preview(
         idle_activity=idle_activity,
         noise_rate=noise_rate,
         noise_seed=noise_seed,
+        reflection_opacity=reflection_opacity,
+        center_line=center_line,
+        center_line_extent=center_line_extent,
+        center_line_opacity=center_line_opacity,
         waveform_color=waveform_color,
         glow_level=glow_level,
         amplitude=amplitude,

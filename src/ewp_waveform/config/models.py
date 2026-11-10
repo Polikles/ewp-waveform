@@ -46,6 +46,9 @@ class WaveformSection(BaseModel):
     amplitude: float
     stroke_width: float | None = None
     center_line: bool | None = None
+    reflection_opacity: float | None = None
+    center_line_extent: float | None = None
+    center_line_opacity: float | None = None
     domain: str = "time"
     time_mode: str | None = None
     window_seconds: float = 5.0
@@ -76,7 +79,10 @@ class VisualPreset(BaseModel):
 
     def validate_fixed_axis_profile(self) -> Self:
         """A named visual profile must never silently select an unrelated path."""
-        from ewp_waveform.config.ribbon import CONFIGURABLE_RIBBON_PROFILES, validate_refined_data
+        from ewp_waveform.config.ribbon import (
+            CONFIGURABLE_RIBBON_PROFILES,
+            validate_refined_data,
+        )
 
         validate_refined_data(self.model_dump())
         if self.signal.get("fixed_axis_profile") in CONFIGURABLE_RIBBON_PROFILES:

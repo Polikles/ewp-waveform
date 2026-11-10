@@ -54,6 +54,13 @@ def render_signature(
         "clip_start": round(max(clip_start, 0.0), 9),
         "clip_duration": None if clip_duration is None else round(max(clip_duration, 0.0), 9),
     }
+    if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2":
+        payload["ribbon_appearance"] = {
+            "revision": 1,
+            "reflection_opacity": preset.waveform.reflection_opacity,
+            "center_line_extent": preset.waveform.center_line_extent,
+            "center_line_opacity": preset.waveform.center_line_opacity,
+        }
     if preset.waveform.domain == "frequency":
         payload["spectrum_contract_version"] = SPECTRUM_CONTRACT_VERSION
     if fixed_axis_recipe is not None:

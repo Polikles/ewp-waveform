@@ -15,6 +15,13 @@ MOVING_MOUTH = "moving-mouth-v1"
 MOTION_DEFAULTS = MappingProxyType(
     {"visual_noise": 0.0, "idle_activity": 0.0, "noise_rate": 0.8, "noise_seed": 0}
 )
+APPEARANCE_DEFAULTS = MappingProxyType(
+    {
+        "reflection_opacity": 0.45,
+        "center_line_extent": 0.96,
+        "center_line_opacity": 0.55,
+    }
+)
 CONFIGURABLE_RIBBON_PROFILES = (REFINED_RIBBON, MOVING_MOUTH)
 BRAND_COLORS = MappingProxyType(
     {
@@ -79,6 +86,24 @@ def validate_refined_data(data: Any) -> Any:
     if not isinstance(signal, dict):
         return data
     profile = signal.get("fixed_axis_profile")
+    wave = data.get("waveform", {})
+    if isinstance(wave, dict):
+        supplied = {k for k in APPEARANCE_DEFAULTS if wave.get(k) is not None}
+        if supplied and profile != REFINED_RIBBON:
+            raise ValueError("reflection/horizon controls require filled-ribbon-v2")
+        if profile == REFINED_RIBBON:
+            wave = {
+                **wave,
+                **{
+                    k: wave.get(k) if wave.get(k) is not None else v
+                    for k, v in APPEARANCE_DEFAULTS.items()
+                },
+            }
+            data = {**data, "waveform": wave}
+            for key in APPEARANCE_DEFAULTS:
+                _number(wave[key], "waveform." + key, 0.0, 1.0)
+            if type(wave.get("center_line")) is not bool:
+                raise ValueError("waveform.center_line must be boolean")
     motion = set(MOTION_DEFAULTS) & set(signal)
     if motion and profile != REFINED_RIBBON:
         raise ValueError("ribbon motion controls require filled-ribbon-v2")
@@ -119,6 +144,7 @@ def validate_refined_data(data: Any) -> Any:
             "amplitude",
             "stroke_width",
             "center_line",
+            *APPEARANCE_DEFAULTS,
             "time_mode",
             "window_seconds",
         },
@@ -151,7 +177,7 @@ def validate_refined_data(data: Any) -> Any:
     thickness = wave.get("stroke_width")
     if thickness is not None:
         _number(thickness, "waveform.stroke_width", 1.0, 12.0)
-        if wave.get("center_line") is not True:
+        if profile == MOVING_MOUTH and wave.get("center_line") is not True:
             raise ValueError("ribbon stroke_width requires center_line=true")
     detail = signal.get("detail_level", "balanced")
     if not isinstance(detail, str) or detail not in DETAIL_SETTINGS:
@@ -205,10 +231,25 @@ def apply_public_appearance(
     idle_activity: float | None = None,
     noise_rate: float | None = None,
     noise_seed: int | None = None,
+    reflection_opacity: float | None = None,
+    center_line: bool | None = None,
+    center_line_extent: float | None = None,
+    center_line_opacity: float | None = None,
 ) -> VisualPreset:
     """Explicit overrides beat preset defaults, on a fully validated private copy."""
     from ewp_waveform.config.models import VisualPreset
 
+    appearance = dict(
+        reflection_opacity=reflection_opacity,
+        center_line=center_line,
+        center_line_extent=center_line_extent,
+        center_line_opacity=center_line_opacity,
+    )
+    if (
+        any(v is not None for v in appearance.values())
+        and preset.signal.get("fixed_axis_profile") != REFINED_RIBBON
+    ):
+        raise ValueError("reflection/horizon overrides require filled-ribbon-v2")
     motion = dict(
         visual_noise=visual_noise,
         idle_activity=idle_activity,
@@ -232,11 +273,13 @@ def apply_public_appearance(
             amplitude,
             stroke_width,
             *motion.values(),
+            *appearance.values(),
         )
     ):
         preset.validate_fixed_axis_profile()
         return preset
     data = preset.model_dump()
+    data["waveform"].update({k: v for k, v in appearance.items() if v is not None})
     data["signal"].update({k: v for k, v in motion.items() if v is not None})
     if detail_level is not None:
         data["signal"]["detail_level"] = detail_level
@@ -261,3 +304,21 @@ def apply_public_appearance(
             "enabled": glow_level != "none",
         }
     return VisualPreset.model_validate(data)
+
+
+def ribbon_finish(
+    preset: VisualPreset,
+) -> tuple[float, bool, float, float, float] | None:
+    """Validated post-glow alpha contract; stroke_width remains baseline thickness."""
+    if preset.signal.get("fixed_axis_profile") != REFINED_RIBBON:
+        return None
+    wave = preset.waveform
+    assert wave.reflection_opacity is not None
+    assert wave.center_line_extent is not None and wave.center_line_opacity is not None
+    return (
+        wave.reflection_opacity,
+        bool(wave.center_line),
+        wave.stroke_width or 1.0,
+        wave.center_line_extent,
+        wave.center_line_opacity,
+    )

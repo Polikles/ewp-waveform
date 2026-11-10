@@ -10,8 +10,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import ValidationError
-
 from ewp_waveform.application.benchmark import (
     BenchmarkCell,
     load_and_expand,
@@ -26,7 +24,11 @@ from ewp_waveform.application.estimate import ESTIMATE_LABEL, estimate_output_mb
 from ewp_waveform.application.formats import validate_output_formats
 from ewp_waveform.application.plan import JobPlan, plan_destinations_for_job
 from ewp_waveform.application.render import _clip_bounds, output_root, render_job
-from ewp_waveform.application.results import build_run_summary, utc_now, write_run_summary
+from ewp_waveform.application.results import (
+    build_run_summary,
+    utc_now,
+    write_run_summary,
+)
 from ewp_waveform.config.load import (
     list_performance_profiles,
     list_presets,
@@ -61,6 +63,7 @@ from ewp_waveform.ffmpeg.doctor import check_environment
 from ewp_waveform.ffmpeg.probe import ProbeError, probe_media
 from ewp_waveform.ffmpeg.process import ToolNotFoundError
 from ewp_waveform.identity import sha256_file
+from pydantic import ValidationError
 
 
 def doctor() -> list[str]:
@@ -200,6 +203,10 @@ def plan_jobs(
     idle_activity: float | None = None,
     noise_rate: float | None = None,
     noise_seed: int | None = None,
+    reflection_opacity: float | None = None,
+    center_line: bool | None = None,
+    center_line_extent: float | None = None,
+    center_line_opacity: float | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -218,6 +225,10 @@ def plan_jobs(
             idle_activity=idle_activity,
             noise_rate=noise_rate,
             noise_seed=noise_seed,
+            reflection_opacity=reflection_opacity,
+            center_line=center_line,
+            center_line_extent=center_line_extent,
+            center_line_opacity=center_line_opacity,
             waveform_color=waveform_color,
             glow_level=glow_level,
             amplitude=amplitude,
@@ -337,6 +348,10 @@ def render(
     idle_activity: float | None = None,
     noise_rate: float | None = None,
     noise_seed: int | None = None,
+    reflection_opacity: float | None = None,
+    center_line: bool | None = None,
+    center_line_extent: float | None = None,
+    center_line_opacity: float | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -370,6 +385,10 @@ def render(
                 idle_activity=idle_activity,
                 noise_rate=noise_rate,
                 noise_seed=noise_seed,
+                reflection_opacity=reflection_opacity,
+                center_line=center_line,
+                center_line_extent=center_line_extent,
+                center_line_opacity=center_line_opacity,
                 waveform_color=waveform_color,
                 glow_level=glow_level,
                 amplitude=amplitude,
