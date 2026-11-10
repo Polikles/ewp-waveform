@@ -4,6 +4,12 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+### Changed
+- Refined filled ribbon mapping revision6 uses seven overlapping causal audio
+  envelopes with independently evolving local lobe heights and widths, minority
+  broadband support and pause gating. Preserve separate Moving mouth revision4,
+  appearance controls and legacy/v1; new ribbon operator assessment pending.
+
 ### Added
 - Additional `iuris-moving-mouth` / `moving-mouth-v1` preserves revision-4 activity
   behavior independently of evolving filled ribbon. Shared controls/pipeline; the

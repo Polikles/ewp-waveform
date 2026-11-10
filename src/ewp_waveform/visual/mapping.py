@@ -6,7 +6,7 @@ import math
 from collections.abc import Sequence
 
 from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
-from ewp_waveform.config.ribbon import MOVING_MOUTH_DETAIL_SETTINGS
+from ewp_waveform.config.ribbon import DETAIL_SETTINGS, MOVING_MOUTH_DETAIL_SETTINGS
 from ewp_waveform.visual.models import VisualField
 
 CENTER_OUT_SLOTS = 65
@@ -227,8 +227,124 @@ class MovingMouthMapping(CenterOutMapping):
         return self._compose(frame, [value / total for value in detail])
 
 
-class RefinedRibbonMapping(MovingMouthMapping):
-    """Refined ribbon; separated from preserved Moving mouth for future evolution."""
+class RefinedRibbonMapping(CenterOutMapping):
+    """Seven stationary, overlapping audio envelopes, with a common pause gate.
+
+    Unlike Moving mouth, broadband is not the dominant per-frame multiplier of
+    every lobe. Absolute regional RMS envelopes drive local height AND width;
+    minority broadband floors prevent a weak band from erasing a broad region.
+    All history is finite and indexed, with no mutable warm-up state.
+    """
+
+    SHAPE_SECONDS = 0.18
+    SHAPE_SUPPORT_SECONDS = 0.60
+    DETAIL_BOUND = 0.24
+    FEATURE_ORDER = (5, 2, 0, 1, 3, 6, 4)
+    LOBE_CENTERS = (-26.0, -17.0, -8.0, 0.0, 8.0, 17.0, 26.0)
+
+    def __init__(
+        self, n_bands: int = 64, detail_level: str = "balanced", fps: float = 60.0
+    ) -> None:
+        super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
+        sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
+        self.fps = max(1.0, float(fps))
+        self.fine_weights = self._weights(
+            [slot * (self.n_bands - 1) / (self.n_slots - 1) for slot in range(self.n_slots)], sigma
+        )
+        self.coarse_weights = self._weights(
+            [slot * (self.n_bands - 1) / (self.n_slots - 1) for slot in range(self.n_slots)], 4.0
+        )
+        # Broad overlapping log-band neighborhoods, not one narrow band per lobe.
+        self.feature_weights = self._weights(
+            [(k + 0.5) * self.n_bands / 7.0 - 0.5 for k in range(7)], self.n_bands * 0.105
+        )
+        self.carrier = tuple(
+            min(1.0, (self.center - abs(slot - self.center)) / 3.0)
+            * _gaussian(slot - self.center, 19.0)
+            for slot in range(self.n_slots)
+        )
+
+    def _weights(self, centers: Sequence[float], sigma: float) -> tuple[tuple[float, ...], ...]:
+        rows = []
+        for center in centers:
+            row = [math.exp(-0.5 * ((j - center) / sigma) ** 2) for j in range(self.n_bands)]
+            total = sum(row)
+            rows.append(tuple(value / total for value in row))
+        return tuple(rows)
+
+    def _features(self, frame: AnalysisFrame) -> tuple[float, ...]:
+        src = frame.bands[: self.n_bands]
+        return tuple(
+            math.sqrt(sum(w * v * v for w, v in zip(row, src, strict=False)))
+            for row in self.feature_weights
+        )
+
+    def _detail(self, frame: AnalysisFrame) -> tuple[float, ...]:
+        src = frame.bands[: self.n_bands]
+        peak = max(src, default=0.0)
+        if peak <= 0.0:
+            return (0.0,) * self.n_slots
+        values = []
+        for fine_row, coarse_row in zip(self.fine_weights, self.coarse_weights, strict=True):
+            fine = sum(w * v for w, v in zip(fine_row, src, strict=False)) / peak
+            coarse = sum(w * v for w, v in zip(coarse_row, src, strict=False)) / peak
+            mixed = (1.0 - self.coarse_mix) * fine + self.coarse_mix * coarse
+            values.append(2.0 * min(1.0, max(0.0, mixed)) ** self.contrast - 1.0)
+        return tuple(values)
+
+    def _compose_regions(
+        self, current: float, broad: float, features: Sequence[float], detail: Sequence[float]
+    ) -> VisualField:
+        if current <= 0.0 or broad <= 0.0:
+            return VisualField.from_amplitudes([0.0] * self.n_slots)
+        # Only a low-activity release gate: speech-active frames do not multiply
+        # every local envelope by the instantaneous common level.
+        gate = min(1.0, current / (0.35 * broad))
+        amplitudes = []
+        for slot, gain in enumerate(self.carrier):
+            d = float(slot - self.center)
+            local = 0.0
+            for center, feature in zip(self.LOBE_CENTERS, self.FEATURE_ORDER, strict=True):
+                energy = features[feature]
+                ratio = energy / (broad + energy)
+                # Smooth bounded compression, not per-frame normalization/sorting.
+                strength = 0.22 * broad + 0.78 * (2.0 * broad * ratio)
+                width = 3.1 * (0.70 + 0.60 * ratio)
+                local += math.exp(-0.5 * ((d - center) / width) ** 2) * strength
+            amplitudes.append(
+                gate
+                * gain
+                * (0.16 * broad + 0.84 * local)
+                * (1.0 + self.DETAIL_BOUND * detail[slot])
+            )
+        return VisualField.from_amplitudes(amplitudes)
+
+    def apply(self, frame: AnalysisFrame) -> VisualField:
+        return self._compose_regions(
+            _broadband(frame), _broadband(frame), self._features(frame), self._detail(frame)
+        )
+
+    def apply_at(self, sequence: AnalysisSequence, index: int) -> VisualField:
+        frame = sequence[index]
+        current = _broadband(frame)
+        if current <= 0.0:
+            return VisualField.from_amplitudes([0.0] * self.n_slots)
+        features = [0.0] * 7
+        detail = [0.0] * self.n_slots
+        broad = total = 0.0
+        support = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps)
+        for lag in range(min(index, support) + 1):
+            weight = math.exp(-lag / (self.fps * self.SHAPE_SECONDS))
+            previous = sequence[index - lag]
+            broad += weight * _broadband(previous)
+            for k, value in enumerate(self._features(previous)):
+                features[k] += weight * value
+            for slot, value in enumerate(self._detail(previous)):
+                detail[slot] += weight * value
+            total += weight
+        return self._compose_regions(
+            current, broad / total, [v / total for v in features], [v / total for v in detail]
+        )
 
 
 def apply_static_weights(bands: Sequence[float], weights: Sequence[Sequence[float]]) -> VisualField:

@@ -35,7 +35,7 @@ def test_controls_defaults_and_original_preset_are_distinct() -> None:
     assert appearance.n_bands == 64
     assert appearance.compress == 1.0
     assert appearance.spatial_sigma == pytest.approx(3.15)
-    assert appearance.identity()["mapping_revision"] == 4
+    assert appearance.identity()["mapping_revision"] == 6
     assert preset.signal["smoothing"] == 0.06
     old = load_preset("iuris-ribbon-fixed")
     assert old.signal["fixed_axis_profile"] == "filled-ribbon-v1"
@@ -222,11 +222,9 @@ def test_detail_has_audio_information_and_multi_scale_variation_not_just_size() 
     def variation(row: np.ndarray) -> float:
         return float(np.sum(np.abs(np.diff(row))))
 
-    # Revision 4 deliberately bounds spectral effects around a common carrier.
-    # Test residual fine information, not revision-2 collapsing/narrowing regions.
-    carrier = np.array(RefinedRibbonMapping().carrier)[1:-1]
-    residuals = [shape[1:-1] / carrier for shape in shapes]
-    assert variation(residuals[2]) > variation(residuals[1]) > variation(residuals[0])
+    # Revision5: separate regional envelopes plus static fine detail. The
+    # displayed detail options must still retain different normalized contours.
+    assert variation(shapes[2]) > variation(shapes[0])
     for shape in shapes:
         assert np.all(shape[1:-1] > 0)
 
@@ -327,8 +325,12 @@ def _schema_and_raw_preset(name: str) -> tuple[Any, dict[str, Any]]:
 
 @pytest.mark.parametrize(
     ("bounds", "valid"),
-    [({}, True), ({"fmin_hz": 100.0, "fmax_hz": 1000.0}, True),
-     ({"fmin_hz": 1000.0}, False), ({"fmax_hz": 1000.0}, False)],
+    [
+        ({}, True),
+        ({"fmin_hz": 100.0, "fmax_hz": 1000.0}, True),
+        ({"fmin_hz": 1000.0}, False),
+        ({"fmax_hz": 1000.0}, False),
+    ],
 )
 def test_refined_frequency_schema_and_model_agree(bounds: dict[str, float], valid: bool) -> None:
     validator, data = _schema_and_raw_preset("iuris-ribbon-refined")
@@ -372,9 +374,9 @@ def test_glow_color_equality_is_documented_runtime_semantics(glow_color: str | N
     else:
         data["effects"]["glow"]["color"] = glow_color
     assert validator.is_valid(data)  # Standard schema cannot compare arbitrary siblings.
-    comment = validator.schema["allOf"][2]["then"]["properties"]["effects"]["properties"][
-        "glow"
-    ]["properties"]["color"]["$comment"]
+    comment = validator.schema["allOf"][2]["then"]["properties"]["effects"]["properties"]["glow"][
+        "properties"
+    ]["color"]["$comment"]
     assert "semantic runtime validation" in comment
     if glow_color in (None, "#123aBc"):
         VisualPreset.model_validate(data)

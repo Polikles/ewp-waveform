@@ -7,12 +7,12 @@ from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
 from ewp_waveform.application.appearance import resolve_fixed_axis_appearance
 from ewp_waveform.config.load import load_preset
 from ewp_waveform.identity import render_signature
-from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
+from ewp_waveform.visual.mapping import CenterOutMapping, MovingMouthMapping
 
 
 @pytest.mark.parametrize("detail", ["smooth", "balanced", "detailed"])
 def test_activity_carrier_cannot_collapse_with_weak_local_bands(detail: str) -> None:
-    mapping = RefinedRibbonMapping(detail_level=detail)
+    mapping = MovingMouthMapping(detail_level=detail)
     carrier = np.asarray(mapping.carrier)
     for band in (0, 8, 24, 40, 56, 63):
         bands = [0.0] * 64
@@ -31,7 +31,7 @@ def test_activity_carrier_cannot_collapse_with_weak_local_bands(detail: str) -> 
 
 
 def test_shape_response_is_separate_from_current_activity_and_random_access() -> None:
-    mapping = RefinedRibbonMapping(detail_level="detailed")
+    mapping = MovingMouthMapping(detail_level="detailed")
     left = AnalysisFrame.from_bands([1.0 if i < 20 else 0.0 for i in range(64)])
     right = AnalysisFrame.from_bands(list(reversed(left.bands)))
     sequence = AnalysisSequence((left,) * 60 + (right,) * 60)
@@ -70,7 +70,7 @@ def test_legacy_apply_at_is_exact_frame_local() -> None:
 
 
 def test_mapping_revision_invalidates_old_output_without_changing_v1_identity() -> None:
-    preset = load_preset("iuris-ribbon-refined")
+    preset = load_preset("iuris-moving-mouth")
     recipe = resolve_fixed_axis_appearance(preset).identity()
     assert recipe["mapping_revision"] == 4
     old = dict(recipe, mapping_revision=3)

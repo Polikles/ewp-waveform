@@ -62,7 +62,7 @@ class FixedAxisAppearance:
         if self.detail_level is not None:
             recipe.update(
                 detail_level=self.detail_level,
-                mapping_revision=4,
+                mapping_revision=4 if self.profile == MOVING_MOUTH else 6,
                 baseline_thickness=self.baseline_thickness,
             )
         field = self.field_plan

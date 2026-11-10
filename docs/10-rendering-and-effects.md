@@ -245,3 +245,53 @@ signatures and results, including SKIP. This intentionally changes prior
 frequency/default signatures to avoid reusing old outputs of unknown appearance;
 time-scroll identities and raster contract v13 are unchanged. See ADR-0004 for
 the migration, inactive-control and representation/AA boundaries.
+
+
+### Filled ribbon revision6 — independent horizontal regions
+
+`iuris-ribbon-refined` / `filled-ribbon-v2` now has mapping revision6, distinct
+from the preserved revision4 `iuris-moving-mouth` / `moving-mouth-v1`. Previous
+revision4 activity documentation above describes the historical Moving mouth
+behavior, not the current filled-ribbon mapping. Neither style duplicates the
+shared analysis/raster/encoder pipeline.
+
+Seven overlapping Gaussian RMS features span the existing64 processed log bands
+(feature sigma=0.105*band_count). Each absolute feature and broadband level is
+causally averaged with0.18s exponential decay through inclusive ceil(0.60*fps)
+lookback, truncated/renormalized at clip start. Fixed lobe centers in65-slot
+coordinates are[-26,-17,-8,0,8,17,26], with fixed feature order[5,2,0,1,3,6,4].
+This places low speech features around the midpoint, without peak sorting or
+translation. It is a stable designed arrangement, not exact frequency fidelity.
+
+For averaged broadband B and local feature F, r=F/(B+F). Local lobe strength is
+0.22B+0.78*(2B*r), width=3.1*(0.70+0.60*r). Gaussian lobes overlap and are summed without
+pointwise overlap normalization, retaining valleys between fixed lobe centers.
+A19-slot Gaussian edge-tapered
+footprint multiplies(0.16B+0.84*local). Different feature strengths and widths can
+therefore rise/broaden/narrow/settle separately; narrow-band weakness cannot erase
+a broad region because features overlap and minority broadband floors remain.
+Current activity only gates release with min(1,current/(0.35B)); it is NOT the
+dominant instantaneous common multiplier during active speech. Current zero
+activity yields zero new field; existing0.06s contour EMA settles to baseline.
+
+The existing detail descriptor, mixed fine/coarse normalized spectral neighborhoods
+and contrast, is separately averaged over the same finite response and contributes
+the unchanged +/-24% residual. This is a new regional-envelope/width mapping, not
+a larger deformation limit. Balanced/detailed use their documented separate
+neighborhood/contrast/spatial settings. Color/glow/amplitude/thickness/detail
+remain selectable and identity-bound; no new control or performance-profile change.
+
+Composition and motion metrics are descriptive. Shared strong-syllable response
+is allowed, but persistent lockstep is not intended. Full-style/full-episode,
+operator visual reference3 acceptance, Resolve/NLE and performance qualification
+remain open. Independent clips have their own analysis/normalization/history;
+indexed evaluation with sufficient finite context is deterministic, not a promise
+of arbitrary full-render-crop pixel identity.
+
+The first bounded revision5 short comparison is retained as an intermediate:
+its broad nominal lobes plus pointwise overlap division largely erased lobe
+valleys, despite non-proportional regional envelopes. The second/last focused
+visual iteration (revision6) removes that flattening division and narrows nominal
+lobes. It does not increase +/-24% detail deformation or change Moving mouth.
+No numerical peak count is a perceptual acceptance threshold; final operator
+continuous-motion assessment remains required.
