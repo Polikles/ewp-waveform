@@ -377,6 +377,10 @@ def render(
                 idle_activity,
                 noise_rate,
                 noise_seed,
+                reflection_opacity,
+                center_line,
+                center_line_extent,
+                center_line_opacity,
             )
         ):
             preset = apply_public_appearance(

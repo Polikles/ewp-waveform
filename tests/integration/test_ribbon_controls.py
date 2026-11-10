@@ -54,12 +54,20 @@ def test_public_overrides_plan_render_identity_reuse_and_source_immutability(
         glow_level="none",
         amplitude=0.4,
         stroke_width=5,
+        reflection_opacity=0,
+        center_line=False,
+        center_line_extent=0,
+        center_line_opacity=0,
     )
     _, effective, _, plans, _ = plan_jobs(source, **common, **options)
     assert not (tmp_path / "out").exists()
     assert effective.waveform.color == "#3D5D73"
     assert effective.waveform.amplitude == 0.4 and effective.waveform.stroke_width == 5
     assert effective.signal["detail_level"] == "detailed"
+    assert effective.waveform.reflection_opacity == 0
+    assert effective.waveform.center_line is False
+    assert effective.waveform.center_line_extent == 0
+    assert effective.waveform.center_line_opacity == 0
     payload = render(source, **common, **options)[0]
     assert _job_status(payload) == "SUCCEEDED"
     assert plans[0].render_signature == _signature(payload)
@@ -145,8 +153,9 @@ def test_control_effects_change_actual_pixels_without_changing_unrelated_setting
     )
 
 
+@pytest.mark.parametrize("line", [True, False])
 def test_refined_mask_rgba_and_worker_partition_exactness(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, line: bool
 ) -> None:
     source = tmp_path / "s0e00-Paths.wav"
     _source(source)
@@ -160,6 +169,10 @@ def test_refined_mask_rgba_and_worker_partition_exactness(
         detail_level="detailed",
         waveform_color="periwinkle_blue",
         stroke_width=7,
+        center_line=line,
+        reflection_opacity=0.4,
+        center_line_extent=0.65,
+        center_line_opacity=0.7,
     )
     mask = render(
         source,
@@ -211,7 +224,7 @@ def test_saved_partial_frequency_bounds_fail_loading_and_public_plan(
     preset_path.write_text(
         preset_path.read_text().replace(
             '[signal.frequency]\nrange = "auto"',
-            '[signal.frequency]\nrange = "auto"\n' + key + ' = 1000.0',
+            '[signal.frequency]\nrange = "auto"\n' + key + " = 1000.0",
         )
     )
     assert key in preset_path.read_text()
@@ -226,3 +239,26 @@ def test_saved_partial_frequency_bounds_fail_loading_and_public_plan(
         plan_jobs(source, preset_name=str(preset_path), output_dir=output)
     assert not output.exists()
     assert sha256_file(preset_path) == before
+
+
+@pytest.mark.parametrize(
+    "name", ["iuris-default", "iuris-spectrum", "iuris-ribbon-fixed", "iuris-moving-mouth"]
+)
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"reflection_opacity": 0},
+        {"center_line": False},
+        {"center_line_extent": 0},
+        {"center_line_opacity": 0},
+    ],
+)
+def test_new_unsupported_service_overrides_never_silently_ignore(
+    tmp_path: Path, name: str, options: dict[str, Any]
+) -> None:
+    source = tmp_path / "s0e00-Unsupported.wav"
+    _source(source)
+    for operation in (plan_jobs, render):
+        with pytest.raises(AppError, match="require"):
+            operation(source, preset_name=name, output_dir=tmp_path / "out", **options)
+        assert not (tmp_path / "out").exists()
