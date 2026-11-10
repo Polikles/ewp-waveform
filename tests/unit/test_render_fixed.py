@@ -420,7 +420,7 @@ def test_visual_peak_sampling_and_precompute_keep_canonical_columns(
 ) -> None:
     sequence = list(range(length))
     mapping = Mock()
-    mapping.apply.side_effect = lambda frame: frame
+    mapping.apply_at.side_effect = lambda frames, index: frames[index]
     monkeypatch.setattr(
         render, "field_to_columns", Mock(side_effect=lambda field, width: [float(field)])
     )
@@ -438,7 +438,7 @@ def test_visual_peak_sampling_and_precompute_keep_canonical_columns(
     )
     step = 1 if length <= 240 else max(1, length // 120)
     render.bin_peak.assert_called_once_with([float(i) for i in range(0, length, step)])
-    assert mapping.apply.call_count == len(range(0, length, step))
+    assert mapping.apply_at.call_count == len(range(0, length, step))
     monkeypatch.setattr(render, "normalize_bins", Mock(side_effect=lambda cols, **kw: cols))
     monkeypatch.setattr(render, "blend_columns", Mock(side_effect=lambda prev, raw, alpha: raw))
     rows = render._precompute_field_columns(
