@@ -156,3 +156,44 @@ validated application API. See [06](06-configuration.md#refined-ribbon-controls-
 for defaults/ranges/applicability, five brand colors, unresolved yellow and precedence.
 Unsupported settings fail as configuration errors; dry-run plans the same signature
 as rendering and creates no outputs.
+
+
+## Filled-ribbon reflection and independent horizon (appearance revision 1)
+
+Mapping revision7, analysis, motion/noise, normalization, columns and spatial layout
+are unchanged. Filled-ribbon-v2 alone adds these `[waveform]` / service / CLI controls:
+
+| Saved/service | CLI | Range | Provisional default |
+|---|---|---|---|
+| reflection_opacity | --reflection-opacity | finite0..1 | .45 |
+| center_line | --center-line / --no-center-line | strict boolean | true |
+| stroke_width | --stroke-width | finite1..12 final output pixels | 1 |
+| center_line_extent | --center-line-extent | finite0..1 centered frame-width fraction | .96 |
+| center_line_opacity | --center-line-opacity | finite0..1 | .55 |
+
+`stroke_width` already meant full baseline thickness in final output pixels; it
+retains that meaning, not contour width. There is no second horizon thickness or
+enable control. Filled ribbon now draws that one horizon after body/halo finishing,
+not as a minimum-ribbon core plus another line. Disabling `center_line` removes it
+entirely, including in silence with thick saved stroke. Explicit false and zero
+overrides win over saved values (`None` alone means no override). Extent0 or opacity0
+also yields no horizon; inactive values remain in effective metadata/reuse identity.
+
+Opacity attenuates actual lower body AND halo alpha after glow, not RGB against black.
+Upper geometry/alpha does not depend on reflection. Reflection0 removes lower pixels
+but does not remove a separately enabled horizon. Reflection1 is neutral attenuation.
+The body mask uses existing AA and native FFmpeg mask union/glow/compositing, then
+constant unassociated RGB is assigned wherever alpha is nonzero (zero elsewhere).
+This also avoids colored halo fringes from blurring straight RGB against zero.
+The center raster row belongs to the shared seam; lower reflection starts one row
+below it. A fractional-width line uses analytic final-pixel coverage and no line glow.
+True zero columns with horizon off are fully transparent and valid.
+
+The provisional defaults are visual proposals from inspecting main reference panel3:
+luminous pale-cyan upper ribbon, weaker lower reflection and a very fine nearly
+full-width centered horizon. No numeric opacity was measured from the reference.
+Uniform opacity does not reproduce its tint variation/edge taper; no gradient or
+tint framework is implemented. Other style defaults and Moving mouth are unchanged;
+new reflection/extent/opacity settings and public center-line overrides reject on
+unsupported profiles even at zero/false, rather than silently ignoring them.
+Saved legacy center_line retains its existing semantics.
