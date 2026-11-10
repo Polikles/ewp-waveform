@@ -248,3 +248,19 @@ Execution settings still preserve their declared visual contract; intentional
 algorithm changes require explicit comparison/oracle/identity treatment. Exact
 cross-version pixels are not universal acceptance. The full s0e00-Damian input is
 the provisional acceptance workload, not a mandatory all-style/color/track matrix.
+
+
+## Proposed styles and speaker annotations — future only
+
+Propose a separately selectable **Mexican wave** style: stronger audio moves the
+center then propagates smoothly outward. This is distinct from ribbon and Moving
+mouth; it is not implemented or an existing control.
+
+Propose optional visualization of speakers WITHIN ONE input track, with an initial
+user speaker count1–3 and genuine speaker-timeline annotations. Two centers1/4,3/4;
+proposed three1/6,1/2,5/6 are PENDING operator confirmation. Frequency/timbre is not
+reliable speaker identity. A future external annotation interface should avoid
+duplicating diarization. Identity ambiguity, overlapping speech, annotation
+format/tooling, missing intervals and conflict handling remain design work. Default
+one-track/one-asset behavior stays unchanged. No diarization model/dependency,
+placeholder CLI or implemented multi-speaker capability is supplied.

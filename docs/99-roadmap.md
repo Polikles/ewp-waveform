@@ -137,3 +137,19 @@ short look only; full-style/full-episode, Resolve/NLE and performance qualificat
 remain open. `iuris-ribbon-refined` continues separately toward reference3; its
 new local dynamics still require operator visual assessment. No plugin framework
 or duplicate analysis/raster/encoder pipeline is introduced.
+
+
+## Proposed styles and speaker annotations — future only
+
+Propose a separately selectable **Mexican wave** style: stronger audio moves the
+center then propagates smoothly outward. This is distinct from ribbon and Moving
+mouth; it is not implemented or an existing control.
+
+Propose optional visualization of speakers WITHIN ONE input track, with an initial
+user speaker count1–3 and genuine speaker-timeline annotations. Two centers1/4,3/4;
+proposed three1/6,1/2,5/6 are PENDING operator confirmation. Frequency/timbre is not
+reliable speaker identity. A future external annotation interface should avoid
+duplicating diarization. Identity ambiguity, overlapping speech, annotation
+format/tooling, missing intervals and conflict handling remain design work. Default
+one-track/one-asset behavior stays unchanged. No diarization model/dependency,
+placeholder CLI or implemented multi-speaker capability is supplied.

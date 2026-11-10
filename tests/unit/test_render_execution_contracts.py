@@ -169,7 +169,7 @@ def test_literal_legacy_signatures_and_defaults() -> None:
         actual = [
             (p.name, p.kind.name, p.annotation, p.default) for p in signature.parameters.values()
         ]
-        # FR-LOOK-CONTROLS-001 intentionally adds three keyword-only controls to
+        # FR-LOOK-CONTROLS/AMPLITUDE intentionally add keyword-only controls to
         # the service only. Keep every frozen legacy parameter/type/default exact.
         if function is service.render:
             expected = [
@@ -177,6 +177,10 @@ def test_literal_legacy_signatures_and_defaults() -> None:
                 ("detail_level", "KEYWORD_ONLY", "str | None", None),
                 ("amplitude", "KEYWORD_ONLY", "float | None", None),
                 ("stroke_width", "KEYWORD_ONLY", "float | None", None),
+                ("visual_noise", "KEYWORD_ONLY", "float | None", None),
+                ("idle_activity", "KEYWORD_ONLY", "float | None", None),
+                ("noise_rate", "KEYWORD_ONLY", "float | None", None),
+                ("noise_seed", "KEYWORD_ONLY", "int | None", None),
             ]
         assert actual == expected
         for got, want in zip(actual, expected, strict=True):

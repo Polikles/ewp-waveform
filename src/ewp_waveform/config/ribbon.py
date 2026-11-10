@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 
 REFINED_RIBBON = "filled-ribbon-v2"
 MOVING_MOUTH = "moving-mouth-v1"
+MOTION_DEFAULTS = MappingProxyType(
+    {"visual_noise": 0.0, "idle_activity": 0.0, "noise_rate": 0.8, "noise_seed": 0}
+)
 CONFIGURABLE_RIBBON_PROFILES = (REFINED_RIBBON, MOVING_MOUTH)
 BRAND_COLORS = MappingProxyType(
     {
@@ -76,6 +79,18 @@ def validate_refined_data(data: Any) -> Any:
     if not isinstance(signal, dict):
         return data
     profile = signal.get("fixed_axis_profile")
+    motion = set(MOTION_DEFAULTS) & set(signal)
+    if motion and profile != REFINED_RIBBON:
+        raise ValueError("ribbon motion controls require filled-ribbon-v2")
+    if profile == REFINED_RIBBON:
+        signal = {**MOTION_DEFAULTS, **signal}
+        data = {**data, "signal": signal}
+        _number(signal["visual_noise"], "visual_noise", 0.0, 1.0)
+        _number(signal["idle_activity"], "idle_activity", 0.0, 0.15)
+        _number(signal["noise_rate"], "noise_rate", 0.1, 3.0)
+        seed = signal["noise_seed"]
+        if type(seed) is not int or not 0 <= seed <= 2147483647:
+            raise ValueError("noise_seed must be an integer in [0, 2147483647]")
     if "detail_level" in signal and profile not in CONFIGURABLE_RIBBON_PROFILES:
         raise ValueError("signal.detail_level requires filled-ribbon-v2")
     if profile not in CONFIGURABLE_RIBBON_PROFILES:
@@ -111,7 +126,15 @@ def validate_refined_data(data: Any) -> Any:
     )
     _keys(
         signal,
-        {"fixed_axis_profile", "detail_level", "scale", "smoothing", "normalization", "frequency"},
+        {
+            "fixed_axis_profile",
+            "detail_level",
+            "scale",
+            "smoothing",
+            "normalization",
+            "frequency",
+            *MOTION_DEFAULTS,
+        },
         "signal",
     )
     wave = data["waveform"]
@@ -178,17 +201,43 @@ def apply_public_appearance(
     glow_level: str | None = None,
     amplitude: float | None = None,
     stroke_width: float | None = None,
+    visual_noise: float | None = None,
+    idle_activity: float | None = None,
+    noise_rate: float | None = None,
+    noise_seed: int | None = None,
 ) -> VisualPreset:
     """Explicit overrides beat preset defaults, on a fully validated private copy."""
     from ewp_waveform.config.models import VisualPreset
 
+    motion = dict(
+        visual_noise=visual_noise,
+        idle_activity=idle_activity,
+        noise_rate=noise_rate,
+        noise_seed=noise_seed,
+    )
+    if (
+        any(v is not None for v in motion.values())
+        and preset.signal.get("fixed_axis_profile") != REFINED_RIBBON
+    ):
+        raise ValueError("ribbon motion controls require filled-ribbon-v2")
     refined = preset.signal.get("fixed_axis_profile") in CONFIGURABLE_RIBBON_PROFILES
     if not refined and any(x is not None for x in (detail_level, amplitude, stroke_width)):
         raise ValueError("New detail/height/thickness overrides require filled-ribbon-v2")
-    if all(x is None for x in (detail_level, waveform_color, glow_level, amplitude, stroke_width)):
+    if all(
+        x is None
+        for x in (
+            detail_level,
+            waveform_color,
+            glow_level,
+            amplitude,
+            stroke_width,
+            *motion.values(),
+        )
+    ):
         preset.validate_fixed_axis_profile()
         return preset
     data = preset.model_dump()
+    data["signal"].update({k: v for k, v in motion.items() if v is not None})
     if detail_level is not None:
         data["signal"]["detail_level"] = detail_level
     if amplitude is not None:

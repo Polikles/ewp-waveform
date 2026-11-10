@@ -6,7 +6,7 @@ import math
 from collections.abc import Sequence
 
 from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
-from ewp_waveform.config.ribbon import DETAIL_SETTINGS, MOVING_MOUTH_DETAIL_SETTINGS
+from ewp_waveform.config.ribbon import MOVING_MOUTH_DETAIL_SETTINGS
 from ewp_waveform.visual.models import VisualField
 
 CENTER_OUT_SLOTS = 65
@@ -228,122 +228,171 @@ class MovingMouthMapping(CenterOutMapping):
 
 
 class RefinedRibbonMapping(CenterOutMapping):
-    """Seven stationary, overlapping audio envelopes, with a common pause gate.
+    """Designed amplitude field: irregular stationary wavelets, not Hz-to-X.
 
-    Unlike Moving mouth, broadband is not the dominant per-frame multiplier of
-    every lobe. Absolute regional RMS envelopes drive local height AND width;
-    minority broadband floors prevent a weak band from erasing a broad region.
-    All history is finite and indexed, with no mutable warm-up state.
+    Local normalized spectral texture drives height and width, while broadband
+    gates the speech rhythm. Optional artistic modulation is smooth value noise,
+    stateless and keyed by absolute audio seconds. No moving centers or sorting.
     """
 
-    SHAPE_SECONDS = 0.18
+    SHAPE_SECONDS = 0.24
     SHAPE_SUPPORT_SECONDS = 0.60
-    DETAIL_BOUND = 0.24
-    FEATURE_ORDER = (5, 2, 0, 1, 3, 6, 4)
-    LOBE_CENTERS = (-26.0, -17.0, -8.0, 0.0, 8.0, 17.0, 26.0)
+    LOBE_CENTERS = (
+        -58.0,
+        -52.1,
+        -47.0,
+        -40.4,
+        -34.8,
+        -28.5,
+        -23.2,
+        -17.0,
+        -11.7,
+        -5.1,
+        0.8,
+        6.1,
+        12.8,
+        18.0,
+        24.4,
+        30.0,
+        35.1,
+        42.0,
+        47.3,
+        53.8,
+        59.0,
+    )
 
     def __init__(
-        self, n_bands: int = 64, detail_level: str = "balanced", fps: float = 60.0
+        self,
+        n_bands: int = 64,
+        detail_level: str = "balanced",
+        fps: float = 60.0,
+        *,
+        visual_noise: float = 0.0,
+        idle_activity: float = 0.0,
+        noise_rate: float = 0.8,
+        noise_seed: int = 0,
+        audio_start_seconds: float = 0.0,
     ) -> None:
-        super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
-        sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
+        super().__init__(n_slots=129, n_bands=n_bands)
         self.fps = max(1.0, float(fps))
-        self.fine_weights = self._weights(
-            [slot * (self.n_bands - 1) / (self.n_slots - 1) for slot in range(self.n_slots)], sigma
-        )
-        self.coarse_weights = self._weights(
-            [slot * (self.n_bands - 1) / (self.n_slots - 1) for slot in range(self.n_slots)], 4.0
-        )
-        # Broad overlapping log-band neighborhoods, not one narrow band per lobe.
-        self.feature_weights = self._weights(
-            [(k + 0.5) * self.n_bands / 7.0 - 0.5 for k in range(7)], self.n_bands * 0.105
-        )
-        self.carrier = tuple(
-            min(1.0, (self.center - abs(slot - self.center)) / 3.0)
-            * _gaussian(slot - self.center, 19.0)
-            for slot in range(self.n_slots)
-        )
-
-    def _weights(self, centers: Sequence[float], sigma: float) -> tuple[tuple[float, ...], ...]:
+        self.visual_noise = visual_noise
+        self.idle_activity = idle_activity
+        self.noise_rate = noise_rate
+        self.noise_seed = noise_seed
+        self.audio_start_seconds = audio_start_seconds
+        sigma = {"smooth": 2.6, "balanced": 1.2, "detailed": 0.6}[detail_level]
+        self.contrast = 2.0
+        self.width_scale = {"smooth": 1.8, "balanced": 1.0, "detailed": 0.65}[detail_level]
         rows = []
-        for center in centers:
+        for k in range(len(self.LOBE_CENTERS)):
+            # Coprime permutation spreads neighboring spectral neighborhoods over
+            # the width; neither frequency position nor speaker identity implied.
+            center = ((k * 8) % 21 + 0.5) * self.n_bands / 21 - 0.5
             row = [math.exp(-0.5 * ((j - center) / sigma) ** 2) for j in range(self.n_bands)]
             total = sum(row)
-            rows.append(tuple(value / total for value in row))
-        return tuple(rows)
-
-    def _features(self, frame: AnalysisFrame) -> tuple[float, ...]:
-        src = frame.bands[: self.n_bands]
-        return tuple(
-            math.sqrt(sum(w * v * v for w, v in zip(row, src, strict=False)))
-            for row in self.feature_weights
+            rows.append(tuple(w / total for w in row))
+        self.feature_weights = tuple(rows)
+        self.carrier = tuple(
+            min(1.0, (self.center - abs(i - self.center)) / 4.0)
+            * math.exp(-0.5 * ((i - self.center) / 48.0) ** 2)
+            for i in range(self.n_slots)
         )
 
-    def _detail(self, frame: AnalysisFrame) -> tuple[float, ...]:
+    def _texture(self, frame: AnalysisFrame) -> tuple[float, ...]:
         src = frame.bands[: self.n_bands]
-        peak = max(src, default=0.0)
-        if peak <= 0.0:
-            return (0.0,) * self.n_slots
-        values = []
-        for fine_row, coarse_row in zip(self.fine_weights, self.coarse_weights, strict=True):
-            fine = sum(w * v for w, v in zip(fine_row, src, strict=False)) / peak
-            coarse = sum(w * v for w, v in zip(coarse_row, src, strict=False)) / peak
-            mixed = (1.0 - self.coarse_mix) * fine + self.coarse_mix * coarse
-            values.append(2.0 * min(1.0, max(0.0, mixed)) ** self.contrast - 1.0)
-        return tuple(values)
+        mean = math.sqrt(sum(v * v for v in src) / max(1, len(src)))
+        if mean <= 0.0:
+            return (0.5,) * len(self.LOBE_CENTERS)
+        energies = [
+            math.sqrt(sum(w * v * v for w, v in zip(row, src, strict=False)))
+            for row in self.feature_weights
+        ]
+        return tuple(v / (v + mean) for v in energies)
 
-    def _compose_regions(
-        self, current: float, broad: float, features: Sequence[float], detail: Sequence[float]
+    def _value(self, channel: int, tick: int) -> float:
+        # Integer hash; never Python's randomized hash or mutable RNG state.
+        value = (self.noise_seed ^ (channel * 0x9E3779B1) ^ (tick * 0x85EBCA77)) & 0xFFFFFFFF
+        value = ((value ^ (value >> 16)) * 0x7FEB352D) & 0xFFFFFFFF
+        value = ((value ^ (value >> 15)) * 0x846CA68B) & 0xFFFFFFFF
+        value ^= value >> 16
+        return 2.0 * value / 0xFFFFFFFF - 1.0
+
+    def noise_at(self, channel: int, audio_seconds: float) -> float:
+        """C2-continuous temporal lattice; slower neighboring channels correlate."""
+        position = audio_seconds * self.noise_rate
+        tick = math.floor(position)
+        f = position - tick
+        blend = f * f * f * (f * (6.0 * f - 15.0) + 10.0)
+
+        def sample(c: int) -> float:
+            a = self._value(c, tick)
+            return a + blend * (self._value(c, tick + 1) - a)
+
+        return 0.65 * sample(channel) + 0.35 * sample(channel // 3 + 100)
+
+    def _compose_field(
+        self,
+        level: float,
+        texture: Sequence[float],
+        seconds: float,
+        *,
+        idle: bool = False,
     ) -> VisualField:
-        if current <= 0.0 or broad <= 0.0:
+        if level <= 0.0:
             return VisualField.from_amplitudes([0.0] * self.n_slots)
-        # Only a low-activity release gate: speech-active frames do not multiply
-        # every local envelope by the instantaneous common level.
-        gate = min(1.0, current / (0.35 * broad))
+        lobes = []
+        for k, descriptor in enumerate(texture):
+            h_noise = self.noise_at(k, seconds)
+            w_noise = self.noise_at(k + 43, seconds)
+            if idle:
+                strength = 0.40 + 0.32 * h_noise
+                width = 1.20 + 0.40 * w_noise
+            else:
+                ratio = min(1.0, max(0.0, descriptor + 0.48 * self.visual_noise * h_noise))
+                strength = 0.06 + 2.8 * ratio**self.contrast
+                width = (0.68 + 3.0 * ratio * ratio) * self.width_scale
+                width *= 1.0 + 0.48 * self.visual_noise * w_noise
+            lobes.append((strength, width))
         amplitudes = []
         for slot, gain in enumerate(self.carrier):
             d = float(slot - self.center)
-            local = 0.0
-            for center, feature in zip(self.LOBE_CENTERS, self.FEATURE_ORDER, strict=True):
-                energy = features[feature]
-                ratio = energy / (broad + energy)
-                # Smooth bounded compression, not per-frame normalization/sorting.
-                strength = 0.22 * broad + 0.78 * (2.0 * broad * ratio)
-                width = 3.1 * (0.70 + 0.60 * ratio)
-                local += math.exp(-0.5 * ((d - center) / width) ** 2) * strength
-            amplitudes.append(
-                gate
-                * gain
-                * (0.16 * broad + 0.84 * local)
-                * (1.0 + self.DETAIL_BOUND * detail[slot])
+            local = sum(
+                strength * math.exp(-0.5 * ((d - center) / width) ** 2)
+                for center, (strength, width) in zip(self.LOBE_CENTERS, lobes, strict=True)
             )
+            amplitudes.append(level * gain * (0.015 + local))
         return VisualField.from_amplitudes(amplitudes)
 
+    def idle_at(self, index: int) -> VisualField:
+        """Normalized intentional idle floor, added AFTER speech normalization.
+
+        It cannot be amplified into loud-looking silence by clip auto-normalization.
+        Idle animation is independent of noise amount; both default to zero.
+        """
+        seconds = self.audio_start_seconds + index / self.fps
+        return self._compose_field(
+            self.idle_activity, (0.5,) * len(self.LOBE_CENTERS), seconds, idle=True
+        )
+
     def apply(self, frame: AnalysisFrame) -> VisualField:
-        return self._compose_regions(
-            _broadband(frame), _broadband(frame), self._features(frame), self._detail(frame)
+        return self._compose_field(
+            _broadband(frame), self._texture(frame), self.audio_start_seconds
         )
 
     def apply_at(self, sequence: AnalysisSequence, index: int) -> VisualField:
-        frame = sequence[index]
-        current = _broadband(frame)
+        current = _broadband(sequence[index])
         if current <= 0.0:
             return VisualField.from_amplitudes([0.0] * self.n_slots)
-        features = [0.0] * 7
-        detail = [0.0] * self.n_slots
-        broad = total = 0.0
+        texture = [0.0] * len(self.LOBE_CENTERS)
+        total = 0.0
         support = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps)
         for lag in range(min(index, support) + 1):
             weight = math.exp(-lag / (self.fps * self.SHAPE_SECONDS))
-            previous = sequence[index - lag]
-            broad += weight * _broadband(previous)
-            for k, value in enumerate(self._features(previous)):
-                features[k] += weight * value
-            for slot, value in enumerate(self._detail(previous)):
-                detail[slot] += weight * value
+            for k, value in enumerate(self._texture(sequence[index - lag])):
+                texture[k] += weight * value
             total += weight
-        return self._compose_regions(
-            current, broad / total, [v / total for v in features], [v / total for v in detail]
+        return self._compose_field(
+            current, [v / total for v in texture], self.audio_start_seconds + index / self.fps
         )
 
 

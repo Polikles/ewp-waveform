@@ -6,14 +6,16 @@ Legacy controls remain unchanged unless a named visual profile is explicitly sel
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.config.ribbon import (
     CONFIGURABLE_RIBBON_PROFILES,
     DETAIL_SETTINGS,
+    MOTION_DEFAULTS,
     MOVING_MOUTH,
     MOVING_MOUTH_DETAIL_SETTINGS,
+    REFINED_RIBBON,
 )
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, parse_rgb
 from ewp_waveform.visual.bars import BarStyle
@@ -51,6 +53,7 @@ class FixedAxisAppearance:
     profile: str | None = None
     detail_level: str | None = None
     baseline_thickness: float | None = None
+    motion: tuple[float, float, float, int] | None = None
 
     def identity(self) -> dict[str, Any]:
         """Only branch-effective values; representation path is execution metadata."""
@@ -62,9 +65,11 @@ class FixedAxisAppearance:
         if self.detail_level is not None:
             recipe.update(
                 detail_level=self.detail_level,
-                mapping_revision=4 if self.profile == MOVING_MOUTH else 6,
+                mapping_revision=4 if self.profile == MOVING_MOUTH else 7,
                 baseline_thickness=self.baseline_thickness,
             )
+        if self.motion is not None:
+            recipe.update(zip(MOTION_DEFAULTS, self.motion, strict=True))
         field = self.field_plan
         banded = self.n_bands is not None or field is not None
         recipe.update(
@@ -339,4 +344,12 @@ def resolve_fixed_axis_appearance(
         profile=profile,
         detail_level=detail_level,
         baseline_thickness=baseline_thickness,
+        motion=(
+            cast(float, preset.signal["visual_noise"]),
+            cast(float, preset.signal["idle_activity"]),
+            cast(float, preset.signal["noise_rate"]),
+            cast(int, preset.signal["noise_seed"]),
+        )
+        if profile == REFINED_RIBBON
+        else None,
     )

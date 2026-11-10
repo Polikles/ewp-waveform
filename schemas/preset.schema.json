@@ -221,6 +221,30 @@
             "detailed"
           ],
           "description": "Refined filled-ribbon-v2 only; default balanced."
+        },
+        "visual_noise": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "idle_activity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.15,
+          "default": 0
+        },
+        "noise_rate": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 3,
+          "default": 0.8
+        },
+        "noise_seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 0
         }
       }
     },
@@ -508,6 +532,30 @@
                     "fmin_hz"
                   ]
                 }
+              },
+              "visual_noise": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0
+              },
+              "idle_activity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 0.15,
+                "default": 0
+              },
+              "noise_rate": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 3,
+                "default": 0.8
+              },
+              "noise_seed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647,
+                "default": 0
               }
             }
           },
@@ -575,6 +623,53 @@
                     "const": false
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "signal": {
+            "anyOf": [
+              {
+                "required": [
+                  "visual_noise"
+                ]
+              },
+              {
+                "required": [
+                  "idle_activity"
+                ]
+              },
+              {
+                "required": [
+                  "noise_rate"
+                ]
+              },
+              {
+                "required": [
+                  "noise_seed"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "signal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "filled-ribbon-v2"
               }
             }
           }

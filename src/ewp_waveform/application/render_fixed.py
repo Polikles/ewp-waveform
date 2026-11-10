@@ -721,6 +721,9 @@ def iter_field_frames(
         raw = hooks.apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         if peak is not None and peak > 0.0:
             raw = hooks.normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        if isinstance(mapping, RefinedRibbonMapping) and mapping.idle_activity > 0.0:
+            idle = hooks.field_to_columns(mapping.idle_at(i), draw_w)
+            raw = [max(a, b) for a, b in zip(raw, idle, strict=True)]
         blended = hooks.blend_columns(previous, raw, alpha)
         previous = blended
         t1 = hooks.time.perf_counter()
@@ -849,6 +852,9 @@ def _precompute_field_columns(
         raw = hooks.apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         if peak is not None and peak > 0.0:
             raw = hooks.normalize_bins(raw, peak=peak, soft_clip=soft_clip)
+        if isinstance(mapping, RefinedRibbonMapping) and mapping.idle_activity > 0.0:
+            idle = hooks.field_to_columns(mapping.idle_at(i), draw_w)
+            raw = [max(a, b) for a, b in zip(raw, idle, strict=True)]
         blended = hooks.blend_columns(previous, raw, alpha)
         previous = blended
         if phases is not None:
@@ -1056,19 +1062,29 @@ def run_fixed_pipeline(
         field_plan = appearance.field_plan
         if layout == "field_center_out":
             field_bands = n_bands if n_bands is not None else 64
-            mapping = (
-                (
-                    MovingMouthMapping
-                    if appearance.profile == MOVING_MOUTH
-                    else RefinedRibbonMapping
-                )(
+            mapping: CenterOutMapping
+            if appearance.motion is not None:
+                amount, idle, motion_rate, seed = appearance.motion
+                mapping = RefinedRibbonMapping(
+                    n_bands=field_bands,
+                    detail_level=appearance.detail_level or "balanced",
+                    fps=job.fps,
+                    visual_noise=amount,
+                    idle_activity=idle,
+                    noise_rate=motion_rate,
+                    noise_seed=seed,
+                    audio_start_seconds=clip_start,
+                )
+            elif appearance.profile == MOVING_MOUTH:
+                mapping = MovingMouthMapping(
                     n_bands=field_bands,
                     detail_level=appearance.detail_level or "balanced",
                     fps=job.fps,
                 )
-                if appearance.profile in CONFIGURABLE_RIBBON_PROFILES
-                else hooks.CenterOutMapping(n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands)
-            )
+            else:
+                mapping = hooks.CenterOutMapping(
+                    n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands
+                )
             assert bars is not None and field_plan is not None
             cache_payload = hooks.analysis_cache_payload(
                 source_sha256=source_sha,

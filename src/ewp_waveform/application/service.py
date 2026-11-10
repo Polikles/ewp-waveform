@@ -196,6 +196,10 @@ def plan_jobs(
     detail_level: str | None = None,
     amplitude: float | None = None,
     stroke_width: float | None = None,
+    visual_noise: float | None = None,
+    idle_activity: float | None = None,
+    noise_rate: float | None = None,
+    noise_seed: int | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -210,6 +214,10 @@ def plan_jobs(
         preset = apply_public_appearance(
             preset,
             detail_level=detail_level,
+            visual_noise=visual_noise,
+            idle_activity=idle_activity,
+            noise_rate=noise_rate,
+            noise_seed=noise_seed,
             waveform_color=waveform_color,
             glow_level=glow_level,
             amplitude=amplitude,
@@ -325,6 +333,10 @@ def render(
     detail_level: str | None = None,
     amplitude: float | None = None,
     stroke_width: float | None = None,
+    visual_noise: float | None = None,
+    idle_activity: float | None = None,
+    noise_rate: float | None = None,
+    noise_seed: int | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -339,10 +351,25 @@ def render(
         if preset.signal.get("fixed_axis_profile") in (
             "filled-ribbon-v2",
             "moving-mouth-v1",
-        ) or any(value is not None for value in (detail_level, amplitude, stroke_width)):
+        ) or any(
+            value is not None
+            for value in (
+                detail_level,
+                amplitude,
+                stroke_width,
+                visual_noise,
+                idle_activity,
+                noise_rate,
+                noise_seed,
+            )
+        ):
             preset = apply_public_appearance(
                 preset,
                 detail_level=detail_level,
+                visual_noise=visual_noise,
+                idle_activity=idle_activity,
+                noise_rate=noise_rate,
+                noise_seed=noise_seed,
                 waveform_color=waveform_color,
                 glow_level=glow_level,
                 amplitude=amplitude,

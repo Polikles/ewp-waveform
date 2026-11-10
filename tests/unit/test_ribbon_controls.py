@@ -35,7 +35,7 @@ def test_controls_defaults_and_original_preset_are_distinct() -> None:
     assert appearance.n_bands == 64
     assert appearance.compress == 1.0
     assert appearance.spatial_sigma == pytest.approx(3.15)
-    assert appearance.identity()["mapping_revision"] == 6
+    assert appearance.identity()["mapping_revision"] == 7
     assert preset.signal["smoothing"] == 0.06
     old = load_preset("iuris-ribbon-fixed")
     assert old.signal["fixed_axis_profile"] == "filled-ribbon-v1"
@@ -212,7 +212,7 @@ def test_detail_has_audio_information_and_multi_scale_variation_not_just_size() 
         output = np.array(mapping.apply(frame).amplitude)
         louder = mapping.apply(AnalysisFrame.from_bands([v * 2 for v in bands])).amplitude
         assert louder == pytest.approx(output * 2)
-        assert mapping.apply(AnalysisFrame.from_bands([0.0] * 64)).amplitude == (0.0,) * 65
+        assert mapping.apply(AnalysisFrame.from_bands([0.0] * 64)).amplitude == (0.0,) * 129
         different = mapping.apply(AnalysisFrame.from_bands(list(reversed(bands)))).amplitude
         assert different != pytest.approx(output)
         assert mapping.n_bands == 64
@@ -222,7 +222,7 @@ def test_detail_has_audio_information_and_multi_scale_variation_not_just_size() 
     def variation(row: np.ndarray) -> float:
         return float(np.sum(np.abs(np.diff(row))))
 
-    # Revision5: separate regional envelopes plus static fine detail. The
+    # Revision7: irregular wavelets with finer normalized spectral texture. The
     # displayed detail options must still retain different normalized contours.
     assert variation(shapes[2]) > variation(shapes[0])
     for shape in shapes:

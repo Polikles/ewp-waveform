@@ -295,3 +295,45 @@ visual iteration (revision6) removes that flattening division and narrows nomina
 lobes. It does not increase +/-24% detail deformation or change Moving mouth.
 No numerical peak count is a perceptual acceptance threshold; final operator
 continuous-motion assessment remains required.
+
+
+## Amplitude field ribbon (mapping revision 7)
+
+`iuris-ribbon-refined` / `filled-ribbon-v2` is a designed speech-activity
+amplitude contour, NOT faithful frequency-to-position or speaker identification.
+It replaces revision6's seven broad correlated regions with129 fixed slots and21
+irregular stationary wavelets. Normalized local spectral texture, finite0.24s
+causal response (inclusive0.60s support), nonlinear local contrast and variable
+widths form peaks/valleys across the width. Current broadband gates speech rhythm;
+weak narrow bands cannot erase broad framing. Centers do not pan, sort or track.
+Balanced/detailed remain selectable and distinct. Common contour smoothing, raster,
+color/glow/height/thickness and execution pipeline are reused. This is an intentional
+visual model/identity change, not a coefficient-only refinement or optimization.
+
+Saved `[signal]` settings and matching service keyword / CLI controls (dry-run, render,
+preview) are `visual_noise` / `--visual-noise` (finite0..1, default0),
+`idle_activity` / `--idle-activity` (finite0..0.15, default0), `noise_rate` /
+`--noise-rate` (finite0.1..3 lattice intervals/second, default0.8), and
+`noise_seed` / `--noise-seed` (integer0..2147483647, default0). Booleans/nonfinite
+values are rejected; incompatible profiles reject even explicit zero controls.
+Explicit overrides beat saved settings; all resolved values are retained in effective
+preset and recipe/reuse identity, including inactive rate/seed for reproducibility.
+Legacy presets/defaults and Moving mouth do not acquire these settings.
+
+Noise is intentional artistic modulation, not measured audio. C2 temporal value
+noise with locally correlated channels changes useful wavelet heights AND widths,
+not edge jitter; fixed seed+absolute input audio seconds determine it without
+mutable RNG/worker state. Modest proposed setting: visual_noise0.35, rate0.8,
+seed1729; detailed uses the same modulation with finer audio texture. This is a
+proposal for operator assessment, not subjective acceptance. Amount0 removes artistic
+speech modulation. Idle0 preserves genuine quiet baseline; idle0.035 adds an
+intentional gentle animated floor even in silence independently of visual_noise.
+Idle is added AFTER speech auto-normalization so a quiet-only clip cannot amplify
+it into loud-looking activity. It is not detected speech, diarization or an audio edit.
+
+The noise clock uses clip audio start + canonical frame index/fps, never wall clock
+or chunk-local zero. This guarantees the noise phase for equal absolute timestamps,
+NOT universal crop/full visual equivalence: analysis span, clip normalization,
+finite context/startup and contour EMA retain documented clip-context limitations.
+Moving mouth remains exact revision4 with its historical limited short acceptance;
+new ribbon appearance, full-style/full-episode and NLE review remain separate.

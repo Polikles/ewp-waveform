@@ -1,5 +1,7 @@
 # Changelog
 
+- Refined ribbon mapping7: irregular amplitude field, validated optional coherent noise/idle/rate/seed controls; exact Moving mouth and legacy defaults preserved. Future-only Mexican-wave/speaker-annotation proposals documented.
+
 The project follows Semantic Versioning. Development is an internal beta; there is no public release. Product versioning is independent of raster, recipe, result-schema and orchestration versions. See `Instructions/runbook.md` for the development-version and compatibility policy.
 
 ## Unreleased
