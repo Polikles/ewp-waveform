@@ -22,6 +22,8 @@ APPEARANCE_DEFAULTS = MappingProxyType(
         "center_line_opacity": 0.55,
     }
 )
+BACKGROUND_COLORS = MappingProxyType({"dark-background": "#C7E6EC", "light-background": "#2F474F"})
+FOREGROUND_KEYS = {"background_mode", "color_mode"}
 CONFIGURABLE_RIBBON_PROFILES = (REFINED_RIBBON, MOVING_MOUTH)
 BRAND_COLORS = MappingProxyType(
     {
@@ -88,6 +90,33 @@ def validate_refined_data(data: Any) -> Any:
     profile = signal.get("fixed_axis_profile")
     wave = data.get("waveform", {})
     if isinstance(wave, dict):
+        supplied = {k for k in FOREGROUND_KEYS if wave.get(k) is not None}
+        if supplied and profile != REFINED_RIBBON:
+            raise ValueError("background/color modes require filled-ribbon-v2")
+        if profile == REFINED_RIBBON:
+            wave = {**wave}
+            # Old saved presets have explicit colors: preserve them without RGB inference.
+            wave.setdefault("background_mode", "dark-background")
+            wave.setdefault("color_mode", "custom")
+            mode, policy = wave["background_mode"], wave["color_mode"]
+            if not isinstance(mode, str) or mode not in BACKGROUND_COLORS:
+                raise ValueError("background_mode must be dark-background or light-background")
+            if not isinstance(policy, str) or policy not in ("auto", "custom"):
+                raise ValueError("color_mode must be auto or custom")
+            effects = data.get("effects", {})
+            glow = effects.get("glow", {}) if isinstance(effects, dict) else {}
+            # Do not hide an unsupported independent halo by resolving over it.
+            if isinstance(glow, dict) and glow.get("color", wave.get("color")) != wave.get("color"):
+                raise ValueError("independent glow color is unsupported; use waveform.color")
+            if policy == "auto":
+                wave["color"] = BACKGROUND_COLORS[mode]
+                if isinstance(glow, dict) and isinstance(effects, dict):
+                    data = {
+                        **data,
+                        "effects": {**effects, "glow": {**glow, "color": wave["color"]}},
+                    }
+            data = {**data, "waveform": wave}
+    if isinstance(wave, dict):
         supplied = {k for k in APPEARANCE_DEFAULTS if wave.get(k) is not None}
         if supplied and profile != REFINED_RIBBON:
             raise ValueError("reflection/horizon controls require filled-ribbon-v2")
@@ -146,6 +175,7 @@ def validate_refined_data(data: Any) -> Any:
             "stroke_width",
             "center_line",
             *APPEARANCE_DEFAULTS,
+            *FOREGROUND_KEYS,
             "time_mode",
             "window_seconds",
         },
@@ -236,6 +266,8 @@ def apply_public_appearance(
     center_line: bool | None = None,
     center_line_extent: float | None = None,
     center_line_opacity: float | None = None,
+    background_mode: str | None = None,
+    color_mode: str | None = None,
 ) -> VisualPreset:
     """Explicit overrides beat preset defaults, on a fully validated private copy."""
     from ewp_waveform.config.models import VisualPreset
@@ -245,6 +277,8 @@ def apply_public_appearance(
         center_line=center_line,
         center_line_extent=center_line_extent,
         center_line_opacity=center_line_opacity,
+        background_mode=background_mode,
+        color_mode=color_mode,
     )
     if (
         any(v is not None for v in appearance.values())
@@ -279,7 +313,11 @@ def apply_public_appearance(
     ):
         preset.validate_fixed_axis_profile()
         return preset
+    if waveform_color is not None and color_mode == "auto":
+        raise ValueError("waveform_color conflicts with color_mode=auto; omit color or use custom")
     data = preset.model_dump()
+    if waveform_color is not None and preset.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+        data["waveform"]["color_mode"] = "custom"
     data["waveform"].update({k: v for k, v in appearance.items() if v is not None})
     data["signal"].update({k: v for k, v in motion.items() if v is not None})
     if detail_level is not None:

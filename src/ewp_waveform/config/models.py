@@ -49,6 +49,8 @@ class WaveformSection(BaseModel):
     reflection_opacity: float | None = None
     center_line_extent: float | None = None
     center_line_opacity: float | None = None
+    background_mode: str | None = None
+    color_mode: str | None = None
     domain: str = "time"
     time_mode: str | None = None
     window_seconds: float = 5.0

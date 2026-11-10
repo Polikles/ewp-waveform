@@ -208,6 +208,8 @@ def plan_jobs(
     center_line: bool | None = None,
     center_line_extent: float | None = None,
     center_line_opacity: float | None = None,
+    background_mode: str | None = None,
+    color_mode: str | None = None,
 ) -> tuple[ApplicationConfig, VisualPreset, PerformanceProfile, list[JobPlan], list[Diagnostic]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -230,6 +232,8 @@ def plan_jobs(
             center_line=center_line,
             center_line_extent=center_line_extent,
             center_line_opacity=center_line_opacity,
+            background_mode=background_mode,
+            color_mode=color_mode,
             waveform_color=waveform_color,
             glow_level=glow_level,
             amplitude=amplitude,
@@ -353,6 +357,8 @@ def render(
     center_line: bool | None = None,
     center_line_extent: float | None = None,
     center_line_opacity: float | None = None,
+    background_mode: str | None = None,
+    color_mode: str | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -381,6 +387,8 @@ def render(
                 center_line,
                 center_line_extent,
                 center_line_opacity,
+                background_mode,
+                color_mode,
             )
         ):
             preset = apply_public_appearance(
@@ -394,6 +402,8 @@ def render(
                 center_line=center_line,
                 center_line_extent=center_line_extent,
                 center_line_opacity=center_line_opacity,
+                background_mode=background_mode,
+                color_mode=color_mode,
                 waveform_color=waveform_color,
                 glow_level=glow_level,
                 amplitude=amplitude,

@@ -109,6 +109,22 @@
           "maximum": 1,
           "default": 0.55,
           "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+        },
+        "background_mode": {
+          "type": "string",
+          "enum": [
+            "dark-background",
+            "light-background"
+          ],
+          "description": "Filled ribbon foreground intent only; never a baked background. Omitted saved modes preserve explicit color."
+        },
+        "color_mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "custom"
+          ],
+          "description": "auto resolves brand color by background_mode; custom preserves explicit waveform.color even when it equals a stock color. Old saved presets omit this and remain custom."
         }
       }
     },
@@ -476,6 +492,22 @@
                 "maximum": 1,
                 "default": 0.55,
                 "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+              },
+              "background_mode": {
+                "type": "string",
+                "enum": [
+                  "dark-background",
+                  "light-background"
+                ],
+                "description": "Filled ribbon foreground intent only; never a baked background. Omitted saved modes preserve explicit color."
+              },
+              "color_mode": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "custom"
+                ],
+                "description": "auto resolves brand color by background_mode; custom preserves explicit waveform.color even when it equals a stock color. Old saved presets omit this and remain custom."
               }
             }
           },
@@ -758,6 +790,40 @@
               {
                 "required": [
                   "center_line_opacity"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "filled-ribbon-v2"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "waveform": {
+            "anyOf": [
+              {
+                "required": [
+                  "background_mode"
+                ]
+              },
+              {
+                "required": [
+                  "color_mode"
                 ]
               }
             ]

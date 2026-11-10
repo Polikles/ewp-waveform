@@ -8,6 +8,8 @@ height = 280
 fps = 60
 
 [waveform]
+background_mode = "dark-background"
+color_mode = "auto"
 style = "filled"
 domain = "frequency"
 color = "#C7E6EC"

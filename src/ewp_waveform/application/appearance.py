@@ -56,6 +56,7 @@ class FixedAxisAppearance:
     baseline_thickness: float | None = None
     motion: tuple[float, float, float, int] | None = None
     ribbon_finish: tuple[float, bool, float, float, float] | None = None
+    foreground: tuple[str, str, str] | None = None
 
     def identity(self) -> dict[str, Any]:
         """Only branch-effective values; representation path is execution metadata."""
@@ -81,6 +82,14 @@ class FixedAxisAppearance:
                 baseline_thickness=thickness,
                 center_line_extent=extent,
                 center_line_opacity=opacity,
+            )
+        if self.foreground is not None:
+            mode, policy, color = self.foreground
+            recipe.update(
+                foreground_appearance_revision=1,
+                background_mode=mode,
+                color_mode=policy,
+                foreground_color=color,
             )
         field = self.field_plan
         banded = self.n_bands is not None or field is not None
@@ -357,6 +366,13 @@ def resolve_fixed_axis_appearance(
         detail_level=detail_level,
         baseline_thickness=baseline_thickness,
         ribbon_finish=ribbon_finish(preset),
+        foreground=(
+            preset.waveform.background_mode or "dark-background",
+            preset.waveform.color_mode or "custom",
+            preset.waveform.color,
+        )
+        if preset.signal.get("fixed_axis_profile") == REFINED_RIBBON
+        else None,
         motion=(
             cast(float, preset.signal["visual_noise"]),
             cast(float, preset.signal["idle_activity"]),

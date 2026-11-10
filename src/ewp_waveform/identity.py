@@ -57,6 +57,9 @@ def render_signature(
     if preset.signal.get("fixed_axis_profile") == "filled-ribbon-v2":
         payload["ribbon_appearance"] = {
             "revision": 1,
+            "foreground_appearance_revision": 1,
+            "background_mode": preset.waveform.background_mode,
+            "color_mode": preset.waveform.color_mode,
             "reflection_opacity": preset.waveform.reflection_opacity,
             "center_line_extent": preset.waveform.center_line_extent,
             "center_line_opacity": preset.waveform.center_line_opacity,
