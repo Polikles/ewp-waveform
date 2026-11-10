@@ -171,5 +171,5 @@ def test_cli_modes_and_custom_color_are_forwarded(
 def test_auto_does_not_mask_invalid_saved_colors(color: Any) -> None:
     raw = load_preset("iuris-ribbon-refined").model_dump()
     raw["waveform"]["color"] = raw["effects"]["glow"]["color"] = color
-    with pytest.raises(ValueError, match="waveform.color"):
+    with pytest.raises(ValueError, match=r"waveform\.color"):
         VisualPreset.model_validate(raw)
