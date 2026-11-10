@@ -659,7 +659,7 @@ def _visual_field_peak(
     step = 1 if n_frames <= 240 else max(1, n_frames // 120)
     filt = hooks._spectrum_spatial_filter(spatial_filter)
     for i in range(0, n_frames, step):
-        field = mapping.apply(sequence[i])
+        field = mapping.apply_at(sequence, i)
         columns = hooks.field_to_columns(field, width)
         columns = hooks.apply_spectrum_spatial(columns, sigma=spatial_sigma, kind=filt)
         collected.extend(columns)
@@ -716,7 +716,7 @@ def iter_field_frames(
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = hooks.time.perf_counter()
-        field = mapping.apply(sequence[i])
+        field = mapping.apply_at(sequence, i)
         raw = hooks.field_to_columns(field, draw_w)
         raw = hooks.apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         if peak is not None and peak > 0.0:
@@ -844,7 +844,7 @@ def _precompute_field_columns(
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = hooks.time.perf_counter()
-        field = mapping.apply(sequence[i])
+        field = mapping.apply_at(sequence, i)
         raw = hooks.field_to_columns(field, draw_w)
         raw = hooks.apply_spectrum_spatial(raw, sigma=spatial_sigma, kind=filt)
         if peak is not None and peak > 0.0:
@@ -1058,7 +1058,9 @@ def run_fixed_pipeline(
             field_bands = n_bands if n_bands is not None else 64
             mapping = (
                 RefinedRibbonMapping(
-                    n_bands=field_bands, detail_level=appearance.detail_level or "balanced"
+                    n_bands=field_bands,
+                    detail_level=appearance.detail_level or "balanced",
+                    fps=job.fps,
                 )
                 if appearance.profile == REFINED_RIBBON
                 else hooks.CenterOutMapping(n_slots=hooks.CENTER_OUT_SLOTS, n_bands=field_bands)

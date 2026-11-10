@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-from ewp_waveform.analysis.frames import AnalysisFrame
+from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
 from ewp_waveform.config.ribbon import DETAIL_SETTINGS
 from ewp_waveform.visual.models import VisualField
 
@@ -105,6 +105,10 @@ class CenterOutMapping:
         self.shoulder_gain = shoulder_gain
         self.side_to_center = SIDE_TO_CENTER
 
+    def apply_at(self, sequence: AnalysisSequence, index: int) -> VisualField:
+        """Random-access field evaluation; legacy mapping is exactly frame-local."""
+        return self.apply(sequence[index])
+
     def apply(self, frame: AnalysisFrame) -> VisualField:
         src = frame.bands
         n = min(len(src), self.n_bands)
@@ -143,46 +147,82 @@ class CenterOutMapping:
 
 
 class RefinedRibbonMapping(CenterOutMapping):
-    """Audio-derived fine/coarse band mixtures; no broad central floor or side cap."""
+    """Speech activity on a stationary designed carrier, not a faithful Hz plot.
 
-    def __init__(self, n_bands: int = 64, detail_level: str = "balanced") -> None:
+    Broadband level controls height now; bounded normalized spectral detail has a
+    separate finite causal response. No mutable history, pivot or moving X slots.
+    """
+
+    SHAPE_SECONDS = 0.24
+    SHAPE_SUPPORT_SECONDS = 0.60
+    DETAIL_BOUND = 0.24
+
+    def __init__(
+        self, n_bands: int = 64, detail_level: str = "balanced", fps: float = 60.0
+    ) -> None:
         super().__init__(n_slots=CENTER_OUT_SLOTS, n_bands=n_bands)
         sigma, self.coarse_mix, self.contrast, _ = DETAIL_SETTINGS[detail_level]
-        # Keep spectral neighbors adjacent across the midpoint. Radial interleaving
-        # split each mid-band feature into two distant lobes and left only the
-        # lowest bands at the center. This fixed monotone map needs no framewise
-        # pivot/translation and retains every fine/coarse spectral neighborhood.
-        order = range(self.n_slots)
-        fine: list[tuple[float, ...]] = [()] * self.n_slots
-        coarse: list[tuple[float, ...]] = [()] * self.n_slots
-        for index, slot in enumerate(order):
-            band = index * (self.n_bands - 1) / (self.n_slots - 1)
+        self.fps = max(1.0, float(fps))
+        fine: list[tuple[float, ...]] = []
+        coarse: list[tuple[float, ...]] = []
+        carrier: list[float] = []
+        for slot in range(self.n_slots):
+            band = slot * (self.n_bands - 1) / (self.n_slots - 1)
             for rows, spread in ((fine, sigma), (coarse, 4.0)):
                 weights = [math.exp(-0.5 * ((j - band) / spread) ** 2) for j in range(self.n_bands)]
                 total = sum(weights)
-                rows[slot] = tuple(value / total for value in weights)
+                rows.append(tuple(value / total for value in weights))
+            d = float(slot - self.center)
+            edge = min(1.0, (self.center - abs(d)) / 3.0)
+            # A fixed, gently asymmetric multi-scale silhouette. These are spatial
+            # design constants, never oscillators or synthetic temporal activity.
+            ribs = 0.78 + 0.12 * math.cos(0.73 * d) + 0.07 * math.cos(1.61 * d)
+            ribs += 0.03 * math.sin(0.37 * d)
+            carrier.append(edge * _gaussian(int(d), 19.0) * ribs)
         self.fine_weights = tuple(fine)
         self.coarse_weights = tuple(coarse)
+        self.carrier = tuple(carrier)
 
-    def apply(self, frame: AnalysisFrame) -> VisualField:
+    def _detail(self, frame: AnalysisFrame) -> tuple[float, ...]:
         src = frame.bands[: self.n_bands]
         peak = max(src, default=0.0)
         if peak <= 0.0:
-            return VisualField.from_amplitudes([0.0] * self.n_slots)
-        level = _broadband(frame)
-        amplitudes: list[float] = []
-        for slot in range(self.n_slots):
-            fine = sum(w * v for w, v in zip(self.fine_weights[slot], src, strict=False))
-            coarse = sum(w * v for w, v in zip(self.coarse_weights[slot], src, strict=False))
+            return (0.0,) * self.n_slots
+        values: list[float] = []
+        for fine_row, coarse_row in zip(self.fine_weights, self.coarse_weights, strict=True):
+            fine = sum(w * v for w, v in zip(fine_row, src, strict=False)) / peak
+            coarse = sum(w * v for w, v in zip(coarse_row, src, strict=False)) / peak
             mixed = (1.0 - self.coarse_mix) * fine + self.coarse_mix * coarse
-            distance = abs(slot - self.center)
-            # Contrast is amplitude-homogeneous; absolute audio dynamics remain.
-            shaped = peak * (max(0.0, mixed) / peak) ** self.contrast
-            emphasis = 0.6 + 0.4 * _gaussian(distance, 16.0)
-            edge = min(1.0, (self.center - distance) / 3.0)
-            central = 0.08 * level * _gaussian(distance, 1.5)
-            amplitudes.append(max(0.0, edge * (emphasis * shaped + central)))
-        return VisualField.from_amplitudes(amplitudes)
+            # Homogeneous shape descriptor; weak bands can only alter the bounded
+            # residual, never erase their region of the broadband carrier.
+            values.append(2.0 * min(1.0, max(0.0, mixed)) ** self.contrast - 1.0)
+        return tuple(values)
+
+    def _compose(self, frame: AnalysisFrame, detail: Sequence[float]) -> VisualField:
+        level = _broadband(frame)
+        return VisualField.from_amplitudes(
+            [level * gain * (1.0 + self.DETAIL_BOUND * value)
+             for gain, value in zip(self.carrier, detail, strict=True)]
+        )
+
+    def apply(self, frame: AnalysisFrame) -> VisualField:
+        """Single-frame evaluation without context; use apply_at for sequences."""
+        return self._compose(frame, self._detail(frame))
+
+    def apply_at(self, sequence: AnalysisSequence, index: int) -> VisualField:
+        frame = sequence[index]
+        if _broadband(frame) <= 0.0:
+            return VisualField.from_amplitudes([0.0] * self.n_slots)
+        support = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps)
+        detail = [0.0] * self.n_slots
+        total = 0.0
+        for lag in range(min(index, support) + 1):
+            weight = math.exp(-lag / (self.fps * self.SHAPE_SECONDS))
+            values = self._detail(sequence[index - lag])
+            for slot, value in enumerate(values):
+                detail[slot] += weight * value
+            total += weight
+        return self._compose(frame, [value / total for value in detail])
 
 
 def apply_static_weights(bands: Sequence[float], weights: Sequence[Sequence[float]]) -> VisualField:

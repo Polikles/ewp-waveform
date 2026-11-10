@@ -19,7 +19,7 @@ from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.config.ribbon import BRAND_COLORS, DETAIL_SETTINGS, apply_public_appearance
 from ewp_waveform.identity import render_signature
 from ewp_waveform.paths import builtin_presets_dir, project_root
-from ewp_waveform.visual.mapping import CenterOutMapping, RefinedRibbonMapping
+from ewp_waveform.visual.mapping import RefinedRibbonMapping
 
 
 def _preset() -> VisualPreset:
@@ -35,7 +35,7 @@ def test_controls_defaults_and_original_preset_are_distinct() -> None:
     assert appearance.n_bands == 64
     assert appearance.compress == 1.0
     assert appearance.spatial_sigma == pytest.approx(3.15)
-    assert appearance.identity()["mapping_revision"] == 3
+    assert appearance.identity()["mapping_revision"] == 4
     assert preset.signal["smoothing"] == 0.06
     old = load_preset("iuris-ribbon-fixed")
     assert old.signal["fixed_axis_profile"] == "filled-ribbon-v1"
@@ -222,23 +222,13 @@ def test_detail_has_audio_information_and_multi_scale_variation_not_just_size() 
     def variation(row: np.ndarray) -> float:
         return float(np.sum(np.abs(np.diff(row))))
 
-    # Total variation normalized by each frame's maximum need not be monotone:
-    # one narrow dominant peak can reduce that sum. Test fine-scale information
-    # and peak width instead, not hashes or decorative sample-count differences.
-    assert variation(shapes[1]) > variation(shapes[0])
-    fine_power = []
+    # Revision 4 deliberately bounds spectral effects around a common carrier.
+    # Test residual fine information, not revision-2 collapsing/narrowing regions.
+    carrier = np.array(RefinedRibbonMapping().carrier)[1:-1]
+    residuals = [shape[1:-1] / carrier for shape in shapes]
+    assert variation(residuals[2]) > variation(residuals[1]) > variation(residuals[0])
     for shape in shapes:
-        power = np.abs(np.fft.rfft(shape - shape.mean())) ** 2
-        fine_power.append(float(power[12:].sum() / power[1:].sum()))
-    assert fine_power[2] > fine_power[1] > fine_power[0]
-    assert (
-        np.count_nonzero(shapes[2] > 0.5)
-        < np.count_nonzero(shapes[1] > 0.5)
-        < np.count_nonzero(shapes[0] > 0.5)
-    )
-    assert np.count_nonzero(shapes[2] < 0.1) > np.count_nonzero(shapes[0] < 0.1)
-    old = np.array(CenterOutMapping().apply(frame).amplitude)
-    assert np.count_nonzero(shapes[2] >= 0.5) < np.count_nonzero(old / old.max() >= 0.5)
+        assert np.all(shape[1:-1] > 0)
 
 
 def test_baseline_thickness_is_independent_and_legacy_is_exact_noop() -> None:

@@ -57,7 +57,7 @@ class FixedAxisAppearance:
         if self.detail_level is not None:
             recipe.update(
                 detail_level=self.detail_level,
-                mapping_revision=3,
+                mapping_revision=4,
                 baseline_thickness=self.baseline_thickness,
             )
         field = self.field_plan
