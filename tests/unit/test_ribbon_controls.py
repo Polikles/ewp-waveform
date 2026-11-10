@@ -7,19 +7,22 @@ from typing import Any
 
 import numpy as np
 import pytest
-from pydantic import ValidationError
-from typer.testing import CliRunner
-
 from ewp_waveform.analysis.frames import AnalysisFrame
 from ewp_waveform.application.appearance import resolve_fixed_axis_appearance
 from ewp_waveform.application.render_fixed import _ribbon_baseline
 from ewp_waveform.cli import app
 from ewp_waveform.config.load import load_preset
 from ewp_waveform.config.models import VisualPreset
-from ewp_waveform.config.ribbon import BRAND_COLORS, DETAIL_SETTINGS, apply_public_appearance
+from ewp_waveform.config.ribbon import (
+    BRAND_COLORS,
+    DETAIL_SETTINGS,
+    apply_public_appearance,
+)
 from ewp_waveform.identity import render_signature
 from ewp_waveform.paths import builtin_presets_dir, project_root
 from ewp_waveform.visual.mapping import RefinedRibbonMapping
+from pydantic import ValidationError
+from typer.testing import CliRunner
 
 
 def _preset() -> VisualPreset:
@@ -132,7 +135,6 @@ def test_invalid_public_overrides_fail(options: dict[str, Any]) -> None:
         ("waveform", "style", "classic"),
         ("waveform", "time_mode", "scroll"),
         ("waveform", "window_seconds", 8),
-        ("waveform", "center_line", False),
         ("effects", "unknown_effect", {}),
     ],
 )
@@ -187,7 +189,9 @@ def test_unsupported_effect_fields_fail(section: str, key: str, value: Any) -> N
         {"ribbon_supersample": True},
     ],
 )
-def test_refined_profile_never_discards_low_level_overrides(options: dict[str, Any]) -> None:
+def test_refined_profile_never_discards_low_level_overrides(
+    options: dict[str, Any],
+) -> None:
     with pytest.raises(ValueError, match="filled-ribbon-v2"):
         resolve_fixed_axis_appearance(_preset(), **options)
 
@@ -237,13 +241,13 @@ def test_baseline_thickness_is_independent_and_legacy_is_exact_noop() -> None:
     assert _ribbon_baseline(columns, refined, 16) is columns
     thick = apply_public_appearance(refined, stroke_width=8)
     result = _ribbon_baseline(columns, thick, 16)
-    assert result[0] > 0 and result[1:] == columns[1:]
+    assert result is columns  # Thickness is now the independent final-pixel horizon.
     assert refined.waveform.stroke_width == 1
 
 
 @pytest.mark.parametrize("command", ["dry-run", "preview", "render"])
 def test_cli_propagates_controls(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    import ewp_waveform.application.service as service
+    from ewp_waveform.application import service
 
     seen: dict[str, Any] = {}
 
@@ -277,7 +281,13 @@ def test_cli_propagates_controls(command: str, monkeypatch: pytest.MonkeyPatch) 
     assert isinstance(result.exception, Stop), result.output
     assert {
         k: seen[k]
-        for k in ("detail_level", "waveform_color", "glow_level", "amplitude", "stroke_width")
+        for k in (
+            "detail_level",
+            "waveform_color",
+            "glow_level",
+            "amplitude",
+            "stroke_width",
+        )
     } == {
         "detail_level": "detailed",
         "waveform_color": "pale_cyan",
@@ -308,7 +318,9 @@ def test_refined_partial_frequency_pair_rejected_but_legacy_unchanged(key: str) 
 
 
 @pytest.mark.parametrize("bounds", [{}, {"fmin_hz": 100.0, "fmax_hz": 1000.0}])
-def test_refined_complete_or_automatic_frequency_pair_stays_valid(bounds: dict[str, float]) -> None:
+def test_refined_complete_or_automatic_frequency_pair_stays_valid(
+    bounds: dict[str, float],
+) -> None:
     data = _preset().model_dump()
     data["signal"]["frequency"] = {"range": "auto", **bounds}
     assert VisualPreset.model_validate(data).signal["frequency"] == data["signal"]["frequency"]
@@ -344,7 +356,9 @@ def test_refined_frequency_schema_and_model_agree(bounds: dict[str, float], vali
 
 
 @pytest.mark.parametrize("key", ["fmin_hz", "fmax_hz"])
-def test_legacy_schema_and_model_keep_partial_bounds_and_eight_digit_color(key: str) -> None:
+def test_legacy_schema_and_model_keep_partial_bounds_and_eight_digit_color(
+    key: str,
+) -> None:
     validator, data = _schema_and_raw_preset("iuris-ribbon-fixed")
     data["signal"]["frequency"] = {"range": "auto", key: 1000.0}
     data["waveform"]["color"] = "#C7E6EC80"
@@ -366,7 +380,9 @@ def test_refined_color_schema_and_model_agree(color: str, valid: bool) -> None:
 
 
 @pytest.mark.parametrize("glow_color", [None, "#123aBc", "#FFFFFF", "#123ABC"])
-def test_glow_color_equality_is_documented_runtime_semantics(glow_color: str | None) -> None:
+def test_glow_color_equality_is_documented_runtime_semantics(
+    glow_color: str | None,
+) -> None:
     validator, data = _schema_and_raw_preset("iuris-ribbon-refined")
     data["waveform"]["color"] = "#123aBc"
     if glow_color is None:

@@ -8,6 +8,7 @@ from typing import Any
 
 from ewp_waveform.ffmpeg.draw import parse_rgb
 from ewp_waveform.ffmpeg.process import require_tool, run_argv_stdin
+from ewp_waveform.ffmpeg.ribbon import ribbon_graph
 
 GLOW_SIGMA = {"none": 0.0, "low": 4.0, "medium": 8.0, "high": 16.0}
 
@@ -57,12 +58,26 @@ def _glow_crop_graph(
     color: str | None = None,
     fps: float = 60.0,
     n_frames: int | None = None,
+    ribbon_finish: tuple[float, bool, float, float, float] | None = None,
 ) -> str:
     """Downsample, optional hybrid temporal mix, glow under a sharp-ish base, crop.
 
     Visible base is ``(1-mix)*sharp + mix*shutter`` so the edge stays crisp.
     Glow is generated from that stabilized mask and composited underneath.
     """
+    if ribbon_finish is not None:
+        if color is None:
+            raise ValueError("ribbon finishing requires waveform color")
+        return ribbon_graph(
+            width=width,
+            height=height,
+            overscan=overscan,
+            supersample=supersample,
+            pix_fmt=pix_fmt,
+            color=color,
+            glow=glow,
+            finish=ribbon_finish,
+        )
     padded_w = width + 2 * overscan
     padded_h = height + 2 * overscan
     mix = min(max(shutter_mix, 0.0), 1.0)
@@ -123,6 +138,7 @@ def encode_rgba_stream(
     pix_fmt: str = "rgba",
     color: str | None = None,
     n_frames: int | None = None,
+    ribbon_finish: tuple[float, bool, float, float, float] | None = None,
 ) -> None:
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
@@ -156,6 +172,7 @@ def encode_rgba_stream(
         color=color,
         fps=fps,
         n_frames=n_frames,
+        ribbon_finish=ribbon_finish,
     )
     argv: list[str] = [
         str(ffmpeg),
@@ -219,6 +236,7 @@ def encode_rgba_stream(
                 pix_fmt=in_fmt,
                 color=color,
                 n_frames=n_frames,
+                ribbon_finish=ribbon_finish,
             )
             completed = run_argv_stdin(argv, frames, phases=phases)
             if completed.returncode != 0:
@@ -260,6 +278,7 @@ def _dual_output_argv(
     pix_fmt: str = "rgba",
     color: str | None = None,
     n_frames: int | None = None,
+    ribbon_finish: tuple[float, bool, float, float, float] | None = None,
 ) -> list[str]:
     ss = max(1, int(supersample))
     in_fmt = "gray" if pix_fmt == "gray" else "rgba"
@@ -275,6 +294,7 @@ def _dual_output_argv(
         color=color,
         fps=fps,
         n_frames=n_frames,
+        ribbon_finish=ribbon_finish,
     )
     graph = core.replace("[vout]", ",split=2[png][mov]", 1)
     in_w = (width + 2 * overscan) * ss

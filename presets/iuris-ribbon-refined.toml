@@ -14,6 +14,9 @@ color = "#C7E6EC"
 amplitude = 0.82
 stroke_width = 1.0
 center_line = true
+reflection_opacity = 0.45
+center_line_extent = 0.96
+center_line_opacity = 0.55
 
 [signal]
 fixed_axis_profile = "filled-ribbon-v2"

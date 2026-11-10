@@ -88,6 +88,27 @@
         "window_seconds": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "reflection_opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.45,
+          "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+        },
+        "center_line_extent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.96,
+          "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+        },
+        "center_line_opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.55,
+          "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
         }
       }
     },
@@ -434,27 +455,29 @@
               "time_mode": false,
               "window_seconds": {
                 "const": 5
+              },
+              "reflection_opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.45,
+                "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+              },
+              "center_line_extent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.96,
+                "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
+              },
+              "center_line_opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.55,
+                "description": "filled-ribbon-v2 only; finite; extent is centered fraction of final frame width."
               }
-            },
-            "allOf": [
-              {
-                "if": {
-                  "required": [
-                    "stroke_width"
-                  ]
-                },
-                "then": {
-                  "required": [
-                    "center_line"
-                  ],
-                  "properties": {
-                    "center_line": {
-                      "const": true
-                    }
-                  }
-                }
-              }
-            ]
+            }
           },
           "signal": {
             "additionalProperties": false,
@@ -660,6 +683,86 @@
         "required": [
           "signal"
         ]
+      },
+      "then": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "filled-ribbon-v2"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "signal": {
+            "required": [
+              "fixed_axis_profile"
+            ],
+            "properties": {
+              "fixed_axis_profile": {
+                "const": "moving-mouth-v1"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "waveform": {
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "stroke_width"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "center_line"
+                  ],
+                  "properties": {
+                    "center_line": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "waveform": {
+            "anyOf": [
+              {
+                "required": [
+                  "reflection_opacity"
+                ]
+              },
+              {
+                "required": [
+                  "center_line_extent"
+                ]
+              },
+              {
+                "required": [
+                  "center_line_opacity"
+                ]
+              }
+            ]
+          }
+        }
       },
       "then": {
         "properties": {

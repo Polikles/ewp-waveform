@@ -21,11 +21,19 @@ from ewp_waveform.application.evidence import PerformanceFingerprint
 from ewp_waveform.application.render_types import RenderOptions
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
-from ewp_waveform.config.ribbon import CONFIGURABLE_RIBBON_PROFILES, MOVING_MOUTH
+from ewp_waveform.config.ribbon import (
+    CONFIGURABLE_RIBBON_PROFILES,
+    MOVING_MOUTH,
+    REFINED_RIBBON,
+)
 from ewp_waveform.domain.models import PlannedJob, SourceMedia
 from ewp_waveform.ffmpeg.draw import RIBBON_SUPERSAMPLE, peak_half_height
 from ewp_waveform.visual.bars import BarStyle
-from ewp_waveform.visual.mapping import CenterOutMapping, MovingMouthMapping, RefinedRibbonMapping
+from ewp_waveform.visual.mapping import (
+    CenterOutMapping,
+    MovingMouthMapping,
+    RefinedRibbonMapping,
+)
 from ewp_waveform.visual.models import VisualField
 from ewp_waveform.visual.plan import AAMode, RenderPath, RenderPlan
 
@@ -64,6 +72,7 @@ class FieldChunkTask:
     bar_alternate: bool
     bar_color_b: str
     bar_center_line_width: float
+    ribbon_finish: tuple[float, bool, float, float, float] | None = None
 
 
 # Keep the selected-base pool admission threshold.
@@ -123,7 +132,12 @@ class FixedHooks(Protocol):
     def _spectrum_spatial_filter(self, kind: str) -> str: ...
 
     def _tick_frames(
-        self, frames: Iterator[bytes], *, n_frames: int, note: Callable[[str], None], label: str
+        self,
+        frames: Iterator[bytes],
+        *,
+        n_frames: int,
+        note: Callable[[str], None],
+        label: str,
     ) -> Iterator[bytes]: ...
 
     def _visual_field_peak(
@@ -154,7 +168,12 @@ class FixedHooks(Protocol):
     ) -> dict[str, Any]: ...
 
     def apply_edge_taper(
-        self, columns: Sequence[float], *, content_width: int, pad: int = ..., fraction: float = ...
+        self,
+        columns: Sequence[float],
+        *,
+        content_width: int,
+        pad: int = ...,
+        fraction: float = ...,
     ) -> list[float]: ...
 
     def apply_spectrum_spatial(
@@ -256,6 +275,7 @@ class FixedHooks(Protocol):
         pix_fmt: str = ...,
         color: str | None = ...,
         n_frames: int | None = ...,
+        ribbon_finish: tuple[float, bool, float, float, float] | None = ...,
     ) -> None: ...
 
     def field_to_columns(self, field: VisualField, width: int) -> list[float]: ...
@@ -563,7 +583,7 @@ def iter_spectrum_frames(
     previous: list[float] | None = None
     pivot: float | None = None
     filt = hooks._spectrum_spatial_filter(spatial_filter)
-    taper = edge_taper if edge_taper > 0.0 else 0.0
+    taper = max(0.0, edge_taper)
     ss = max(1, int(supersample))
     for i in range(n_frames):
         if n_bands is not None:
@@ -670,6 +690,8 @@ def _ribbon_baseline(columns: list[float], preset: VisualPreset, glow: float) ->
     """Full baseline thickness in output pixels, independent of amplitude and detail."""
     if preset.signal.get("fixed_axis_profile") not in CONFIGURABLE_RIBBON_PROFILES:
         return columns
+    if preset.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+        return columns  # A single independent final-pixel horizon, never a core floor.
     thickness = preset.waveform.stroke_width or 1.0
     if not preset.waveform.center_line or thickness <= 1.0:
         return columns
@@ -713,6 +735,8 @@ def iter_field_frames(
     )
     # Bars: no decorative center line until that styling pass.
     center = bool(preset.waveform.center_line) and resolved.geometry not in hooks.BAR_GEOMETRIES
+    if preset.signal.get("fixed_axis_profile") == REFINED_RIBBON:
+        center = False
     count = min(n_frames, len(sequence))
     for i in range(count):
         t0 = hooks.time.perf_counter()
@@ -819,8 +843,9 @@ def encode_field_chunk(hooks: FixedHooks, task: FieldChunkTask) -> Path | None:
         supersample=task.supersample,
         png_start_number=task.first_frame + 1,
         pix_fmt=task.pix_fmt,
-        color=task.color if task.pix_fmt == "gray" else None,
+        color=task.color if task.pix_fmt == "gray" or task.ribbon_finish is not None else None,
         n_frames=task.n_frames,
+        ribbon_finish=task.ribbon_finish,
     )
     return prores_path
 
@@ -1184,6 +1209,7 @@ def run_fixed_pipeline(
                         amplitude=preset.waveform.amplitude,
                         center_line=(
                             bool(preset.waveform.center_line)
+                            and appearance.ribbon_finish is None
                             and (field_plan.geometry not in hooks.BAR_GEOMETRIES)
                         ),
                         content_height=preset.canvas.height,
@@ -1209,6 +1235,7 @@ def run_fixed_pipeline(
                         bar_alternate=bars.alternate,
                         bar_color_b=bars.color_b,
                         bar_center_line_width=bars.center_line_width,
+                        ribbon_finish=appearance.ribbon_finish,
                     )
                     for index, (start, size) in enumerate(ranges)
                 ]
@@ -1353,9 +1380,13 @@ def run_fixed_pipeline(
             phases=clock,
             pix_fmt=field_plan.pix_fmt if field_plan is not None else "rgba",
             color=(
-                preset.waveform.color if field_plan is not None and field_plan.colorize else None
+                preset.waveform.color
+                if field_plan is not None
+                and (field_plan.colorize or appearance.ribbon_finish is not None)
+                else None
             ),
             n_frames=expected_frames,
+            ribbon_finish=appearance.ribbon_finish,
         )
     if mov_work is not None:
         lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")
@@ -1396,4 +1427,6 @@ def run_fixed_pipeline(
                 "render_aa_mode": (field_plan.aa_mode if field_plan is not None else "physical_ss"),
             }
         )
+    if appearance.ribbon_finish is not None:
+        analysis["ribbon_appearance"] = appearance.identity()
     normalization.update({"mode": norm_mode, "soft_clip": soft, "peak": peak})
