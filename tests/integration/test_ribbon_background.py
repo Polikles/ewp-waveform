@@ -17,6 +17,32 @@ from tests.integration.test_ribbon_fixed_profile_render import (
     _signature,
     _source,
 )
+from tests.render_oracles import assert_prores_contract, decoded_prores_frames
+
+
+@pytest.mark.parametrize("mode", ["dark-background", "light-background"])
+def test_modes_keep_production_mov_alpha_and_canonical_png(tmp_path: Path, mode: str) -> None:
+    source = tmp_path / "s0e00-Alpha.wav"
+    _source(source)
+    payload = render(
+        source,
+        preset_name=str(_preset(tmp_path)),
+        performance_name=str(_write(tmp_path / "single.toml", NO_CHUNKS)),
+        formats=["png", "prores4444"],
+        start=0.2,
+        duration=0.3,
+        background_mode=mode,
+        output_dir=tmp_path / "out",
+    )[0]
+    assert _job_status(payload) == "SUCCEEDED"
+    mov = _output(payload, "mov")
+    assert_prores_contract(mov, width=160, height=160, fps=10, frame_count=3)
+    rgba = np.frombuffer(
+        b"".join(decoded_prores_frames(mov, width=160, height=160)), np.uint8
+    ).reshape(3, 160, 160, 4)
+    png = np.frombuffer(_png_rgba(_output(payload, "png")), np.uint8).reshape(3, 160, 160, 4)
+    assert np.any(rgba[..., 3] == 0) and np.any(rgba[..., 3] > 0)
+    assert np.max(np.abs(rgba[..., 3].astype(int) - png[..., 3].astype(int))) <= 1
 
 
 @pytest.mark.parametrize("path", ["mask_fast", "rgba_2d"])
@@ -50,7 +76,7 @@ def test_public_modes_color_alpha_metadata_reuse_and_input_immutability(
             {"background_mode": "light-background", "waveform_color": "pale_cyan"},
         ),
     ]:
-        opts = {"background_mode": mode, **options}
+        opts: dict[str, Any] = {"background_mode": mode, **options}
         _, effective, _, plans, _ = plan_jobs(source, **common, **opts, output_dir=tmp_path / mode)
         assert not (tmp_path / mode).exists()
         assert effective.waveform.color == color

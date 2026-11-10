@@ -124,7 +124,8 @@ def test_mode_and_policy_are_in_both_identities_even_with_equal_rgb(
         resolve_fixed_axis_appearance(original).identity()
         != resolve_fixed_axis_appearance(modified).identity()
     )
-    for recipe in [None, {}]:
+    recipes: list[dict[str, Any] | None] = [None, {}]
+    for recipe in recipes:
         assert render_signature(
             source_sha256="fixture", preset=original, fps=60, fixed_axis_recipe=recipe
         ) != render_signature(
@@ -164,3 +165,11 @@ def test_cli_modes_and_custom_color_are_forwarded(
     assert isinstance(result.exception, Stop), result.output
     assert seen["background_mode"] == "light-background"
     assert seen["color_mode"] == "custom" and seen["waveform_color"] == "pale_cyan"
+
+
+@pytest.mark.parametrize("color", ["invalid", "#12345", 123])
+def test_auto_does_not_mask_invalid_saved_colors(color: Any) -> None:
+    raw = load_preset("iuris-ribbon-refined").model_dump()
+    raw["waveform"]["color"] = raw["effects"]["glow"]["color"] = color
+    with pytest.raises(ValueError, match="waveform.color"):
+        VisualPreset.model_validate(raw)

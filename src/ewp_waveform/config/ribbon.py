@@ -108,6 +108,11 @@ def validate_refined_data(data: Any) -> Any:
             # Do not hide an unsupported independent halo by resolving over it.
             if isinstance(glow, dict) and glow.get("color", wave.get("color")) != wave.get("color"):
                 raise ValueError("independent glow color is unsupported; use waveform.color")
+            if (
+                not isinstance(wave.get("color"), str)
+                or re.fullmatch(r"#[0-9A-Fa-f]{6}", wave["color"]) is None
+            ):
+                raise ValueError("waveform.color must be #RRGGBB")
             if policy == "auto":
                 wave["color"] = BACKGROUND_COLORS[mode]
                 if isinstance(glow, dict) and isinstance(effects, dict):
