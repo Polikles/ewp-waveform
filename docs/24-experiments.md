@@ -136,3 +136,68 @@ old-VM CPU wall by new-WSL/Windows GPU wall does not isolate GPU acceleration.
 Run target probes/experiments only with actual target access and an applicable
 separate execution envelope. All GPU/Windows runtime outcomes from preparation
 on a CPU VM remain NOT_RUN, not PASS.
+
+## Checked CLI and supported first slice
+
+From the exact checkout and its prepared Python 3.12 environment:
+
+```bash
+python scripts/experiments.py --help
+python scripts/experiments.py preflight --run /outside/git/evidence \
+  --media-root /outside/git/media \
+  --enable CROP-OUT --enable PRORES-Q4 --enable ENC-FFV1 \
+  --ffmpeg /selected/bin/ffmpeg --ffprobe /selected/bin/ffprobe
+python scripts/experiments.py prepare --run /outside/git/evidence \
+  --media-root /outside/git/media --manifest examples/experiments/cpu-screen.json \
+  --audio /operator/input.wav --input-sha256 EXPECTED_LOWERCASE_SHA256 \
+  --preflight /outside/git/evidence/EXACT_PREFLIGHT_FILENAME.json \
+  --enable CROP-OUT --enable PRORES-Q4
+python scripts/experiments.py one --run /outside/git/evidence --cell EXACT_PREPARED_CELL_ID
+python scripts/experiments.py batch --run /outside/git/evidence
+python scripts/experiments.py resume --run /outside/git/evidence
+python scripts/experiments.py views --run /outside/git/evidence
+python scripts/experiments.py report --run /outside/git/evidence
+```
+
+Use the actual preflight filename returned by preflight, and a cell ID returned by
+prepare; these are placeholders, not a filename-discovery option. Prepare's enabled
+set must equal its manifest candidates. The example selects CROP-OUT and PRORES-Q4;
+preflight may additionally retain the tiny FFV1 runtime probe. To plan explicit
+FFV1 skips, select it in a private manifest and in prepare's enabled set; without
+an actual Studio record those larger cells stay SKIP. Do not invent that record.
+
+Preflight supports `--limits LIMITS_JSON` with the four positive-integer fields
+`attempts`, `seconds`, `growth_bytes`, `reserve_bytes`. Maximum render/probe/fixture
+attempts36, cumulative worker seconds1800, growth2GiB, minimum reserve10GiB. The
+private manifest must carry those exact same limits. Views have a separate maximum
+of24 worker attempts, sharing the total worker-time/growth/reserve allowance. The
+parent must also admit other task evidence, checks and transfer-package growth;
+the runner measures its own evidence/media namespaces, not all disk consumers.
+Polling can overshoot between observations and termination; it is not a kernel
+hard quota. Failed and unknown attempts remain consumed. A separate supplied
+`--gpu-envelope` is only for tiny target-side WSL probes, not a GPU campaign adapter.
+
+The manifest freezes visual overrides and intended viewing background. The
+concrete first design uses balanced refined ribbon, visual noise0.35, idle0,
+noise rate0.8 and seed1729; canonical presets are not edited. Configuration inputs
+and re-planned effective settings are authenticated before work. The selected
+implementation supports at most three workload IDs with explicit duration<=4s;
+there is no full-source/PRODUCTION32 or pool experiment option. CROP-OUT and Q4
+have real short-service and shared-buffer codec routes. FFV1 has a shared-buffer
+codec adapter/tiny alpha probe only, with larger screens gated on Studio evidence;
+its service publication remains unsupported. GPU campaign adapters are not
+implemented. No absent option is a successful test or an implicit fallback.
+
+`prepare` freezes the plan and selected input; first execution prepares one
+canonical pre-encode RGBA8 fixture per clip. Codec and production-service routes
+are separate operational contrasts, not interchangeable measurements. Whole-clip
+bounds are frozen from that fixture. Completed service outputs and codec fixtures
+are never silently reused as another fresh measurement.
+
+Run views only after the timed matrix reaches its terminal technical state.
+It reuses actual MOVs and separately labels any native-MKV comparison proxy,
+restores crop placement, composites straight alpha on the frozen background and
+records proxy, MP4 and verification/hash costs outside render timers. Report
+indexes every attempt, pair state and artifact role; a HOLD returns exit2.
+Incomplete indexing may return0 with explicit INCOMPLETE status, not a completed
+screen. Operator visual/NLE states remain PENDING after technical completion.

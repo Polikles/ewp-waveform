@@ -171,8 +171,8 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
 new results/examples must agree. Current development version is 0.3.0: opt-in experiment tooling is described in
-[document24](../docs/24-experiments.md), with no canonical default/output-profile
-change. The preceding0.2.1patch
+[document 24](../docs/24-experiments.md), with no canonical default/output-profile
+change. The preceding 0.2.1 patch
 adds a ribbon-only exact row-support guard to native horizon finishing. Rows outside
 the horizon support skip its coverage arithmetic; intersecting rows, lum sampling
 and default interpolation, output formats, encoder/thread settings and all other

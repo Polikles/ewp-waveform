@@ -25,8 +25,8 @@ visually assessed approximation experiments. Default-path correctness tests stay
 exact; no experimental output profile is promoted. GPU/WSL/Windows scenarios are
 unrun recipes pending actual target access, same-host controls and explicit
 execution authority. Short CPU results are scoped measurements, not complete-style
-appearance/NLE acceptance. The operator now reports the optimized0.2.1MOV looks
-correct in ResolveStudio, a bounded additional observation with all holds intact.
+appearance/NLE acceptance. The operator now reports the optimized 0.2.1 MOV looks
+correct in Resolve Studio, a bounded additional observation with all holds intact.
 
 Current [visual-development and retention requirements](docs/23-visual-development-and-retention.md)
 separate accepted broad looks from full four-variant fidelity, intentional visual

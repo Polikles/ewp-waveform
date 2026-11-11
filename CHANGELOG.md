@@ -19,7 +19,7 @@ update, default renderer change or unassessed output-profile promotion.
 
 ### Operator observation
 
-- The optimized0.2.1MOV reportedly looks correct in DaVinciResolveStudio; screenshot
+- The optimized 0.2.1 MOV reportedly looks correct in DaVinciResolve Studio; screenshot
   reported supplied. Bounded observation only, not exhaustive/NLE-profile-wide
   qualification, download confirmation or cleanup authority.
 
