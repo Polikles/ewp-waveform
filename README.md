@@ -6,6 +6,9 @@
 
 - Specification baseline: accepted.
 - Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
+- Development version: **0.2.1**; a ribbon-only exact row-support guard preserves
+  horizon arithmetic, appearance settings and existing output identities. Production
+  performance qualification is separate from source correctness.
 - Release status: internal beta; no release candidate; no public release.
 - Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
 - Python baseline: Python 3.12.

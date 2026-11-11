@@ -7,7 +7,7 @@ Specification baseline accepted.
 License: EWP Waveform Community License 1.0.
 
 The operator accepted the internal MVP at 0.1.0; current development version is
-0.2.0, integrating opt-in filled ribbon mapping7, separate Moving mouth revision4,
+0.2.1, preserving opt-in filled ribbon mapping7, separate Moving mouth revision4,
 selectable appearance/noise/idle controls, reflection and independent horizon,
 and dark/light-background foreground modes. Production appearance regressions
 and alpha-aware output/viewing documentation accompany this functionality.
@@ -24,8 +24,9 @@ Current [visual-development and retention requirements](docs/23-visual-developme
 separate accepted broad looks from full four-variant fidelity, intentional visual
 evolution from structural equivalence, and short diagnostics from complete per-style
 s0e00 acceptance assets. Historical throughput/visual claims below retain their
-original scope, not new performance or operator-review results. This integration
-metadata/documentation change adds no renderer or benchmark implementation.
+original scope, not new performance or operator-review results. Version 0.2.1
+adds only an exact ribbon horizon row-support guard, retaining the legacy expression
+where every row intersects or the line is inactive.
 
 The final selected refined-ribbon source is mapping7, not the intermediate
 revision3/4/5/6 candidates. Moving mouth preserves its separate revision4 behavior
@@ -41,12 +42,13 @@ acceptance, release approval, download confirmation or cleanup authority. The
 [external straight-alpha viewing-copy workflow](docs/08-output-formats.md#full-master-mov-to-mp4-viewing-copies-external-ffmpeg-workflow)
 is documented; automatic MP4 companion export is not implemented.
 
-**Next separate task:** profile the accepted mapping7 ribbon pipeline from a
-freshly fetched current integrated main, then use measured evidence to identify
-optimization opportunities while protecting the accepted look and retention holds.
-Profiling and optimization have not begun in this integration task; no speedup,
-new throughput result or Rust/native rewrite decision is claimed. Monowave,
-automatic companion export and full separate CLI/GUI manuals remain future work.
+**Performance qualification remains separate:** the measured native finishing
+opportunity motivates the bounded row-support guard, but source correctness and
+tiny exact native-plane tests do not establish whole-production speedup or complete
+acceptance. Preserve the accepted look and all baseline/download holds; independent
+production comparison and complete-style assessment remain required. No Rust/native
+rewrite is introduced. Monowave, automatic companion export and full separate
+CLI/GUI manuals remain future work.
 
 FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Operator visual QA: full `s0e00.wav` `iuris-default` ProRes looks usable (no artifacts at a glance); `jobs=4` cut wall time 12604 s → 4010 s (~10× realtime, ~17% CPU). That historical next-evidence suggestion is superseded: locked fixed-axis style
 fixtures and the AnalysisFrame/VisualField/raster foundation now exist. Ordinary

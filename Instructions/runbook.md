@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP baseline extended by development version 0.2.0,
+**Status:** accepted internal MVP baseline extended by development version 0.2.1,
 checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
 selectable appearance, reflection/horizon and dark/light-background foreground
 controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
@@ -170,10 +170,15 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Current development version is 0.2.0: the minor
-increment records the integrated opt-in ribbon/Moving mouth functionality and
-appearance controls, not a release or a new renderer implementation in this
-metadata change. Historical result versions remain historical.
+new results/examples must agree. Current development version is 0.2.1: the patch
+adds a ribbon-only exact row-support guard to native horizon finishing. Rows outside
+the horizon support skip its coverage arithmetic; intersecting rows, lum sampling
+and default interpolation, output formats, encoder/thread settings and all other
+styles are unchanged. Full-support and inactive-line cases retain the legacy
+expression. No whole-render speedup or deployment qualification follows from this
+source change alone. Version 0.2.0 recorded the integrated opt-in ribbon/Moving
+mouth functionality and appearance controls. Historical result versions remain
+historical; this is not a public release.
 Version 0.1.0 assigns the accepted MVP/identity-correction development baseline;
 there was no prior assigned version beyond 0.0.0 and no public release. Future
 compatible bug corrections normally increment patch; new functionality and

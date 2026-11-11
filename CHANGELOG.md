@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.1] - 2026-11-11
+
+Internal compatible ribbon-finishing optimization; not a public release, package
+publication, tag or whole-production performance qualification.
+
+### Changed
+
+- Guard the independent horizon geq expression by its exact intersecting pixel-row
+  support, skipping coverage arithmetic only where coverage is zero. Preserve the
+  original expression on intersecting rows, reflected `lum(X,Y)` sampling and
+  default interpolation. Keep the legacy expression for inactive/zero-thickness
+  lines and full-support cases. All formats, encoder/thread settings, visual/reuse
+  contracts and other styles remain unchanged.
+- Add compact boundary tests for gray/RGBA, both automatic foreground colors,
+  glow, overscan/downsampling, odd/even heights, inactive and fractional/full line
+  support and reflection endpoints. Compare actual canonical RGBA, native 10-bit
+  encoder-input and decoded 12-bit ProRes buffers exactly, including alpha.
+- Align current source/lock/example/documentation version declarations to 0.2.1;
+  retain historical entries and separate production comparison/acceptance gates.
+
 ## [0.2.0] - 2026-11-11
 
 Internal development integration of the accepted task chain; not a public release,

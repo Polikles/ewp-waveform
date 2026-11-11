@@ -1,7 +1,8 @@
 # Install — internal checkout delivery
 
-The accepted internal MVP baseline is extended by development version 0.2.0
-(refined ribbon mapping7, separate Moving mouth and selectable appearance controls).
+The accepted internal MVP baseline is extended by development version 0.2.1
+(mapping7 ribbon with an exact row-support guard, separate Moving mouth and
+selectable appearance controls).
 The supported delivery recipe is a source checkout plus uv, Python >=3.12,<3.13
 and system FFmpeg/ffprobe.
 There is no public release, index-installable package or qualified wheel/Docker
