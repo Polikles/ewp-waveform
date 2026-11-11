@@ -13,6 +13,15 @@
 - endurance;
 - benchmark-tool validation.
 
+## Opt-in approximation experiments
+
+Apply [24 — Opt-in reproducible experiments](24-experiments.md). Exact
+optimizations retain selected-contract exact oracles. Explicit approximation
+experiments may be TECHNICAL_PASS with VISUAL_PENDING/STUDIO_PENDING; numerical
+metrics cannot approve appearance. Structural frame/timestamp/alpha/source and
+recovery correctness remains mandatory. The unchanged default path retains every
+existing oracle below; experiment results do not silently refresh its baselines.
+
 ## Source immutability
 
 Integration tests verify source SHA-256 is unchanged. Where portable/meaningful, source modification time should also remain unchanged.

@@ -44,6 +44,7 @@ appearance acceptance or retention authority.
 21. `21-ffmpeg-baseline-plan.md` — FFmpeg research spike.
 22. `22-chunking-and-continuity.md` — continuity contract/strategies.
 23. `23-visual-development-and-retention.md` — visual evolution, complete acceptance assets, alpha verification and retention.
+24. `24-experiments.md` — opt-in exact/approximation experiments, frozen factors, bounded recovery and target recipes.
 99. `99-roadmap.md` — deferred work.
 
 Additional:

@@ -6,6 +6,16 @@ supplements 02/10/12/13, not a claim that new styles, optimization or full accep
 renders have been implemented or reviewed. Private project operations select
 actual input/output locations and execution authority; no private paths belong here.
 
+## Explicit experiment-quality amendment — 2026-11-11
+
+For opt-in experiments, visually close rather than byte-identical output is
+permitted, subject to operator assessment and mandatory structural correctness.
+[Document24](24-experiments.md) distinguishes exact optimization promises from
+intentional approximation, bounded screening from completed style optimization,
+and technical validity from appearance/NLE acceptance. Default-path exact tests
+remain unchanged. Existing full acceptance requirements and every retention hold
+remain in force; short experimental clips are not full-style deliverables.
+
 ## Independent inputs and visual choices
 
 One supplied audio track produces one independent visualization asset, even when

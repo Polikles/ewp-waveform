@@ -6,6 +6,16 @@ Matrix expansion is **inputs × variants × renderers × performance_profiles**.
 
 Dry-run reports cell count and SKIP/PROCESS/BLOCKED. When `dry_run_estimates = true` and duration is known, disk estimates are a **labelled** extrapolation from the 1400×280 @ 30 fps spike table. Wall-time estimates are omitted until the runner has its own evidence.
 
+## Bounded opt-in experiments
+
+[Document24](24-experiments.md) governs the separately selected experiment harness.
+It does not expand the ordinary benchmark matrix or canonical output formats.
+Freeze effective configuration/command differences, one declared factor per pair,
+and required profile/backend/toolchain dependencies. Shared pre-encode fixture
+costs and real service/worker timings have different scopes. Unsupported or
+uncertain attempts cannot produce fresh throughput. Preserve separate render,
+proxy, MP4 and verification costs and operator-owned appearance decisions.
+
 ## Two families
 
 ### Performance benchmarks
