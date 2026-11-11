@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "design_sha256": "9dbb6f452ff17d360046b1a16b3561566ed73cca6bbad73dbf04210940242809",
+  "candidates": [
+    "CROP-OUT",
+    "PRORES-Q4"
+  ],
+  "workloads": [
+    {
+      "id": "SPEECH4",
+      "start": 25,
+      "duration": 4
+    },
+    {
+      "id": "QUIET4",
+      "start": 5,
+      "duration": 4
+    },
+    {
+      "id": "TAIL4",
+      "start": 102,
+      "duration": 4
+    }
+  ],
+  "limits": {
+    "attempts": 36,
+    "seconds": 1800,
+    "growth_bytes": 2147483648,
+    "reserve_bytes": 10737418240
+  },
+  "catalog": [
+    {
+      "id": "MAP-CACHE",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "COLUMN-ARRAY",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "WORK-ROI",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "SS-X1",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "COLOR-CONST",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ENC-UTVIDEO",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "FILTER-4",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "CPU-12",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "WSL-OLD-CPU",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "WSL-NEW-CPU",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "GPU-TRANSFER",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "GPU-BLUR",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "GPU-PRORES",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "WSL-FFV1-CPU",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "GPU-FFV1",
+      "status": "UNIMPLEMENTED",
+      "execution": "NOT_RUN"
+    }
+  ]
+}
