@@ -155,6 +155,20 @@ cannot be reused as revision-4 output. V1/legacy appearance, recipes, defaults,
 performance profiles and product version are unchanged. Preserve original and
 candidate media under the retention rules in [23](23-visual-development-and-retention.md).
 
+### Exact horizon row support
+
+Ribbon native finishing evaluates the original horizon coverage/composition only
+on integer rows from `floor(top)` through `ceil(bottom)-1`, inclusive, where
+`top = height//2 + 0.5 - thickness/2` and `bottom = height//2 + 0.5 + thickness/2`.
+Every other row has zero horizon coverage and evaluates the same reflected body
+`lum(X,Y)` expression directly. Intersecting-row arithmetic and geq default lum
+interpolation are unchanged; this is not a nearest-neighbor replacement, temporal
+cache or appearance adjustment. Inactive/zero-thickness and full-support cases
+retain the legacy expression instead of adding a useless branch. Formats, encoder
+precision, threading and other styles are unchanged. Tiny exact RGBA, encoder-input
+`yuva444p10le` and native decoded `yuva444p12le` tests include all alpha samples;
+these correctness checks are not production performance qualification.
+
 ## Effects
 
 Effects are separate from styles. Initial families:

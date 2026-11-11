@@ -2,7 +2,7 @@
 
 No dates are assigned until evidence supports them.
 
-## Current navigation — 0.2.0 internal development integration
+## Current navigation — 0.2.1 exact ribbon finishing
 
 The internal MVP has been accepted; delivery is checkout + uv / Python
 >=3.12,<3.13 / system FFmpeg, not a public release or qualified deployment image.
@@ -10,10 +10,13 @@ The internal MVP has been accepted; delivery is checkout + uv / Python
 [future host QA](../Instructions/runbook.md#future-checkouthost-qa-checklist-not-a-qualification-result)
 separate documented steps from completed host qualification.
 
-Version 0.2.0 integrates opt-in refined ribbon mapping7, separate Moving mouth
+Version 0.2.1 preserves opt-in refined ribbon mapping7, separate Moving mouth
 revision4, selectable appearance/noise/idle controls, reflection/independent
 horizon and dark/light-background foreground modes, with production appearance
-regressions and alpha-aware output/viewing guidance. Legacy defaults are unchanged.
+regressions and alpha-aware output/viewing guidance. The ribbon-only row-support
+guard preserves exact horizon arithmetic and lum interpolation while avoiding
+coverage work on nonintersecting rows; production performance qualification is
+separate. Legacy defaults are unchanged.
 See [current scope and bounded operator feedback](../WORK_STATUS.md#current-implementation-and-next-work).
 Intermediate pending/rejected ribbon prose below and in the development-chain
 changelog is dated history, not the final selected mapping7 source.
