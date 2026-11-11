@@ -178,7 +178,13 @@ def test_silent_thick_saved_stroke_line_off_has_no_hidden_core_in_either_path(
 ) -> None:
     source = tmp_path / "s0e00-Silent.wav"
     _source(source, silent=True)
-    preset = str(_preset(tmp_path))
+    saved = _preset(tmp_path)
+    saved.write_text(
+        saved.read_text()
+        .replace("stroke_width = 1.0", "stroke_width = 12.0")
+        .replace("center_line = true", "center_line = false")
+    )
+    preset = str(saved)
     monkeypatch.setattr(pipeline, "_FIELD_POOL_MIN_FRAMES", 1)
     pixels = []
     for workers in (1, 2):
@@ -188,8 +194,6 @@ def test_silent_thick_saved_stroke_line_off_has_no_hidden_core_in_either_path(
             preset_name=preset,
             performance_name="balanced",
             formats=["png", "prores4444"],
-            stroke_width=12,
-            center_line=False,
             glow_level="high",
             visual_noise=0.35,
             idle_activity=0,
