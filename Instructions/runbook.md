@@ -2,7 +2,12 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP, development version 0.1.4, checkout-based delivery only. Default look remains limited versus the Iuris et Logos boards. There is no public release or generally qualified deployment target.
+**Status:** accepted internal MVP baseline extended by development version 0.2.0,
+checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
+selectable appearance, reflection/horizon and dark/light-background foreground
+controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
+are unchanged and remain limited versus the Iuris et Logos boards. There is no
+public release or generally qualified deployment target.
 
 ## What this tool does
 
@@ -165,7 +170,10 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Historical result versions remain historical.
+new results/examples must agree. Current development version is 0.2.0: the minor
+increment records the integrated opt-in ribbon/Moving mouth functionality and
+appearance controls, not a release or a new renderer implementation in this
+metadata change. Historical result versions remain historical.
 Version 0.1.0 assigns the accepted MVP/identity-correction development baseline;
 there was no prior assigned version beyond 0.0.0 and no public release. Future
 compatible bug corrections normally increment patch; new functionality and
@@ -182,8 +190,27 @@ versions, raster/recipe/results contracts and orchestration G versions are disti
 Changing a product version does not itself authorize publication, package upload
 or a public release.
 
-For this single-developer project, integrate authorized verified work promptly
-into main with ordinary history-preserving Git operations. At most one necessary
+#### Standing task integration and recoverability workflow
+
+For each completed task, integrate accepted work and push main promptly after
+the applicable automated checks, separate independent review and any required
+operator visual assessment. These are distinct gates: technical PASS is not
+visual acceptance, and visual acceptance is not download confirmation or cleanup
+authority. Do not wait for the whole roadmap before integrating a completed,
+authorized task. The designated integrator publishes within the assigned scope;
+a local-only author assignment does not authorize a push.
+
+Push the active working branch regularly with ordinary non-force pushes at
+coherent checkpoints so accepted and in-progress work is recoverable remotely;
+record exact local and remote commit identities. Before each future task, fetch
+the current integrated main and base the new work on that freshly fetched state,
+not a stale task branch or an older accepted snapshot. Inspect newer commits and
+dirty worktrees first; never reset, overwrite or discard them to fit an older
+plan. Protect active branches, recovery state and historical evidence/download
+holds. Do not force-push or rewrite shared history. Packaging, tagging and public
+release remain independent, separately authorized operations.
+
+Use ordinary history-preserving Git operations. At most one necessary
 short-lived task branch; no branch for each render/report/checkpoint or routine
 documentation change. Use exact commits and verification refs for evidence.
 Retire a completed branch only after its commits are reachable from main and no

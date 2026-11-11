@@ -7,9 +7,13 @@ Specification baseline accepted.
 License: EWP Waveform Community License 1.0.
 
 The operator accepted the internal MVP at 0.1.0; current development version is
-0.1.4 with compatible render-pipeline refactoring, gapless raster batching and
-benchmark corrections, alongside production PNG/ProRes validation corrections,
-read-only planning and corrected operator guidance. Delivery remains
+0.2.0, integrating opt-in filled ribbon mapping7, separate Moving mouth revision4,
+selectable appearance/noise/idle controls, reflection and independent horizon,
+and dark/light-background foreground modes. Production appearance regressions
+and alpha-aware output/viewing documentation accompany this functionality.
+Earlier pipeline, raster, benchmark, validation and read-only planning corrections
+remain included; legacy defaults and transparent MOV/PNG outputs are unchanged.
+Delivery remains
 checkout + uv / Python >=3.12,<3.13 / system FFmpeg. No release candidate or public
 release, clean-host qualification, wheel, Docker, native Windows or GPU support
 is claimed. See [Instructions/install.md](Instructions/install.md).
@@ -20,8 +24,29 @@ Current [visual-development and retention requirements](docs/23-visual-developme
 separate accepted broad looks from full four-variant fidelity, intentional visual
 evolution from structural equivalence, and short diagnostics from complete per-style
 s0e00 acceptance assets. Historical throughput/visual claims below retain their
-original scope, not new performance or operator-review results. No renderer or
-benchmark implementation is part of this documentation reconciliation.
+original scope, not new performance or operator-review results. This integration
+metadata/documentation change adds no renderer or benchmark implementation.
+
+The final selected refined-ribbon source is mapping7, not the intermediate
+revision3/4/5/6 candidates. Moving mouth preserves its separate revision4 behavior
+and bounded short-look acceptance; it does not replace the four reference styles.
+Earlier pending/rejected development-chain prose records its checkpoint/date,
+not the final selected ribbon or a reason to replace the maintained pipeline.
+
+Bounded operator feedback on 2026-11-11: both full-length MP4 viewing copies look
+correct, and the transparent MOV inspected in DaVinci Resolve displays correctly
+there. This does not establish separate inspection of both transparent masters,
+exhaustive frame-by-frame review, universal NLE compatibility, performance
+acceptance, release approval, download confirmation or cleanup authority. The
+[external straight-alpha viewing-copy workflow](docs/08-output-formats.md#full-master-mov-to-mp4-viewing-copies-external-ffmpeg-workflow)
+is documented; automatic MP4 companion export is not implemented.
+
+**Next separate task:** profile the accepted mapping7 ribbon pipeline from a
+freshly fetched current integrated main, then use measured evidence to identify
+optimization opportunities while protecting the accepted look and retention holds.
+Profiling and optimization have not begun in this integration task; no speedup,
+new throughput result or Rust/native rewrite decision is claimed. Monowave,
+automatic companion export and full separate CLI/GUI manuals remain future work.
 
 FFmpeg MVP **roadmap** is complete (application, CLI, chunk/resume, benchmark, operator runbook). Spike notes remain in `docs/notes/ffmpeg-spike/`. Operator visual QA: full `s0e00.wav` `iuris-default` ProRes looks usable (no artifacts at a glance); `jobs=4` cut wall time 12604 s → 4010 s (~10× realtime, ~17% CPU). That historical next-evidence suggestion is superseded: locked fixed-axis style
 fixtures and the AnalysisFrame/VisualField/raster foundation now exist. Ordinary

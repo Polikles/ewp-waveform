@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.2.0] - 2026-11-11
+
+Internal development integration of the accepted task chain; not a public release,
+package publication or tag. New functionality receives a minor increment under the
+existing pre-1.0 policy. This metadata/documentation commit changes no renderer
+algorithm, dependency resolution or media artifact.
+
+### Added and changed
+
+- Integrate opt-in `iuris-ribbon-fixed` and `iuris-ribbon-refined`; the final refined
+  ribbon is `filled-ribbon-v2` mapping7: a stationary, irregular speech-activity
+  amplitude field, not faithful frequency position or speaker identification.
+- Preserve `iuris-moving-mouth` / `moving-mouth-v1` as a separate revision4 style,
+  additional to the four reference variants, with its original bounded short-look
+  acceptance. Shared analysis/raster/encoder foundations and legacy defaults remain.
+- Include selectable detail, brand color, glow, height and thickness, plus validated
+  optional coherent visual noise, idle activity, rate and seed controls. Effective
+  appearance settings participate in planning and output/reuse identity.
+- Include independent lower-body/halo reflection alpha and horizon enable, opacity
+  and centered extent, with final-pixel baseline thickness; explicit dark/light-
+  background foreground modes and auto/custom color policy keep production assets
+  transparent rather than baking in a background.
+- Include production one/two-worker, canonical PNG/decoded ProRes appearance
+  regression coverage for reflection, horizon and silence, with straight-alpha
+  interpretation and full-source versus cropped-analysis context documented.
+
+### Documentation and scope
+
+- Document the external straight-alpha full-master MOV-to-MP4 viewing-copy workflow
+  with exact cadence/count and no-overwrite safeguards; transparent masters remain
+  unchanged. Bounded operator feedback on 2026-11-11: both full-length MP4 viewing
+  copies look correct and the transparent MOV inspected in Resolve displays
+  correctly there. This is not separate inspection of both masters, exhaustive
+  frame-by-frame review, performance acceptance, release approval, download
+  confirmation or cleanup authority.
+- Align current version declarations and navigation; require prompt accepted-task
+  main integration/publication after applicable checks, separate independent review
+  and required visual assessment, regular non-force working-branch pushes, and
+  future work based on freshly fetched integrated main. Preserve newer/dirty work,
+  historical holds and history; packaging/tagging remain separate authorization.
+- The next separate task is profiling the accepted mapping7 ribbon from current
+  integrated main. Profiling/optimization have not begun here and no new performance
+  claim or Rust/native rewrite choice is made. Automatic MP4 companion export,
+  Monowave and full separate CLI/GUI manuals remain future work, not implementation.
+
+## Historical development-chain entries — now included in 0.2.0
+
+The entries below were recorded at intermediate development checkpoints before
+integration on 2026-11-11. Their pending/rejected assessments, revision choices and
+"no version change" statements are dated history, not the final selected source or
+current acceptance scope. The retained `Unreleased` heading belongs to that
+historical chain; those entries are now included in 0.2.0. Existing text and older
+version claims are preserved rather than retrospectively rewritten.
+
 - Filled ribbon: protect real one/two-worker production reflection, horizon and silence appearance; clarify existing straight-alpha interpretation and full/cropped analysis context. No renderer, appearance-setting or version change.
 
 - Filled ribbon: explicit dark-background/light-background foreground modes with auto/custom color policy; transparent output and geometry preserved.

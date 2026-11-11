@@ -2,13 +2,21 @@
 
 No dates are assigned until evidence supports them.
 
-## Current navigation — 0.1.4 internal MVP
+## Current navigation — 0.2.0 internal development integration
 
 The internal MVP has been accepted; delivery is checkout + uv / Python
 >=3.12,<3.13 / system FFmpeg, not a public release or qualified deployment image.
 [Installation recipe](../Instructions/install.md) and
 [future host QA](../Instructions/runbook.md#future-checkouthost-qa-checklist-not-a-qualification-result)
 separate documented steps from completed host qualification.
+
+Version 0.2.0 integrates opt-in refined ribbon mapping7, separate Moving mouth
+revision4, selectable appearance/noise/idle controls, reflection/independent
+horizon and dark/light-background foreground modes, with production appearance
+regressions and alpha-aware output/viewing guidance. Legacy defaults are unchanged.
+See [current scope and bounded operator feedback](../WORK_STATUS.md#current-implementation-and-next-work).
+Intermediate pending/rejected ribbon prose below and in the development-chain
+changelog is dated history, not the final selected mapping7 source.
 
 Missing-foundation interpretations of the older MVP2/field checklist below are
 superseded: AnalysisFrame, VisualField, canonical RGBA/raster paths and locked
@@ -134,9 +142,12 @@ ribbon (variant3), and segmented impulse. Moving mouth is an ADDITIONAL style,
 not a replacement for any of those four. `iuris-moving-mouth` / `moving-mouth-v1`
 preserves revision4 activity-driven behavior, positively accepted for the supplied
 short look only; full-style/full-episode, Resolve/NLE and performance qualification
-remain open. `iuris-ribbon-refined` continues separately toward reference3; its
-new local dynamics still require operator visual assessment. No plugin framework
-or duplicate analysis/raster/encoder pipeline is introduced.
+remain open for Moving mouth. `iuris-ribbon-refined` now selects mapping7; bounded
+2026-11-11 feedback covers both full MP4 viewing copies and the transparent MOV
+inspected in Resolve, not separate assessment of both masters or exhaustive
+qualification. Historical revision6/revision7 pending prose preserves earlier
+checkpoints; see current scope above. No plugin framework or duplicate
+analysis/raster/encoder pipeline is introduced.
 
 
 ## Proposed styles and speaker annotations — future only
@@ -175,6 +186,8 @@ placeholder CLI or implemented multi-speaker capability is supplied.
   interpret this item or the focused conversion recipe as an existing GUI or new
   CLI command/option.
 
-The next product task is profiling the accepted ribbon pipeline to identify
-substantial optimization opportunities. Profiling, optimization and any choice of
-a Rust/native rewrite are not started or selected by this documentation update.
+The next separate product task is profiling the accepted mapping7 ribbon pipeline
+from freshly fetched current integrated main to identify substantial optimization
+opportunities while preserving the accepted look and retention holds. Profiling,
+optimization and any choice of a Rust/native rewrite are not started or selected
+by this integration; no performance claim is made.

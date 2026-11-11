@@ -89,6 +89,14 @@ Work in vertical slices. Before implementation:
 
 Do not create empty speculative modules.
 
+Follow the standing [integration and recovery workflow](Instructions/runbook.md#standing-task-integration-and-recoverability-workflow):
+regular non-force working-branch pushes; promptly integrate and push accepted,
+verified tasks to main after independent review and required visual assessment,
+without waiting for the whole roadmap. Base future tasks on freshly fetched
+integrated main; preserve newer/dirty work and historical holds. Packaging and
+tagging remain separately authorized. Master instructions may bound an author
+role to a local commit only; the designated integrator performs publication.
+
 ### Context discipline
 
 Use these as starting points, then follow references only as needed:
