@@ -104,3 +104,27 @@ and reject opaque reflection, wrong horizon and broad silence even when the
 background remains transparent. Codec-appropriate alpha rounding is separate
 from geometry/coverage correctness. These checks do not establish consumer/NLE
 compositing or operator visual acceptance.
+
+
+#### Viewing-copy CLI example (outside canonical production outputs)
+
+With an existing transparent 1400x280/60 master, the installed FFmpeg can make a
+bounded inspection copy without re-running analysis or waveform rendering:
+
+```bash
+ffmpeg -ss 104 -i transparent-master.mov \
+  -f lavfi -i 'color=c=0x081018:s=1400x280:r=60:d=2' \
+  -filter_complex '[1:v]format=rgba[bg];[bg][0:v]overlay=alpha=straight:format=auto:shortest=1,format=yuv420p[v]' \
+  -map '[v]' -an -frames:v 120 -c:v libx264 -crf 16 \
+  -pix_fmt yuv420p -movflags +faststart inspection-NOT-TRANSPARENT.mp4
+```
+
+The example requires the existing `libx264` encoder; it does not install it or
+add MP4 to the application's canonical format registry. Change the source seek,
+bounded duration/frame count, dimensions/FPS and explicit background together
+when inspecting a different asset. For the light-background foreground mode use
+an intended light inspection background, for example `0xF0F0F0`. Never overwrite
+the master. The MP4 has no alpha and is only a viewing copy; retain its input
+identity, source interval, background and output hash beside the master. A
+cropped viewing transcode retains the master's already-rendered whole-source
+normalization/mapping context, unlike a newly analysed waveform preview.

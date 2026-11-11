@@ -1,6 +1,7 @@
 """Content-level appearance protection, not merely alpha-capable metadata."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,22 @@ def _assert_reflection(frame: Pixels) -> None:
     assert np.all(np.abs(lower[core].astype(int) - 255 * 0.45) <= 2), "opaque lower body"
 
 
+def _assert_body_and_halo(frame: Pixels, body: NDArray[np.float64]) -> None:
+    alpha = frame[..., 3]
+    upper_core = body[:80] == 255
+    assert upper_core.any() and np.all(alpha[:80][upper_core] == 255)
+    # An actual high-glow halo must survive outside the pre-finishing body mask.
+    halo = (body == 0) & (alpha > 2)
+    halo[77:84] = False  # Exclude the independent horizon/shared seam.
+    assert np.count_nonzero(halo) > 10, "missing intended halo"
+    assert np.all(alpha[halo] < 255), "halo became opaque fill"
+    upper, lower = alpha[79:0:-1], alpha[81:]
+    paired = (body[79:0:-1] == 0) & (body[81:] == 0) & (upper > 8)
+    paired[:3] = False
+    assert np.count_nonzero(paired) > 10
+    assert np.max(np.abs(lower[paired].astype(float) - upper[paired] * 0.45)) <= 3
+
+
 @pytest.mark.parametrize("mode", ["dark-background", "light-background"])
 def test_real_pool_preserves_finished_reflection_horizon_and_silence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
@@ -76,6 +93,16 @@ def test_real_pool_preserves_finished_reflection_horizon_and_silence(
     canonical: list[Pixels] = []
     decoded: list[Pixels] = []
     contexts = []
+    raw_masks: list[bytes] = []
+    raster = pipeline.raster_field_columns
+
+    def capture(columns: Sequence[float], **kwargs: Any) -> bytes:
+        mask = raster(columns, **kwargs)
+        raw_masks.append(mask)
+        return mask
+
+    monkeypatch.setattr(pipeline, "raster_field_columns", capture)
+    body: NDArray[np.float64] | None = None
     for workers in (1, 2):
         monkeypatch.setattr(pipeline, "_job_workers", lambda performance, n=workers: n)
         payload = render(source, output_dir=tmp_path / f"jobs{workers}", **common)[0]
@@ -95,6 +122,15 @@ def test_real_pool_preserves_finished_reflection_horizon_and_silence(
         _assert_silence(rgba[0], codec_tolerance=1)
         _assert_reflection(png[4])
         _assert_reflection(rgba[4])
+        if workers == 1:
+            assert len(raw_masks) == 8 and not any(raw_masks[0])
+            pad = pipeline.glow_overscan(16)
+            padded = 160 + 2 * pad
+            raw = np.frombuffer(raw_masks[4], np.uint8).reshape(padded, padded, 2)
+            body = raw.mean(axis=2)[pad : pad + 160, pad : pad + 160]
+        assert body is not None
+        _assert_body_and_halo(png[4], body)
+        _assert_body_and_halo(rgba[4], body)
         assert np.any(png[..., 3] == 0), "background alpha alone is insufficient"
         rgb = (199, 230, 236) if mode == "dark-background" else (47, 71, 79)
         assert np.all(png[png[..., 3] > 0, :3] == rgb), "canonical color is straight alpha"
@@ -134,3 +170,34 @@ def test_reflection_oracle_rejects_opaque_lower_with_valid_background_alpha() ->
     assert frame[0, 0, 3] == 0
     with pytest.raises(AssertionError, match="opaque lower"):
         _assert_reflection(frame)
+
+
+
+def test_silent_thick_saved_stroke_line_off_has_no_hidden_core_in_either_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "s0e00-Silent.wav"
+    _source(source, silent=True)
+    preset = str(_preset(tmp_path))
+    monkeypatch.setattr(pipeline, "_FIELD_POOL_MIN_FRAMES", 1)
+    pixels = []
+    for workers in (1, 2):
+        monkeypatch.setattr(pipeline, "_job_workers", lambda performance, n=workers: n)
+        payload = render(
+            source,
+            preset_name=preset,
+            performance_name="balanced",
+            formats=["png", "prores4444"],
+            stroke_width=12,
+            center_line=False,
+            glow_level="high",
+            visual_noise=0.35,
+            idle_activity=0,
+            output_dir=tmp_path / f"jobs{workers}",
+        )[0]
+        assert _job_status(payload) == "SUCCEEDED"
+        png = np.frombuffer(_png_rgba(_output(payload, "png")), np.uint8)
+        rgba = b"".join(decoded_prores_frames(_output(payload, "mov"), width=160, height=160))
+        assert not png.any() and not any(rgba)
+        pixels.append(rgba)
+    assert pixels[0] == pixels[1]
