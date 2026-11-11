@@ -259,6 +259,12 @@ def test_gpu_envelope_refused_before_cpu_or_filesystem_effects(
 def test_runtime_timeout_records_consumed_failure_and_kills_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import shutil
+    from types import SimpleNamespace
+
+    # This test isolates timeout cleanup, not live host capacity admission.
+    # Final disk/reserve crossings have dedicated deterministic cases below.
+    monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(free=20 * app.GIB))
     media = tmp_path / "media"
     media.mkdir()
     counter = iter([0.0, 2.0, 2.1])
