@@ -7,7 +7,7 @@ Specification baseline accepted.
 License: EWP Waveform Community License 1.0.
 
 The operator accepted the internal MVP at 0.1.0; current development version is
-0.2.1, preserving opt-in filled ribbon mapping7, separate Moving mouth revision4,
+0.3.0, adding opt-in bounded experiment tooling and preserving filled ribbon mapping7, separate Moving mouth revision4,
 selectable appearance/noise/idle controls, reflection and independent horizon,
 and dark/light-background foreground modes. Production appearance regressions
 and alpha-aware output/viewing documentation accompany this functionality.
@@ -19,6 +19,14 @@ release, clean-host qualification, wheel, Docker, native Windows or GPU support
 is claimed. See [Instructions/install.md](Instructions/install.md).
 
 ## Current implementation and next work
+
+[Experiment tooling](docs/24-experiments.md) separates exact optimizations from
+visually assessed approximation experiments. Default-path correctness tests stay
+exact; no experimental output profile is promoted. GPU/WSL/Windows scenarios are
+unrun recipes pending actual target access, same-host controls and explicit
+execution authority. Short CPU results are scoped measurements, not complete-style
+appearance/NLE acceptance. The operator now reports the optimized0.2.1MOV looks
+correct in ResolveStudio, a bounded additional observation with all holds intact.
 
 Current [visual-development and retention requirements](docs/23-visual-development-and-retention.md)
 separate accepted broad looks from full four-variant fidelity, intentional visual

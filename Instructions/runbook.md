@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP baseline extended by development version 0.2.1,
+**Status:** accepted internal MVP baseline extended by development version 0.3.0,
 checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
 selectable appearance, reflection/horizon and dark/light-background foreground
 controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
@@ -170,7 +170,9 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Current development version is 0.2.1: the patch
+new results/examples must agree. Current development version is 0.3.0: opt-in experiment tooling is described in
+[document24](../docs/24-experiments.md), with no canonical default/output-profile
+change. The preceding0.2.1patch
 adds a ribbon-only exact row-support guard to native horizon finishing. Rows outside
 the horizon support skip its coverage arithmetic; intersecting rows, lum sampling
 and default interpolation, output formats, encoder/thread settings and all other
@@ -232,6 +234,14 @@ G/main merge gate waiver or permission to delete G's historical branches.
 - Chunk size and `jobs` (`render --performance balanced` or `maximum`) do not intentionally change the look. They request up to 2 or 4 scroll workers respectively; actual parallelism depends on available chunks. Custom positive-integer `jobs` values do not make serial paths parallel.
 - Historical reported wall time (original measurements unavailable for fresh comparison; not a current promise) on `s0e00` (~6.5 min): ~3.5 h at `jobs=1`, ~67 min at `jobs=4` (~10× realtime, ~17% of a 14700K). Further cuts are a product goal; the FFmpeg path will not use the whole machine.
 - `benchmark run` is for matrices of short files. Do not point the example manifest at private episode paths inside git.
+
+## Opt-in experiment tooling
+
+See [24 — Opt-in reproducible experiments](../docs/24-experiments.md) for frozen
+factors, short sequential screening, recovery, target recipes and separate technical
+versus operator appearance/Studio gates. This tooling does not add extra formats
+to normal render/preview, turn GPU recipes into implemented product backends or
+change canonical presets. Keep source WAV and generated media outside Git.
 
 ## Known limits (do not treat as bugs)
 

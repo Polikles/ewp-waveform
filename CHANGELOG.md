@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.0] - 2026-11-11
+
+Internal opt-in experiment-tooling increment; no public release/tag, dependency
+update, default renderer change or unassessed output-profile promotion.
+
+### Added
+
+- Reproducible bounded CPU experiment tooling with frozen source/input/settings,
+  shared pre-encode fixture provenance, effective-factor checks, append-only
+  attempts, counterbalanced sequential execution and resumable reporting.
+- Separate transparent masters, correctly composited viewing copies and labelled
+  comparison proxies with setup/render/proxy/view/verification costs distinguished.
+- Portable discovery/target-probe preparation and explicit unrun GPU/WSL/Windows
+  recipes; advertised capability does not imply runtime or Resolve compatibility.
+- Explicit exact-versus-approximation acceptance guidance. Technical validity cannot
+  approve appearance; unchanged default-path oracles and media holds remain.
+
+### Operator observation
+
+- The optimized0.2.1MOV reportedly looks correct in DaVinciResolveStudio; screenshot
+  reported supplied. Bounded observation only, not exhaustive/NLE-profile-wide
+  qualification, download confirmation or cleanup authority.
+
 ## [0.2.1] - 2026-11-11
 
 Internal compatible ribbon-finishing optimization; not a public release, package
