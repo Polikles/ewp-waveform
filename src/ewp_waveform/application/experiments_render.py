@@ -30,10 +30,16 @@ class ServiceExperiment:
     """Opt-in internal API, not a production performance/profile option."""
 
     encoding: EncodeExperiment
+    expected_preset: dict[str, Any] | None = None
 
     def validate(
         self, job: PlannedJob, preset: VisualPreset, formats: list[str], duration: float | None
     ) -> None:
+        if (
+            self.expected_preset is not None
+            and preset.model_dump(mode="json") != self.expected_preset
+        ):
+            raise ValueError("frozen effective preset drift; replan required")
         if (
             preset.name != "iuris-ribbon-refined"
             or job.domain.value != "frequency"

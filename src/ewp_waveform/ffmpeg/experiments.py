@@ -16,6 +16,8 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ewp_waveform.ffmpeg.encode import _glow_crop_graph
 from ewp_waveform.ffmpeg.process import run_argv_stdin
 
@@ -51,8 +53,10 @@ class Crop:
     def record(self) -> dict[str, Any]:
         return {
             **asdict(self),
-            "horizon_original_y": (self.canvas_height - 1) / 2,
-            "horizon_output_y": (self.canvas_height - 1) / 2 - self.y,
+            "horizon_original_y": self.canvas_height // 2 + 0.5,
+            "horizon_output_y": self.canvas_height // 2 + 0.5 - self.y,
+            "horizon_coordinate_convention": "pixel-edge center; production row height//2",
+            "reflection_split_row": self.canvas_height // 2,
             "alpha_association": "straight",
             "frozen_for_whole_clip": True,
         }
@@ -299,12 +303,11 @@ def freeze_crop(raw: Path, *, width: int, height: int, frames: int, margin: int)
             frame = stream.read(size)
             if len(frame) != size:
                 raise ValueError("incomplete pre-encode fixture")
-            for y in range(height):
-                alpha = frame[y * width * 4 + 3 : (y + 1) * width * 4 : 4]
-                indices = [x for x, value in enumerate(alpha) if value]
-                if indices:
-                    left, right = min(left, indices[0]), max(right, indices[-1])
-                    top, bottom = min(top, y), max(bottom, y)
+            alpha = np.frombuffer(frame, dtype=np.uint8).reshape(height, width, 4)[:, :, 3]
+            ys, xs = np.nonzero(alpha)
+            if xs.size:
+                left, right = min(left, int(xs.min())), max(right, int(xs.max()))
+                top, bottom = min(top, int(ys.min())), max(bottom, int(ys.max()))
         if stream.read(1):
             raise ValueError("extra fixture bytes")
     if right < 0:
@@ -347,7 +350,7 @@ def inspect_master(
         str(path),
     ]
     record_command(command_log, probe, phase="validation-probe")
-    result = subprocess.run(probe, capture_output=True, check=True, timeout=60)
+    result = run_captured(probe, command_log, phase="validation-probe-result", timeout=60)
     if result.stderr.strip():
         raise ValueError("probe diagnostics: " + result.stderr.decode(errors="replace"))
     data = json.loads(result.stdout)
@@ -428,8 +431,10 @@ def inspect_master(
                 if len(block) != size:
                     raise ValueError("short decoded frame")
                 digest.update(block)
-                alpha = block[3::4]
-                alpha_min, alpha_max = min(alpha_min, min(alpha)), max(alpha_max, max(alpha))
+                decoded = np.frombuffer(block, dtype=np.uint8).reshape(height, width, 4)
+                alpha = decoded[:, :, 3]
+                alpha_min = min(alpha_min, int(alpha.min()))
+                alpha_max = max(alpha_max, int(alpha.max()))
                 count += 1
                 if ref:
                     cw = crop.canvas_width if crop else width
@@ -437,45 +442,19 @@ def inspect_master(
                     original = ref.read(cw * ch * 4)
                     if len(original) != cw * ch * 4:
                         raise ValueError("short canonical reference")
-                    padded = bytearray(cw * ch * 4)
+                    padded = np.zeros((ch, cw, 4), dtype=np.uint8)
                     x, y = (crop.x, crop.y) if crop else (0, 0)
-                    for row in range(height):
-                        begin = ((row + y) * cw + x) * 4
-                        padded[begin : begin + width * 4] = block[
-                            row * width * 4 : (row + 1) * width * 4
-                        ]
-                    for p in range(0, len(original), 4):
-                        a, b = original[p + 3], padded[p + 3]
-                        if not (a or b):
-                            continue
-                        union_count += 1
-                        delta = abs(a - b)
-                        alpha_error += delta
-                        rgb_error += sum(abs(original[p + c] - padded[p + c]) for c in range(3))
-                        if 0 < a < 255:
-                            edge_error += delta
-                            edge_n += 1
-                        if 0 < a < 32:
-                            halo_error += delta
-                            halo_n += 1
-                        px = p // 4
-                        backgrounds = (
-                            (8, 16, 24),
-                            (240, 240, 240),
-                            (224, 224, 224)
-                            if (px % cw // 16 + px // cw // 16) % 2
-                            else (48, 48, 48),
-                        )
-                        for key, bg in zip(composites, backgrounds, strict=True):
-                            composites[key] += sum(
-                                abs(
-                                    original[p + c] * a
-                                    + bg[c] * (255 - a)
-                                    - padded[p + c] * b
-                                    - bg[c] * (255 - b)
-                                )
-                                for c in range(3)
-                            )
+                    padded[y : y + height, x : x + width] = decoded
+                    metrics = frame_metrics(original, padded.tobytes(), cw, ch)
+                    union_count += metrics["union_count"]
+                    alpha_error += metrics["alpha_error"]
+                    rgb_error += metrics["rgb_error"]
+                    edge_error += metrics["edge_error"]
+                    edge_n += metrics["edge_n"]
+                    halo_error += metrics["halo_error"]
+                    halo_n += metrics["halo_n"]
+                    for key in composites:
+                        composites[key] += metrics[key]
             if proc.wait(timeout=60):
                 raise ValueError("complete strict decode failed")
         finally:
@@ -552,3 +531,205 @@ def gpu_probe_argv(ffmpeg: str, adapter: str, output: Path) -> list[str]:
         *codec,
         str(output),
     ]
+
+
+def frame_metrics(original: bytes, padded: bytes, width: int, height: int) -> dict[str, int]:
+    """Exact integer scalar semantics, vectorized per frame, bounded memory.
+
+    int32 covers products/differences; int64 reductions avoid overflow. Never
+    include fully transparent RGB in ROI or round compositing before summation.
+    """
+    a = np.frombuffer(original, dtype=np.uint8).reshape(height, width, 4).astype(np.int32)
+    b = np.frombuffer(padded, dtype=np.uint8).reshape(height, width, 4).astype(np.int32)
+    aa, ba = a[:, :, 3], b[:, :, 3]
+    union = (aa != 0) | (ba != 0)
+    delta = np.abs(aa - ba)
+    edge, halo = (aa > 0) & (aa < 255), (aa > 0) & (aa < 32)
+
+    def total(values: Any) -> int:
+        return int(np.sum(values, dtype=np.int64))
+
+    out = {
+        "union_count": int(np.count_nonzero(union)),
+        "alpha_error": total(delta[union]),
+        "rgb_error": total(np.abs(a[:, :, :3] - b[:, :, :3])[union]),
+        "edge_error": total(delta[edge]),
+        "edge_n": int(np.count_nonzero(edge)),
+        "halo_error": total(delta[halo]),
+        "halo_n": int(np.count_nonzero(halo)),
+    }
+    yy, xx = np.indices((height, width))
+    checker = np.where((xx // 16 + yy // 16) % 2, 224, 48)[:, :, None]
+    foreground = a[:, :, :3] * aa[:, :, None] - b[:, :, :3] * ba[:, :, None]
+    for key, bg in (
+        ("081018", np.array([8, 16, 24])),
+        ("F0F0F0", np.array([240, 240, 240])),
+        ("checkerboard", checker),
+    ):
+        out[key] = total(np.abs(foreground + bg * (ba - aa)[:, :, None])[union])
+    return out
+
+
+def run_captured(
+    argv: list[str], log: Path, *, phase: str, timeout: int | None = None
+) -> subprocess.CompletedProcess[bytes]:
+    record_command(log, argv, phase=phase)
+    result = subprocess.run(argv, capture_output=True, check=False, timeout=timeout)
+    with log.open("a", encoding="utf-8") as stream:
+        stream.write(
+            json.dumps(
+                {
+                    "phase": phase + "-outcome",
+                    "argv": argv,
+                    "returncode": result.returncode,
+                    "stdout": result.stdout.decode(errors="replace"),
+                    "stderr": result.stderr.decode(errors="replace"),
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        )
+    if result.returncode:
+        raise subprocess.CalledProcessError(result.returncode, argv, result.stdout, result.stderr)
+    return result
+
+
+def viewing_argv(
+    ffmpeg: str,
+    source: Path,
+    output: Path,
+    *,
+    width: int,
+    height: int,
+    fps: str,
+    frames: int,
+    background: str,
+    crop: Crop | None = None,
+    proxy: bool = False,
+) -> list[str]:
+    """Post-timing derivative; explicit straight-alpha overlay, no audio shift."""
+    import re
+
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", background):
+        raise ValueError("literal RGB viewing background required")
+    prefix = [ffmpeg, "-nostdin", "-n", "-v", "error", "-xerror", "-i", str(source)]
+    if proxy:
+        return [
+            *prefix,
+            "-map",
+            "0:v:0",
+            "-an",
+            "-c:v",
+            "prores_ks",
+            "-profile:v",
+            "4444",
+            "-pix_fmt",
+            "yuva444p10le",
+            "-frames:v",
+            str(frames),
+            str(output),
+        ]
+    x, y = (crop.x, crop.y) if crop else (0, 0)
+    graph = (
+        f"color=c=0x{background[1:]}:s={width}x{height}:r={fps},format=rgba[bg];"
+        f"[bg][0:v]overlay=x={x}:y={y}:alpha=straight:shortest=1,format=yuv420p[v]"
+    )
+    return [
+        *prefix,
+        "-filter_complex",
+        graph,
+        "-map",
+        "[v]",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-crf",
+        "18",
+        "-pix_fmt",
+        "yuv420p",
+        "-frames:v",
+        str(frames),
+        "-movflags",
+        "+faststart",
+        str(output),
+    ]
+
+
+def inspect_view(
+    ffmpeg: str,
+    ffprobe: str,
+    path: Path,
+    *,
+    width: int,
+    height: int,
+    fps: str,
+    frames: int,
+    command_log: Path,
+) -> dict[str, Any]:
+    """Validate H.264 view cadence, duration, dimensions and complete decode."""
+    result = run_captured(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_streams",
+            "-show_frames",
+            "-show_format",
+            "-of",
+            "json",
+            str(path),
+        ],
+        command_log,
+        phase="view-probe",
+        timeout=60,
+    )
+    data = json.loads(result.stdout)
+    info, grid = data["streams"][0], data["frames"]
+    tb = Fraction(info["time_base"])
+    if (
+        (info["width"], info["height"]) != (width, height)
+        or info["codec_name"] != "h264"
+        or info["pix_fmt"] != "yuv420p"
+        or Fraction(info["avg_frame_rate"]) != Fraction(fps)
+        or len(grid) != frames
+        or tb <= 0
+        or tb >= 1 / Fraction(fps)
+        or any(
+            abs(Fraction(f["best_effort_timestamp"]) * tb - Fraction(i) / Fraction(fps)) > tb / 2
+            for i, f in enumerate(grid)
+        )
+        or abs(Fraction(data["format"]["duration"]) - Fraction(frames) / Fraction(fps))
+        > tb + Fraction(1, 1000000)
+    ):
+        raise ValueError("invalid viewing MP4 stream/grid")
+    decoded = run_captured(
+        [
+            ffmpeg,
+            "-nostdin",
+            "-v",
+            "error",
+            "-xerror",
+            "-err_detect",
+            "explode",
+            "-i",
+            str(path),
+            "-map",
+            "0:v:0",
+            "-f",
+            "null",
+            "-",
+        ],
+        command_log,
+        phase="view-complete-decode",
+        timeout=60,
+    )
+    if result.stderr.strip() or decoded.stderr.strip():
+        raise ValueError("view validation diagnostics")
+    return {
+        "passed": True,
+        "frames": frames,
+        "stream": info,
+        "duration_seconds": float(data["format"]["duration"]),
+    }

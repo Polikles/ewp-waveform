@@ -66,6 +66,68 @@ def load(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
+def configuration_hashes() -> dict[str, str]:
+    from ewp_waveform.paths import builtin_performance_dir, builtin_presets_dir
+
+    return {
+        str(p.resolve()): sha(p)
+        for directory in (builtin_performance_dir(), builtin_presets_dir())
+        for p in sorted(directory.rglob("*.toml"))
+    }
+
+
+def digest_value(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+
+
+DESIGN_SHA256 = "9dbb6f452ff17d360046b1a16b3561566ed73cca6bbad73dbf04210940242809"
+
+VISUAL = {
+    "detail_level": "balanced",
+    "amplitude": 0.82,
+    "stroke_width": 1.0,
+    "glow_level": "high",
+    "visual_noise": 0.35,
+    "idle_activity": 0.0,
+    "noise_rate": 0.8,
+    "noise_seed": 1729,
+    "reflection_opacity": 0.45,
+    "center_line": True,
+    "center_line_extent": 0.96,
+    "center_line_opacity": 0.55,
+    "background_mode": "dark-background",
+    "color_mode": "auto",
+}
+
+
+def frozen_configuration(preset: Any, performance: Any) -> dict[str, Any]:
+    from ewp_waveform.application.appearance import resolve_fixed_axis_appearance
+
+    if (
+        preset.canvas.model_dump() != {"width": 1400, "height": 280, "fps": 60.0}
+        or preset.signal.get("smoothing") != 0.06
+        or preset.waveform.color != "#C7E6EC"
+    ):
+        raise ValueError("effective preset violates frozen design geometry/smoothing/foreground")
+    perf = performance.model_copy(deep=True)
+    perf.processing.update(jobs=2, ffmpeg_threads=0)
+    # Per-attempt workdir location is operational, not a visual/processing factor.
+    values = {
+        "preset": preset.model_dump(mode="json"),
+        "performance_processing": perf.processing,
+        "performance_workdirs": {k: v for k, v in perf.workdirs.items() if k != "root"},
+        "appearance": resolve_fixed_axis_appearance(preset).identity(),
+    }
+    return {**values, "sha256": digest_value(values)}
+
+
+def assert_frozen(workload: dict[str, Any], preset: Any, performance: Any) -> None:
+    if frozen_configuration(preset, performance) != workload["effective_configuration"]:
+        raise ValueError("frozen preset/performance/appearance drift; replan required")
+
+
 def source_fingerprint() -> dict[str, Any]:
     import importlib.metadata
 
@@ -90,7 +152,27 @@ def source_fingerprint() -> dict[str, Any]:
             for path in sorted(Path(directory).rglob("*.py")):
                 key = str(path.relative_to(Path(directory)))
                 files[package.__name__ + "/" + key] = sha(path)
+    cpu_model = None
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.is_file():
+        cpu_model = next(
+            (
+                line.partition(":")[2].strip()
+                for line in cpuinfo.read_text().splitlines()
+                if line.startswith("model name")
+            ),
+            None,
+        )
     return {
+        "imported_product_file": str(Path(ewp_waveform.__file__).resolve()),
+        "imported_product_version": getattr(ewp_waveform, "__version__", None),
+        "imported_experiment_module_file": str(Path(__file__).resolve()),
+        "installed_distribution_metadata": {
+            key: importlib.metadata.metadata("ewp-waveform")[key]
+            for key in ("Name", "Version", "Summary", "Requires-Python")
+        },
+        "installed_distribution_version": importlib.metadata.version("ewp-waveform"),
+        "cpu_model_observed": cpu_model,
         "git_head_and_tree": git_identity,
         "dependencies": {
             name: importlib.metadata.version(name) for name in ("numpy", "pydantic", "typer")
@@ -103,6 +185,7 @@ def source_fingerprint() -> dict[str, Any]:
         "interpreter": str(Path(sys.executable).resolve()),
         "interpreter_sha256": sha(Path(sys.executable).resolve()),
         "source_files": files,
+        "configuration_files": configuration_hashes(),
         "platform": platform.platform(),
         "machine": platform.machine(),
         "cpu_count": os.cpu_count(),
@@ -263,6 +346,8 @@ def manifest(path: Path) -> dict[str, Any]:
         "workloads",
         "limits",
         "catalog",
+        "visual_overrides",
+        "viewing_background",
     }:
         raise ValueError("unknown/missing manifest keys")
     if data["schema_version"] != 1:
@@ -271,6 +356,10 @@ def manifest(path: Path) -> dict[str, Any]:
         c not in "0123456789abcdef" for c in data["design_sha256"]
     ):
         raise ValueError("design digest must be literal lowercase SHA256")
+    if data["design_sha256"] != DESIGN_SHA256:
+        raise ValueError("unrecognized reviewed design digest; replan required")
+    if data["visual_overrides"] != VISUAL or data["viewing_background"] != "#081018":
+        raise ValueError("manifest must carry full selected frozen design visual context")
     candidates = data["candidates"]
     if (
         not candidates
@@ -323,19 +412,24 @@ def bounded_worker(
     ledger = Ledger(run)
     records = ledger.read()
     starts = [r for r in records if r["event"] == "STARTED"]
+    viewing = request.get("kind") == "views"
+    counted = [r for r in starts if (r.get("kind") == "views") == viewing]
+    attempt_cap = 24 if viewing else limits.attempts
     finished_ids = {r["cell"] for r in records if r["event"] == "FINISHED"}
     if any(r["cell"] not in finished_ids for r in starts):
         raise ValueError("HOLD: an uncertain consumed STARTED exists; inspect without rerunning")
     if any(r["cell"] == request["id"] for r in starts):
         raise ValueError("consumed start: never rerun an uncertain, failed or completed attempt")
     elapsed = sum(float(r.get("elapsed_seconds", 0)) for r in records if r["event"] == "FINISHED")
-    if len(starts) >= limits.attempts or elapsed >= limits.seconds:
+    if len(counted) >= attempt_cap or elapsed >= limits.seconds:
         raise ValueError("attempt/time envelope exhausted")
     envelopes = [r for r in records if r["event"] == "ENVELOPE"]
     if envelopes:
         envelope = envelopes[0]
         if envelope["media"] != str(media.resolve()):
             raise ValueError("one run cannot change media volume/namespace")
+        if envelope.get("limits") != asdict(limits):
+            raise ValueError("resource envelope drift; new run/replan required")
         starting_bytes = envelope["media_initial_bytes"]
         evidence_initial = envelope["evidence_initial_bytes"]
     else:
@@ -346,8 +440,11 @@ def bounded_worker(
             media=str(media.resolve()),
             media_initial_bytes=starting_bytes,
             evidence_initial_bytes=evidence_initial,
-            max_growth_bytes=2 * GIB,
-            minimum_reserve_bytes=10 * GIB,
+            limits=asdict(limits),
+            polling_seconds=0.1,
+            enforcement="polling, scheduling/termination overshoot possible; final crossings fail",
+            max_growth_bytes=limits.growth_bytes,
+            minimum_reserve_bytes=limits.reserve_bytes,
             ram_plan_bytes=GIB,
             ram_observed_available_bytes=available_memory_bytes(),
         )
@@ -369,13 +466,32 @@ def bounded_worker(
     request = {**request, "launcher_pid": os.getpid()}
     save_new(req_path, request)
     argv = [sys.executable, "-m", "ewp_waveform.application.experiments", "_worker", str(req_path)]
-    ledger.append("STARTED", request["id"], argv=argv, request_sha256=sha(req_path))
+    ledger.append(
+        "STARTED", request["id"], kind=request.get("kind"), argv=argv, request_sha256=sha(req_path)
+    )
     t0 = time.perf_counter()
     creation: dict[str, Any] = (
         {"start_new_session": True}
         if os.name == "posix"
         else {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
     )
+
+    def observation() -> dict[str, Any]:
+        return {
+            "elapsed_seconds": time.perf_counter() - t0,
+            "growth_bytes": growth(),
+            "free_bytes": {str(p.resolve()): shutil.disk_usage(p).free for p in (media, run)},
+        }
+
+    def violation(snapshot: dict[str, Any]) -> str | None:
+        if snapshot["elapsed_seconds"] >= limits.seconds - elapsed:
+            return "TIME_LIMIT"
+        if snapshot["growth_bytes"] >= limits.growth_bytes:
+            return "GROWTH_LIMIT"
+        if min(snapshot["free_bytes"].values()) <= limits.reserve_bytes:
+            return "DISK_RESERVE"
+        return None
+
     reason = None
     with (
         (run / f"{request['id']}.stdout.txt").open("xb") as out,
@@ -384,12 +500,7 @@ def bounded_worker(
         proc = subprocess.Popen(argv, stdout=out, stderr=err, **creation)
         try:
             while proc.poll() is None:
-                if time.perf_counter() - t0 > limits.seconds - elapsed:
-                    reason = "TIME_LIMIT"
-                elif growth() >= limits.growth_bytes:
-                    reason = "GROWTH_LIMIT"
-                elif shutil.disk_usage(media).free <= limits.reserve_bytes:
-                    reason = "DISK_RESERVE"
+                reason = violation(observation())
                 if reason:
                     stop_tree(proc)
                     break
@@ -398,10 +509,12 @@ def bounded_worker(
             stop_tree(proc)
             # STARTED deliberately remains uncertain; no fabricated terminal result.
             raise
+    final_observation = observation()
+    reason = reason or violation(final_observation)
     result_path = Path(request["result"])
     if proc.returncode == 0 and result_path.is_file() and reason is None:
         result = load(result_path)
-        status = "TECHNICAL_PASS"
+        status = "CAPABILITY_SKIP" if result.get("capability_skip") else "TECHNICAL_PASS"
     else:
         result = {
             "error": reason or f"worker exit {proc.returncode}",
@@ -413,7 +526,15 @@ def bounded_worker(
         "FINISHED",
         request["id"],
         status=status,
-        elapsed_seconds=time.perf_counter() - t0,
+        elapsed_seconds=final_observation["elapsed_seconds"],
+        final_resources=final_observation,
+        limits=asdict(limits),
+        request_path=str(req_path),
+        request_sha256=sha(req_path),
+        commands_path=request.get("commands"),
+        commands_sha256=sha(Path(request["commands"]))
+        if request.get("commands") and Path(request["commands"]).exists()
+        else None,
         result_sha256=sha(result_path) if result_path.exists() else None,
         result_path=str(result_path),
         result=result,
@@ -444,6 +565,7 @@ def preflight(
     ffmpeg: str = "ffmpeg",
     ffprobe: str = "ffprobe",
     gpu_envelope: Path | None = None,
+    limits: Limits | None = None,
 ) -> dict[str, Any]:
     validate_roots(run, media)
     if not enable or len(set(enable)) != len(enable) or any(c not in IMPLEMENTED for c in enable):
@@ -468,11 +590,12 @@ def preflight(
     run.mkdir(parents=True, exist_ok=True)
     media.mkdir(parents=True, exist_ok=True)
     starting = tree_bytes(media)
-    limits = Limits()
+    limits = limits or Limits()
     result: dict[str, Any] = {
         "source": source_fingerprint(),
         "tools": tools,
         "enabled": enable,
+        "limits": asdict(limits),
         "adapters": {},
         "gpu": {},
         "free_bytes_before": shutil.disk_usage(media).free,
@@ -495,6 +618,8 @@ def preflight(
             }
         if gpu_spec is not None:
             gpu_limits = Limits(**gpu_spec["limits"])
+            if gpu_limits != limits:
+                raise ValueError("CPU/GPU probes require the same frozen run limits")
             for name in gpu_spec["adapters"]:
                 request = _probe_request(run, media, tools, name, gpu=True)
                 outcome = bounded_worker(run, media, request, gpu_limits, starting_bytes=starting)
@@ -508,7 +633,17 @@ def preflight(
                 }
         path = run / ("preflight-" + uuid.uuid4().hex + ".json")
         save_new(path, result)
-    return {"preflight": str(path), **result}
+    holds = [
+        r["cell"]
+        for r in Ledger(run).read()
+        if r["event"] == "FINISHED" and r["status"] not in {"TECHNICAL_PASS", "CAPABILITY_SKIP"}
+    ]
+    return {
+        "preflight": str(path),
+        **result,
+        "status": "HOLD" if holds else "READY",
+        "hold_reasons": holds,
+    }
 
 
 def prepare(
@@ -534,6 +669,8 @@ def prepare(
     for name, item in cap["tools"].items():
         if sha(Path(item["path"])) != item["sha256"]:
             raise ValueError(f"{name} changed after preflight")
+    if cap.get("limits") != data["limits"]:
+        raise ValueError("preflight/manifest limits differ; replan required")
     if set(enable) != set(data["candidates"]):
         raise ValueError(
             "explicit enabled adapters must exactly match selected manifest candidates"
@@ -543,13 +680,14 @@ def prepare(
     # Production read-only planning proves effective source clipping before allocation.
     frozen_workloads = []
     for w in data["workloads"]:
-        _, preset, _, plans, _ = plan_jobs(
+        _, preset, performance, plans, _ = plan_jobs(
             audio,
             preset_name="iuris-ribbon-refined",
             output_dir=media,
             formats=["prores4444"],
             start=w["start"],
             duration=w["duration"],
+            **data["visual_overrides"],
         )
         if len(plans) != 1 or plans[0].media is None or plans[0].action == "BLOCKED":
             raise ValueError("source could not be planned")
@@ -559,6 +697,7 @@ def prepare(
             {
                 **w,
                 "preset": preset.model_dump(mode="json"),
+                "effective_configuration": frozen_configuration(preset, performance),
                 "frames": math.ceil(w["duration"] * preset.canvas.fps),
                 "fps": str(Fraction(str(preset.canvas.fps))),
                 "width": preset.canvas.width,
@@ -603,7 +742,7 @@ def prepare(
                     )
     # Preparation consumes one attempt per clip. Reject an overfull matrix up front.
     limits = Limits(**data["limits"])
-    consumed = sum(r["event"] == "STARTED" for r in Ledger(run).read())
+    consumed = sum(r["event"] == "STARTED" and r.get("kind") != "views" for r in Ledger(run).read())
     planned = len(frozen_workloads) + sum(not c["skip"] for c in cells)
     if consumed + planned > limits.attempts:
         raise ValueError(
@@ -628,6 +767,15 @@ def prepare(
         "nle": nle,
         "created_monotonic": time.monotonic(),
         "analysis_cache": "isolated empty per service call",
+        "view_limits": {
+            "attempts": 24,
+            "seconds": limits.seconds,
+            "growth_bytes_shared_task": limits.growth_bytes,
+            "reserve_bytes": limits.reserve_bytes,
+        },
+        "view_timer_envelope": (
+            "separate view attempt counter; shared total worker-seconds/growth/reserve"
+        ),
         "context": (
             "production clipped analysis; frozen noise absolute source origin; "
             "not full-source context"
@@ -646,7 +794,7 @@ def prepare(
 
 
 def verified_session(run: Path) -> dict[str, Any]:
-    session = load(run / "session.json")
+    session = historical_session(run)
     prepared = next(r for r in Ledger(run).read() if r["event"] == "PREPARED")
     if prepared["session_sha256"] != sha(run / "session.json"):
         raise ValueError("frozen session changed")
@@ -804,7 +952,9 @@ def prepare_fixture(request: dict[str, Any], session: dict[str, Any]) -> dict[st
         formats=["prores4444"],
         start=w["start"],
         duration=w["duration"],
+        **session["manifest"]["visual_overrides"],
     )
+    assert_frozen(w, preset, performance)
     # Existing production short-clip path is serial even with jobs=2.
     performance = performance.model_copy(deep=True)
     performance.processing.update(jobs=2, ffmpeg_threads=0)
@@ -880,6 +1030,8 @@ def prepare_fixture(request: dict[str, Any], session: dict[str, Any]) -> dict[st
         "crop_transform": crop.record(),
         "preparation_seconds": preparation_seconds,
         "scope": "PRODUCTION_PIPELINE_PRE_ENCODE_RGBA8_NOT_A_SERVICE_TIMING",
+        "noise_time_origin_seconds": w["start"],
+        "analysis_context": "production interval-local analysis; not full-source context",
         "analysis": analysis,
         "normalization": normalization,
         "appearance": appearance.identity(),
@@ -901,7 +1053,20 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
     raw = Path(fixture["fixture"])
     if sha(raw) != fixture["artifacts"][0]["sha256"]:
         raise ValueError("shared canonical fixture changed")
+    from ewp_waveform.application.service import plan_jobs
+
+    _, planned_preset, planned_perf, _, _ = plan_jobs(
+        Path(session["audio"]),
+        preset_name="iuris-ribbon-refined",
+        output_dir=root,
+        formats=["prores4444"],
+        start=w["start"],
+        duration=w["duration"],
+        **session["manifest"]["visual_overrides"],
+    )
+    assert_frozen(w, planned_preset, planned_perf)
     service_result = None
+    generated_configuration: list[dict[str, Any]] = []
     if request["scope"] == "codec":
         output = root / ("tested-master.mkv" if name == "ENC-FFV1" else "tested-master.mov")
         argv = ff.codec_argv(
@@ -927,7 +1092,7 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
         ff.check_command_diff(control, argv, name)
         ff.record_command(commands, argv, phase="timed-codec")
         start = time.perf_counter()
-        result = subprocess.run(argv, capture_output=True, check=True)
+        result = ff.run_captured(argv, commands, phase="timed-codec-outcome")
         wall = time.perf_counter() - start
         if result.stderr.strip():
             raise ValueError("encoder diagnostics")
@@ -937,12 +1102,23 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
         from ewp_waveform.application.service import render
 
         perf = root / "performance.toml"
+        from ewp_waveform.config.load import load_performance
+
+        processing = w["effective_configuration"]["performance_processing"]
+        workdirs = {
+            **w["effective_configuration"]["performance_workdirs"],
+            "root": str(root / "work"),
+        }
         perf.write_text(
-            'schema_version=1\nname="experiment"\n[processing]\njobs=2\nffmpeg_threads=0\n'
-            "[workdirs]\npersistent=false\nkeep_on_success=false\nkeep_on_failure=true\n"
-            f"root={json.dumps(str(root / 'work'))}\n",
+            'schema_version=1\nname="experiment"\n[processing]\n'
+            + "\n".join(f"{json.dumps(k)}={json.dumps(v)}" for k, v in sorted(processing.items()))
+            + "\n[workdirs]\n"
+            + "\n".join(f"{json.dumps(k)}={json.dumps(v)}" for k, v in sorted(workdirs.items()))
+            + "\n",
             encoding="utf-8",
         )
+        assert_frozen(w, planned_preset, load_performance(str(perf)))
+        generated_configuration = [{**artifact(perf), "role": "CONFIGURATION"}]
         os.environ["EWP_ANALYSIS_CACHE"] = str(root / "analysis-cache")
         start = time.perf_counter()
         with command_evidence(commands):
@@ -955,11 +1131,15 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
                 start=w["start"],
                 duration=w["duration"],
                 force=True,
+                **session["manifest"]["visual_overrides"],
                 experiment=ServiceExperiment(
-                    ff.EncodeExperiment(name, crop if name == "CROP-OUT" else None, commands)
+                    ff.EncodeExperiment(name, crop if name == "CROP-OUT" else None, commands),
+                    expected_preset=w["preset"],
                 ),
             )
         wall = time.perf_counter() - start
+        if sha(perf) != generated_configuration[0]["sha256"]:
+            raise ValueError("service performance configuration mutated during execution")
         service_result = cast(dict[str, Any], payloads[0])
         if (
             service_result["job"]["status"] != "SUCCEEDED"
@@ -1010,7 +1190,8 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
         "throughput_fresh": True,
         "wall_seconds": wall,
         "timer": (
-            "perf_counter before/after codec process; setup/hash/full validation excluded"
+            "perf_counter around run_captured (codec process + command/outcome text IO); "
+            "setup/hash/full validation excluded"
             if request["scope"] == "codec"
             else (
                 "perf_counter before/after actual service.render; "
@@ -1031,16 +1212,57 @@ def run_cell(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]
         "crop_transform": crop.record() if name == "CROP-OUT" else None,
         "validation": validation,
         "service_result": service_result,
-        "artifacts": [artifact(output)],
+        "artifacts": [{**artifact(output), "role": "MASTER"}, *generated_configuration],
         "commands_sha256": sha(commands),
         "commands_path": str(commands),
         "visual_review": "PENDING",
         "nle_review": "PENDING",
-        "viewing_derivatives": "NOT_RUN; create only after timed cells in a separate admitted task",
+        "viewing_derivatives": "NOT_RUN; run the admitted views phase after all timed cells",
     }
 
 
 def worker(request_path: Path) -> None:
+    try:
+        _execute_worker(request_path)
+    except subprocess.CalledProcessError as exc:
+        request = load(request_path)
+        diagnostic = exc.stderr or b""
+        if isinstance(diagnostic, bytes):
+            diagnostic = diagnostic.decode(errors="replace")
+        unsupported = any(
+            token in diagnostic.lower()
+            for token in (
+                "unknown encoder",
+                "no such filter",
+                "encoder not found",
+                "not supported",
+                "unsupported",
+                "device not found",
+                "no device available",
+            )
+        )
+        if request["kind"] not in {"cpu-probe", "gpu-probe"} or not unsupported:
+            raise
+        commands = Path(request["commands"])
+        save_new(
+            Path(request["result"]),
+            {
+                "capability_skip": True,
+                "validation": {"passed": False},
+                "reason": "explicit runtime capability unsupported; no fallback",
+                "argv": exc.cmd,
+                "returncode": exc.returncode,
+                "stderr": diagnostic,
+                "stdout": str(exc.stdout),
+                "commands_path": str(commands),
+                "commands_sha256": sha(commands),
+                "artifacts": [],
+                "device": None,
+            },
+        )
+
+
+def _execute_worker(request_path: Path) -> None:
     request = load(request_path)
     if request.get("launcher_pid") != os.getppid():
         raise ValueError("internal worker requires its admitted live parent; no replay")
@@ -1103,7 +1325,7 @@ def worker(request_path: Path) -> None:
                 threads=1,
             )
         ff.record_command(commands, argv, phase="runtime-alpha-probe")
-        subprocess.run(argv, capture_output=True, check=True, timeout=30)
+        ff.run_captured(argv, commands, phase="runtime-alpha-probe-outcome", timeout=30)
         dims = 12 if name == "CROP-OUT" else 16
         validation = ff.inspect_master(
             tools["ffmpeg"]["path"],
@@ -1132,34 +1354,58 @@ def worker(request_path: Path) -> None:
         result = (
             prepare_fixture(request, session)
             if request["kind"] == "prepare"
+            else prepare_views(request, session)
+            if request["kind"] == "views"
             else run_cell(request, session)
         )
+    commands = Path(request["commands"])
+    if not commands.exists():
+        commands.touch(exist_ok=False)
+    result.update(commands_path=str(commands), commands_sha256=sha(commands))
     save_new(Path(request["result"]), result)
+
+
+def historical_session(run: Path) -> dict[str, Any]:
+    session = load(run / "session.json")
+    prepared = [r for r in Ledger(run).read() if r["event"] == "PREPARED"]
+    if len(prepared) != 1 or prepared[0]["session_sha256"] != sha(run / "session.json"):
+        raise ValueError("frozen session changed/missing PREPARED: HOLD")
+    return session
 
 
 def report(run: Path) -> dict[str, Any]:
     ledger = Ledger(run).read()
-    session = load(run / "session.json") if (run / "session.json").exists() else None
-    cells = []
-    for c in session["cells"] if session else []:
-        records = [r for r in ledger if r["cell"] == c["id"]]
-        finish = next((r for r in records if r["event"] == "FINISHED"), None)
-        skip = any(r["event"] == "SKIP" for r in records)
-        started = any(r["event"] == "STARTED" for r in records)
-        status = (
-            finish["status"]
-            if finish
-            else "SKIP"
-            if skip
-            else "HOLD_UNCERTAIN"
-            if started
-            else "NOT_RUN"
+    session = historical_session(run) if (run / "session.json").exists() else None
+    attempts = []
+    for start in (r for r in ledger if r["event"] == "STARTED"):
+        finish = next(
+            (r for r in ledger if r["cell"] == start["cell"] and r["event"] == "FINISHED"), None
         )
+        status = finish["status"] if finish else "HOLD_UNCERTAIN"
         result = finish.get("result") if finish else None
-        if finish and finish["status"] == "TECHNICAL_PASS" and result is not None:
-            try:
-                if sha(Path(finish["result_path"])) != finish["result_sha256"]:
-                    raise ValueError("result changed")
+        reasons = []
+        try:
+            if start.get("request_sha256"):
+                req = (
+                    Path(finish["request_path"])
+                    if finish and finish.get("request_path")
+                    else run / (start["cell"] + ".request.json")
+                )
+                if sha(req) != start["request_sha256"]:
+                    raise ValueError("request changed")
+            if (
+                finish
+                and finish.get("commands_path")
+                and sha(Path(finish["commands_path"])) != finish["commands_sha256"]
+            ):
+                raise ValueError("commands changed")
+            if (
+                finish
+                and finish.get("result_sha256")
+                and sha(Path(finish["result_path"])) != finish["result_sha256"]
+            ):
+                raise ValueError("result changed")
+            if result:
                 for item in result.get("artifacts", []):
                     if sha(Path(item["path"])) != item["sha256"]:
                         raise ValueError("artifact changed")
@@ -1168,35 +1414,260 @@ def report(run: Path) -> dict[str, Any]:
                     and sha(Path(result["commands_path"])) != result["commands_sha256"]
                 ):
                     raise ValueError("commands changed")
-            except (OSError, ValueError):
-                status = "HOLD_READBACK_CHANGED"
+        except (OSError, ValueError) as exc:
+            reasons.append(str(exc))
+            status = "HOLD_READBACK_CHANGED"
+        attempts.append(
+            {
+                "id": start["cell"],
+                "status": status,
+                "start": start,
+                "finish": finish,
+                "reasons": reasons,
+                "result": {**result, "throughput_fresh": False} if result else None,
+            }
+        )
+    index = {a["id"]: a for a in attempts}
+    pairs: list[dict[str, Any]] = []
+    cells = []
+    session_cells = session["cells"] if session else []
+    for c in session_cells:
+        members = sorted(
+            m["id"]
+            for m in session_cells
+            if all(m[k] == c[k] for k in ("workload", "pair", "scope"))
+        )
+        events = [r for r in ledger if sorted(r.get("members", [])) == members]
+        pair_status = (
+            "REJECTED"
+            if any(r["event"] == "PAIR_REJECTED" for r in events)
+            else "VERIFIED"
+            if any(r["event"] == "PAIR_VERIFIED" for r in events)
+            else "SKIP"
+            if c["skip"]
+            else "PENDING"
+        )
+        if not any(p["members"] == members for p in pairs):
+            pairs.append({"members": members, "status": pair_status, "events": events})
+        attempt = index.get(c["id"])
+        status = attempt["status"] if attempt else "SKIP" if c["skip"] else "NOT_RUN"
+        if pair_status == "REJECTED":
+            status = "HOLD_PAIR_REJECTED"
         cells.append(
             {
                 **c,
                 "status": status,
-                "actual_action": "PROCESS" if finish else "NOT_RUN",
+                "pair_status": pair_status,
+                "actual_action": "PROCESS" if attempt else "NOT_RUN",
                 "report_action": "READBACK_NOT_PROCESS",
-                "result": {**result, "throughput_fresh": False} if result else None,
+                "result": attempt["result"] if attempt else None,
+                "viewing": index.get(c["id"] + "-views"),
                 "fresh_on_resume": False,
                 "speedup": None,
             }
         )
+    holds = [
+        a["id"] + ":" + a["status"]
+        for a in attempts
+        if a["status"] not in {"TECHNICAL_PASS", "CAPABILITY_SKIP"}
+    ]
+    holds += ["PAIR_REJECTED:" + ",".join(p["members"]) for p in pairs if p["status"] == "REJECTED"]
     return {
+        "status": "HOLD"
+        if holds
+        else "INCOMPLETE"
+        if any(c["status"] == "NOT_RUN" or c["pair_status"] == "PENDING" for c in cells)
+        else "TECHNICAL_SCREEN_COMPLETE",
+        "hold_reasons": holds,
+        "attempts": attempts,
+        "pairs": pairs,
         "cells": cells,
         "cell_count": len(cells),
-        "render_fixture_attempts": sum(r["event"] == "STARTED" for r in ledger),
+        "total_attempts": len(attempts),
+        "render_fixture_attempts": sum(a["start"].get("kind") != "views" for a in attempts),
+        "view_attempts": sum(a["start"].get("kind") == "views" for a in attempts),
+        "view_worker_seconds": sum(
+            a["finish"].get("elapsed_seconds", 0)
+            for a in attempts
+            if a["finish"] and a["start"].get("kind") == "views"
+        ),
+        "viewing_status": "COMPLETE"
+        if cells
+        and all(
+            c["status"] == "SKIP" or (c["viewing"] and c["viewing"]["status"] == "TECHNICAL_PASS")
+            for c in cells
+        )
+        else "NOT_RUN_OR_INCOMPLETE",
+        "artifact_index": [
+            dict(item, attempt=a["id"])
+            for a in attempts
+            if a["result"]
+            for item in a["result"].get("artifacts", [])
+        ],
         "measured_screen_seconds": sum(
-            r.get("elapsed_seconds", 0) for r in ledger if r["event"] == "FINISHED"
+            a["finish"].get("elapsed_seconds", 0)
+            for a in attempts
+            if a["finish"] and a["start"].get("kind") != "views"
         ),
         "catalog": [{"id": c, "status": "UNIMPLEMENTED", "execution": "NOT_RUN"} for c in CATALOG],
         "visual_review": "PENDING",
         "nle_review": "PENDING",
         "speedup": None,
+        "report_exit_semantics": "2 on HOLD; 0 indexes complete or explicitly incomplete screen",
         "scope_note": (
-            "codec and service costs are separate; no automatic visual acceptance "
-            "or cross-host/whole-renderer speedup"
+            "codec/service/view/proxy/verification costs separate; no automatic acceptance"
         ),
     }
+
+
+def prepare_views(request: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
+    """Admitted post-timed derivatives, never a fresh throughput sample."""
+    verification_start = time.perf_counter()
+    result, w = request["tested_result"], request["workload_config"]
+    root, log = Path(request["media"]), Path(request["commands"])
+    root.mkdir()
+    master = Path(result["artifacts"][0]["path"])
+    if sha(master) != result["artifacts"][0]["sha256"]:
+        raise ValueError("tested master changed")
+    tools = session["tools"]
+    executable, probe = tools["ffmpeg"]["path"], tools["ffprobe"]["path"]
+    crop = (
+        ff.Crop(**{k: result["crop_transform"][k] for k in ff.Crop.__dataclass_fields__})
+        if result["crop_transform"]
+        else None
+    )
+    width, height = (crop.width, crop.height) if crop else (w["width"], w["height"])
+    proxy_seconds = verification_seconds = 0.0
+    artifacts = [{**artifact(master), "role": "MASTER"}]
+    verification_seconds = time.perf_counter() - verification_start
+    comparison = master
+    if master.suffix.lower() != ".mov":
+        comparison = root / "comparison-proxy.mov"
+        argv = ff.viewing_argv(
+            executable,
+            master,
+            comparison,
+            width=width,
+            height=height,
+            fps=w["fps"],
+            frames=w["frames"],
+            background=session["manifest"]["viewing_background"],
+            proxy=True,
+        )
+        t0 = time.perf_counter()
+        ff.run_captured(argv, log, phase="post-timed-mov-proxy")
+        proxy_seconds = time.perf_counter() - t0
+        t0 = time.perf_counter()
+        ff.inspect_master(
+            executable,
+            probe,
+            comparison,
+            width=width,
+            height=height,
+            fps=w["fps"],
+            frames=w["frames"],
+            candidate="CPU-BASE",
+            command_log=log,
+        )
+        artifacts.append(
+            {
+                **artifact(comparison),
+                "role": "COMPARISON_MOV_PROXY",
+                "original_container_NLE_proof": False,
+            }
+        )
+        verification_seconds += time.perf_counter() - t0
+    else:
+        t0 = time.perf_counter()
+        artifacts.append(
+            {
+                **artifact(master),
+                "role": "COMPARISON_MOV",
+                "reuse": "REUSED_TESTED_MOV_NO_TRANSCODE",
+            }
+        )
+        verification_seconds += time.perf_counter() - t0
+    view = root / "intended-background.mp4"
+    argv = ff.viewing_argv(
+        executable,
+        master,
+        view,
+        width=w["width"],
+        height=w["height"],
+        fps=w["fps"],
+        frames=w["frames"],
+        background=session["manifest"]["viewing_background"],
+        crop=crop,
+    )
+    t0 = time.perf_counter()
+    ff.run_captured(argv, log, phase="post-timed-background-view")
+    view_seconds = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    validation = ff.inspect_view(
+        executable,
+        probe,
+        view,
+        width=w["width"],
+        height=w["height"],
+        fps=w["fps"],
+        frames=w["frames"],
+        command_log=log,
+    )
+    artifacts.append({**artifact(view), "role": "COMPOSITED_MP4"})
+    verification_seconds += time.perf_counter() - t0
+    return {
+        "validation": validation,
+        "artifacts": artifacts,
+        "comparison_mov": str(comparison),
+        "proxy_seconds": proxy_seconds,
+        "view_seconds": view_seconds,
+        "verification_and_hash_seconds": verification_seconds,
+        "timer_scope": (
+            "post-timed command walls; verification/hash separate from proxy/view and cell timers"
+        ),
+        "background": session["manifest"]["viewing_background"],
+        "alpha_association": "straight",
+        "crop_pad_transform": result["crop_transform"],
+        "throughput_fresh": False,
+        "visual_review": "PENDING",
+        "nle_review": "PENDING",
+    }
+
+
+def run_views(run: Path) -> dict[str, Any]:
+    session = verified_session(run)
+    ledger, media = Ledger(run), Path(session["media"])
+    with ledger.locked():
+        before = report(run)
+        if before["status"] != "TECHNICAL_SCREEN_COMPLETE":
+            raise ValueError("post-timed views require all timed pairs terminal and no HOLD")
+        for cell in before["cells"]:
+            if cell["status"] == "SKIP":
+                continue
+            ident = cell["id"] + "-views"
+            if readback(ledger, ident) is not None:
+                continue
+            w = next(w for w in session["workloads"] if w["id"] == cell["workload"])
+            req = {
+                "kind": "views",
+                "id": ident,
+                "session": str(run / "session.json"),
+                "tested_result": cell["result"],
+                "workload_config": w,
+                "media": str(media / ident),
+                "commands": str(run / (ident + ".commands.jsonl")),
+                "result": str(run / (ident + ".result.json")),
+            }
+            result = bounded_worker(
+                run,
+                media,
+                req,
+                Limits(**session["manifest"]["limits"]),
+                starting_bytes=session["initial_media_bytes"],
+            )
+            if not result.get("validation", {}).get("passed"):
+                raise ValueError("view generation failed; no automatic retry")
+    return report(run)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1205,7 +1676,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("preflight", "prepare", "one", "batch", "resume", "report"):
+    for command in ("preflight", "prepare", "one", "batch", "resume", "report", "views"):
         p = sub.add_parser(command)
         p.add_argument("--run", type=Path, required=True)
         if command in {"preflight", "prepare"}:
@@ -1215,6 +1686,7 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--ffmpeg", default="ffmpeg")
             p.add_argument("--ffprobe", default="ffprobe")
             p.add_argument("--gpu-envelope", type=Path)
+            p.add_argument("--limits", type=Path, help="JSON Limits frozen before any probes")
         if command == "prepare":
             p.add_argument("--manifest", type=Path, required=True)
             p.add_argument("--audio", type=Path, required=True)
@@ -1238,6 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
                 ffmpeg=args.ffmpeg,
                 ffprobe=args.ffprobe,
                 gpu_envelope=args.gpu_envelope,
+                limits=Limits(**load(args.limits)) if args.limits else None,
             )
         elif args.command == "prepare":
             value = prepare(
@@ -1250,13 +1723,27 @@ def main(argv: list[str] | None = None) -> int:
                 enable=args.enable,
                 nle_record=args.nle_record,
             )
+        elif args.command == "views":
+            value = run_views(args.run)
         elif args.command == "report":
             value = report(args.run)
         else:
             value = run_cells(args.run, cell=args.cell if args.command == "one" else None)
         print(json.dumps(value, indent=2, sort_keys=True, allow_nan=False))
-        return 0
+        return 2 if value.get("status") == "HOLD" else 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        if isinstance(exc, subprocess.CalledProcessError):
+            print(
+                json.dumps(
+                    {
+                        "argv": exc.cmd,
+                        "returncode": exc.returncode,
+                        "stdout": str(exc.stdout),
+                        "stderr": str(exc.stderr),
+                    }
+                ),
+                file=sys.stderr,
+            )
         print(f"experiment refused/held: {exc}", file=sys.stderr)
         return 2
 
