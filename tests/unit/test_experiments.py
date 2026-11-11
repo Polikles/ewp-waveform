@@ -703,3 +703,68 @@ def test_explicit_unsupported_probe_skip_not_budget_failure(
     assert skip["capability_skip"] and skip["returncode"] == 9
     assert skip["stderr"] == "unsupported device format"
     assert skip["commands_sha256"] == app.sha(commands)
+
+
+def test_missing_prepared_session_cannot_report_completion(tmp_path: Path) -> None:
+    cells = text_session(tmp_path)
+    finish_text(tmp_path, "a")
+    finish_text(tmp_path, "b")
+    app.Ledger(tmp_path).append("PAIR_REJECTED", "a", members=[c["id"] for c in cells])
+    (tmp_path / "session.json").unlink()
+    with pytest.raises(ValueError, match="frozen session missing"):
+        app.report(tmp_path)
+    assert app.main(["report", "--run", str(tmp_path)]) == 2
+
+
+def test_partial_capability_pair_is_consistent_terminal_skip(tmp_path: Path) -> None:
+    cells = [
+        {
+            "id": "a",
+            "pair": "PRORES-Q4",
+            "workload": "SPEECH4",
+            "scope": "codec",
+            "variant": "CPU-BASE",
+            "skip": None,
+        },
+        {
+            "id": "b",
+            "pair": "PRORES-Q4",
+            "workload": "SPEECH4",
+            "scope": "codec",
+            "variant": "PRORES-Q4",
+            "skip": "runtime unsupported",
+        },
+    ]
+    app.save_new(tmp_path / "session.json", {"cells": cells})
+    app.Ledger(tmp_path).append(
+        "PREPARED", "session", session_sha256=app.sha(tmp_path / "session.json")
+    )
+    finish_text(tmp_path, "a")
+    result = app.report(tmp_path)
+    assert result["status"] == "TECHNICAL_SCREEN_COMPLETE"
+    assert all(p["status"] == "SKIP" for p in result["pairs"])
+    assert all(c["pair_status"] == "SKIP" for c in result["cells"])
+    assert result["cells"][0]["status"] == "TECHNICAL_PASS"  # unpaired observation only
+    assert result["cells"][1]["status"] == "SKIP"
+
+
+def test_timeout_capture_preserves_partial_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    argv = ["never-executed-encoder"]
+
+    def timed_out(*args: Any, **kwargs: Any) -> Any:
+        raise subprocess.TimeoutExpired(
+            argv, 30, output=b"partial stdout", stderr=b"unique timeout device cause"
+        )
+
+    monkeypatch.setattr(subprocess, "run", timed_out)
+    path = tmp_path / "commands.jsonl"
+    with pytest.raises(subprocess.TimeoutExpired):
+        ff.run_captured(argv, path, phase="probe", timeout=30)
+    outcome = json.loads(path.read_text().splitlines()[-1])
+    assert outcome["returncode"] is None and outcome["status"] == "TIMEOUT"
+    assert outcome["stdout"] == "partial stdout"
+    assert outcome["stderr"] == "unique timeout device cause"

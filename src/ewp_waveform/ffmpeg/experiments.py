@@ -574,7 +574,31 @@ def run_captured(
     argv: list[str], log: Path, *, phase: str, timeout: int | None = None
 ) -> subprocess.CompletedProcess[bytes]:
     record_command(log, argv, phase=phase)
-    result = subprocess.run(argv, capture_output=True, check=False, timeout=timeout)
+    try:
+        result = subprocess.run(argv, capture_output=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+
+        def diagnostic(value: bytes | str | None) -> str | None:
+            return value.decode(errors="replace") if isinstance(value, bytes) else value
+
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "phase": phase + "-outcome",
+                        "argv": argv,
+                        "status": "TIMEOUT",
+                        "returncode": None,
+                        "timeout_seconds": exc.timeout,
+                        "stdout": diagnostic(exc.stdout),
+                        "stderr": diagnostic(exc.stderr),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            stream.flush()
+        raise
     with log.open("a", encoding="utf-8") as stream:
         stream.write(
             json.dumps(

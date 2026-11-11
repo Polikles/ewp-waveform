@@ -721,8 +721,12 @@ def prepare(
             for scope in ("codec", "service"):
                 for position, variant in enumerate(order):
                     skip = None
-                    if cap["adapters"].get(variant, {}).get("status") != "READY":
-                        skip = "adapter runtime probe did not pass"
+                    if any(
+                        cap["adapters"].get(member, {}).get("status") != "READY"
+                        for member in ("CPU-BASE", name)
+                    ):
+                        # Eligibility belongs to the comparison, not one member.
+                        skip = "paired adapter runtime probe did not pass"
                     if name == "ENC-FFV1" and not ffv1_nle_pass:
                         skip = (
                             "FFV1 Studio import/alpha/seek prerequisite PENDING; "
@@ -1375,6 +1379,9 @@ def historical_session(run: Path) -> dict[str, Any]:
 
 def report(run: Path) -> dict[str, Any]:
     ledger = Ledger(run).read()
+    prepared = any(r["event"] == "PREPARED" for r in ledger)
+    if prepared and not (run / "session.json").is_file():
+        raise ValueError("frozen session missing after PREPARED: HOLD")
     session = historical_session(run) if (run / "session.json").exists() else None
     attempts = []
     for start in (r for r in ledger if r["event"] == "STARTED"):
@@ -1444,13 +1451,13 @@ def report(run: Path) -> dict[str, Any]:
             else "VERIFIED"
             if any(r["event"] == "PAIR_VERIFIED" for r in events)
             else "SKIP"
-            if c["skip"]
+            if any(m["skip"] for m in session_cells if m["id"] in members)
             else "PENDING"
         )
         if not any(p["members"] == members for p in pairs):
             pairs.append({"members": members, "status": pair_status, "events": events})
         attempt = index.get(c["id"])
-        status = attempt["status"] if attempt else "SKIP" if c["skip"] else "NOT_RUN"
+        status = attempt["status"] if attempt else "SKIP" if pair_status == "SKIP" else "NOT_RUN"
         if pair_status == "REJECTED":
             status = "HOLD_PAIR_REJECTED"
         cells.append(
@@ -1476,7 +1483,9 @@ def report(run: Path) -> dict[str, Any]:
         "status": "HOLD"
         if holds
         else "INCOMPLETE"
-        if any(c["status"] == "NOT_RUN" or c["pair_status"] == "PENDING" for c in cells)
+        if not session
+        or not cells
+        or any(c["status"] == "NOT_RUN" or c["pair_status"] == "PENDING" for c in cells)
         else "TECHNICAL_SCREEN_COMPLETE",
         "hold_reasons": holds,
         "attempts": attempts,
@@ -1738,6 +1747,20 @@ def main(argv: list[str] | None = None) -> int:
                     {
                         "argv": exc.cmd,
                         "returncode": exc.returncode,
+                        "stdout": str(exc.stdout),
+                        "stderr": str(exc.stderr),
+                    }
+                ),
+                file=sys.stderr,
+            )
+        elif isinstance(exc, subprocess.TimeoutExpired):
+            print(
+                json.dumps(
+                    {
+                        "argv": exc.cmd,
+                        "returncode": None,
+                        "status": "TIMEOUT",
+                        "timeout_seconds": exc.timeout,
                         "stdout": str(exc.stdout),
                         "stderr": str(exc.stderr),
                     }
