@@ -104,5 +104,22 @@
       "status": "UNIMPLEMENTED",
       "execution": "NOT_RUN"
     }
-  ]
+  ],
+  "visual_overrides": {
+    "detail_level": "balanced",
+    "amplitude": 0.82,
+    "stroke_width": 1.0,
+    "glow_level": "high",
+    "visual_noise": 0.35,
+    "idle_activity": 0.0,
+    "noise_rate": 0.8,
+    "noise_seed": 1729,
+    "reflection_opacity": 0.45,
+    "center_line": true,
+    "center_line_extent": 0.96,
+    "center_line_opacity": 0.55,
+    "background_mode": "dark-background",
+    "color_mode": "auto"
+  },
+  "viewing_background": "#081018"
 }

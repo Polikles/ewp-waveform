@@ -15,20 +15,21 @@ import sys
 import uuid
 import wave
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 from ewp_waveform.application import experiments as app
 
 
-def cli(run: Path, *args: str) -> dict:
+def cli(run: Path, *args: str) -> dict[str, Any]:
     command = [sys.executable, "-m", "ewp_waveform.application.experiments", *args]
     result = subprocess.run(command, capture_output=True, text=True, timeout=180)
     ident = uuid.uuid4().hex[:8]
     (run / f"cli-{ident}.stdout.txt").write_text(result.stdout)
     (run / f"cli-{ident}.stderr.txt").write_text(result.stderr)
     assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return cast(dict[str, Any], json.loads(result.stdout))
 
 
 def test_experiments_real_cpu_shared_fixture_service_and_resume(tmp_path: Path) -> None:
@@ -56,7 +57,7 @@ def test_experiments_real_cpu_shared_fixture_service_and_resume(tmp_path: Path) 
     assert all(p["status"] == "SKIP" for p in pf["gpu"].values())
     manifest = {
         "schema_version": 1,
-        "design_sha256": "a" * 64,
+        "design_sha256": app.DESIGN_SHA256,
         "candidates": ["CROP-OUT", "PRORES-Q4"],
         "workloads": [{"id": "SPEECH4", "start": 0.05, "duration": 0.05}],
         "limits": {
@@ -66,6 +67,8 @@ def test_experiments_real_cpu_shared_fixture_service_and_resume(tmp_path: Path) 
             "reserve_bytes": 10 * app.GIB,
         },
         "catalog": [],
+        "visual_overrides": dict(app.VISUAL),
+        "viewing_background": "#081018",
     }
     mpath = tmp_path / "tiny.json"
     app.save_new(mpath, manifest)
@@ -114,6 +117,16 @@ def test_experiments_real_cpu_shared_fixture_service_and_resume(tmp_path: Path) 
         if c["variant"] == "CROP-OUT":
             assert r["crop_transform"]["canvas_width"] == 1400
             assert r["crop_transform"]["canvas_height"] == 280
+    views = cli(tmp_path, "views", "--run", str(tmp_path))
+    assert views["view_attempts"] == 8
+    assert views["render_fixture_attempts"] == 13
+    assert views["viewing_status"] == "COMPLETE"
+    assert {a["role"] for a in views["artifact_index"] if a.get("role")} >= {
+        "MASTER",
+        "COMPARISON_MOV",
+        "COMPOSITED_MP4",
+    }
+    assert cli(tmp_path, "views", "--run", str(tmp_path))["view_attempts"] == 8
     again = cli(tmp_path, "resume", "--run", str(tmp_path))
     assert again["render_fixture_attempts"] == result["render_fixture_attempts"]
     assert again["speedup"] is None
@@ -136,5 +149,5 @@ def test_experiments_real_cpu_shared_fixture_service_and_resume(tmp_path: Path) 
         timeout=30,
     )
     assert proc.returncode == 2 and "artifact changed" in proc.stderr
-    assert len([r for r in app.Ledger(tmp_path).read() if r["event"] == "STARTED"]) == 13
+    assert len([r for r in app.Ledger(tmp_path).read() if r["event"] == "STARTED"]) == 21
     (tmp_path / "retained-synthetic-media.json").write_text(json.dumps({"media": str(media)}))
