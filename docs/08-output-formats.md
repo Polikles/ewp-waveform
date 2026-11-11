@@ -83,6 +83,18 @@ consumer's alpha interpretation and compare canonical PNG against decoded MOV
 over the same background before changing appearance controls. No automatic
 consumer detection or new encoder/metadata guarantee is introduced here.
 
+A viewer that discards alpha entirely displays raw RGB, not the intended
+composition: low-alpha halo pixels can become a solid band and the reflected
+body can look fully opaque. A missing-looking horizon in that view is not an
+opacity/extent measurement. For ordinary-player inspection, use a **separate,
+explicitly flattened inspection copy** over the intended background and label it
+nontransparent. Keep the original transparent production asset for composition.
+Flattening must apply straight alpha before dropping the channel; simply
+converting RGBA to RGB is not flattening. Do not silently premultiply production
+RGB, change appearance settings, or bake a background into the canonical asset
+to accommodate an alpha-ignoring viewer. Inspection copies are not a newly
+supported application output format or proof of any consumer's default behavior.
+
 For a one-worker/two-worker comparison, use the same audio interval, resolved
 frequency span, normalization peak and mapping history. Full-source auto analysis
 and a cropped preview may select different spans and peaks; equal timestamps or
