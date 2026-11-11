@@ -11,7 +11,10 @@ from concurrent.futures import ProcessPoolExecutor as ProcessPoolExecutor
 from concurrent.futures import as_completed as as_completed
 from datetime import UTC, datetime
 from pathlib import Path as Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from ewp_waveform.application.experiments_render import ServiceExperiment
 
 import numpy as _np
 
@@ -752,6 +755,7 @@ def render_job(
     glow_level: str | None = None,
     classic_alternate_opacity: float | None = None,
     phases: PhaseTimes | None = None,
+    experiment: ServiceExperiment | None = None,
 ) -> dict[str, Any]:
     context = RenderContext(job=job, media=media, preset=preset, performance=performance)
     options = _render_options_from_legacy(
@@ -791,11 +795,20 @@ def render_job(
         classic_alternate_opacity=classic_alternate_opacity,
         phases=phases,
     )
-    outcome = _render_job(context, options)
+    outcome = (
+        _render_job(context, options)
+        if experiment is None
+        else _render_job(context, options, experiment=experiment)
+    )
     return outcome.payload
 
 
-def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutcome:
+def _render_job(
+    context: RenderContext,
+    options: RenderOptions,
+    *,
+    experiment: ServiceExperiment | None = None,
+) -> RendererOutcome:
     job = context.job
     media = context.media
     preset = context.preset
@@ -861,6 +874,8 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
         bar_center_line_width,
     )
 
+    if experiment is not None:
+        experiment.validate(job, preset, formats, duration)
     validate_output_formats(formats)
     started = _utcnow()
     if preset.signal.get("fixed_axis_profile") in CONFIGURABLE_RIBBON_PROFILES:
@@ -879,6 +894,12 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
 
     appearance = select_pipeline(job.domain.value).prepare(_pipeline_hooks(), preset, options)
     fixed_axis_recipe = appearance.identity() if appearance is not None else None
+    lifecycle_hooks = _lifecycle_hooks()
+    pipeline_hooks = _pipeline_hooks()
+    if experiment is not None:
+        fixed_axis_recipe = {**(fixed_axis_recipe or {}), "experiment": experiment.identity()}
+        lifecycle_hooks = experiment.lifecycle_hooks(lifecycle_hooks)
+        pipeline_hooks = experiment.pipeline_hooks(pipeline_hooks)
 
     def note(message: str) -> None:
         if progress is not None:
@@ -888,7 +909,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
     source_sha = sha256_file(job.path)
     clip_start, clip_duration = _clip_bounds(media, start, duration)
     selection = render_lifecycle.prepare_destinations(
-        _lifecycle_hooks(),
+        lifecycle_hooks,
         job,
         preset,
         source_sha=source_sha,
@@ -904,7 +925,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
     expected_frames = selection.expected_frames
     lifecycle = render_lifecycle.RenderLifecycle(
         RenderContext(job=job, media=media, preset=preset, performance=performance),
-        _lifecycle_hooks(),
+        lifecycle_hooks,
         selection,
         source_sha,
         started,
@@ -942,7 +963,7 @@ def _render_job(context: RenderContext, options: RenderOptions) -> RendererOutco
         raw_threads = performance.processing.get("ffmpeg_threads", 0)
         threads = raw_threads if isinstance(raw_threads, int) else 0
         select_pipeline(job.domain.value).run(
-            _pipeline_hooks(),
+            pipeline_hooks,
             PipelineRun(
                 context=RenderContext(job=job, media=media, preset=preset, performance=performance),
                 appearance=appearance,

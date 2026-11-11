@@ -3,13 +3,34 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+
+_COMMAND_EVIDENCE: ContextVar[Path | None] = ContextVar("ffmpeg_command_evidence", default=None)
+
+
+@contextlib.contextmanager
+def command_evidence(path: Path) -> Iterator[None]:
+    """Explicit same-process observation only; no default command or output changes."""
+    token = _COMMAND_EVIDENCE.set(path)
+    try:
+        yield
+    finally:
+        _COMMAND_EVIDENCE.reset(token)
+
+
+def _record_command(argv: list[str]) -> None:
+    path = _COMMAND_EVIDENCE.get()
+    if path is not None:
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"phase": "production-subprocess", "argv": argv}) + "\n")
 
 
 class ToolNotFoundError(RuntimeError):
@@ -28,6 +49,7 @@ def run_argv(argv: list[str]) -> subprocess.CompletedProcess[str]:
     if not argv:
         msg = "empty argv"
         raise ValueError(msg)
+    _record_command(argv)
     return subprocess.run(argv, check=False, capture_output=True, text=True)
 
 
@@ -56,6 +78,7 @@ def run_argv_stdin(
     if not argv:
         msg = "empty argv"
         raise ValueError(msg)
+    _record_command(argv)
     proc = subprocess.Popen(
         argv,
         stdin=subprocess.PIPE,

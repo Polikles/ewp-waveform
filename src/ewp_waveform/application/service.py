@@ -8,7 +8,10 @@ import stat
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from ewp_waveform.application.experiments_render import ServiceExperiment
 
 from pydantic import ValidationError
 
@@ -359,6 +362,7 @@ def render(
     center_line_opacity: float | None = None,
     background_mode: str | None = None,
     color_mode: str | None = None,
+    experiment: ServiceExperiment | None = None,
 ) -> list[dict[str, object]]:
     app_cfg, preset, jobs, diagnostics = dry_run(
         input_path,
@@ -495,6 +499,7 @@ def render(
             ),
             glow_level=glow_level,
             classic_alternate_opacity=classic_alternate_opacity,
+            **cast(dict[str, Any], {"experiment": experiment} if experiment is not None else {}),
         )
         if extra_space:
             existing = payload.get("warnings")

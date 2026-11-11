@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ewp_waveform.ffmpeg.experiments import EncodeExperiment
 
 from ewp_waveform.ffmpeg.draw import parse_rgb
 from ewp_waveform.ffmpeg.process import require_tool, run_argv_stdin
@@ -139,7 +142,10 @@ def encode_rgba_stream(
     color: str | None = None,
     n_frames: int | None = None,
     ribbon_finish: tuple[float, bool, float, float, float] | None = None,
+    experiment: EncodeExperiment | None = None,
 ) -> None:
+    if experiment is not None and (png_dir is not None or prores_path is None):
+        raise ValueError("experiments require one MOV output, never simultaneous PNG")
     if png_dir is None and prores_path is None:
         msg = "encode_rgba_stream requires png_dir and/or prores_path"
         raise ValueError(msg)
@@ -254,6 +260,10 @@ def encode_rgba_stream(
                 str(prores_path),
             ]
         )
+    if experiment is not None:
+        from ewp_waveform.ffmpeg.experiments import experiment_argv
+
+        argv = experiment_argv(argv, experiment)
     completed = run_argv_stdin(argv, frames, phases=phases)
     if completed.returncode != 0:
         msg = completed.stderr.decode("utf-8", errors="replace")
