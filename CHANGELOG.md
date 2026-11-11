@@ -1,5 +1,7 @@
 # Changelog
 
+- Filled ribbon: protect real one/two-worker production reflection, horizon and silence appearance; clarify existing straight-alpha interpretation and full/cropped analysis context. No renderer, appearance-setting or version change.
+
 - Filled ribbon: explicit dark-background/light-background foreground modes with auto/custom color policy; transparent output and geometry preserved.
 
 - Filled ribbon: independent lower body/halo alpha and centered horizon opacity/extent/enable; existing stroke_width remains final-pixel baseline thickness. Mapping7 and other styles preserved.

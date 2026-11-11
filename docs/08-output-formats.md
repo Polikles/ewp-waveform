@@ -64,3 +64,31 @@ SKIPPED. Newly produced invalid outputs return the existing FAILED/validation
 failure and are not published. A missing expected PNG work directory also fails
 validation. This does not redesign publication across multiple output formats,
 checkpoint reuse policy, planning's advisory SKIP, repair, deletion or retry.
+
+
+### Filled-ribbon alpha association and appearance checks
+
+The refined filled ribbon writes **straight (unassociated) alpha**: where alpha
+is nonzero, canonical RGB remains the selected foreground color, not that color
+multiplied by alpha. Reflection attenuates lower-body/halo alpha, not RGB. The
+independent horizon uses its configured final-pixel coverage and opacity. Exact
+silence with idle activity zero contributes no body or halo; the enabled horizon
+alone remains. A genuinely active body can cover the horizon at the shared seam.
+
+Composite these assets with straight-alpha interpretation. Applying a
+premultiplied-alpha interpretation to straight RGB can make a low-alpha lower
+reflection or halo appear too bright or broad. This is an interpretation hazard,
+not evidence of a defect in any particular player or NLE. Confirm the actual
+consumer's alpha interpretation and compare canonical PNG against decoded MOV
+over the same background before changing appearance controls. No automatic
+consumer detection or new encoder/metadata guarantee is introduced here.
+
+For a one-worker/two-worker comparison, use the same audio interval, resolved
+frequency span, normalization peak and mapping history. Full-source auto analysis
+and a cropped preview may select different spans and peaks; equal timestamps or
+appearance settings alone do not imply equal contour heights. Regression tests
+exercise real spawned pool workers, compare canonical PNG and decoded ProRes,
+and reject opaque reflection, wrong horizon and broad silence even when the
+background remains transparent. Codec-appropriate alpha rounding is separate
+from geometry/coverage correctness. These checks do not establish consumer/NLE
+compositing or operator visual acceptance.
