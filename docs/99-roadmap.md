@@ -145,6 +145,14 @@ Propose a separately selectable **Mexican wave** style: stronger audio moves the
 center then propagates smoothly outward. This is distinct from ribbon and Moving
 mouth; it is not implemented or an existing control.
 
+Propose **Monowave**: one dominant wave centered horizontally, with smaller waves
+arranged symmetrically on both sides and a user-selectable number of side waves.
+It may use an appearance similar to the current filled ribbon, including compatible
+finishing effects. Implementation, visual trials and optimization are deferred.
+Defaults, numerical limits, whether counts mean pairs/per-side/total, and detailed
+motion mapping belong to the later design task. No public preset, CLI selector,
+schema option or implementation is supplied by this proposal.
+
 Propose optional visualization of speakers WITHIN ONE input track, with an initial
 user speaker count1–3 and genuine speaker-timeline annotations. Two centers1/4,3/4;
 proposed three1/6,1/2,5/6 are PENDING operator confirmation. Frequency/timbre is not
@@ -153,3 +161,20 @@ duplicating diarization. Identity ambiguity, overlapping speech, annotation
 format/tooling, missing intervals and conflict handling remain design work. Default
 one-track/one-asset behavior stays unchanged. No diarization model/dependency,
 placeholder CLI or implemented multi-speaker capability is supplied.
+
+
+## Output delivery and manuals — future only
+
+- [ ] Preserve transparent MOV masters and offer optional, correctly composited
+  opaque MP4 companions, including regeneration from an existing master without
+  audio re-analysis or waveform rendering. Automatic companion export is planned,
+  not a current application/CLI capability. The current [external FFmpeg workflow](
+  08-output-formats.md#full-master-mov-to-mp4-viewing-copies-external-ffmpeg-workflow)
+  is a separate manual conversion, not implementation of this backlog item.
+- [ ] Develop full user manuals later as separate CLI and GUI versions. Do not
+  interpret this item or the focused conversion recipe as an existing GUI or new
+  CLI command/option.
+
+The next product task is profiling the accepted ribbon pipeline to identify
+substantial optimization opportunities. Profiling, optimization and any choice of
+a Rust/native rewrite are not started or selected by this documentation update.

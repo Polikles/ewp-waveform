@@ -71,9 +71,12 @@ checkpoint reuse policy, planning's advisory SKIP, repair, deletion or retry.
 The refined filled ribbon writes **straight (unassociated) alpha**: where alpha
 is nonzero, canonical RGB remains the selected foreground color, not that color
 multiplied by alpha. Reflection attenuates lower-body/halo alpha, not RGB. The
-independent horizon uses its configured final-pixel coverage and opacity. Exact
-silence with idle activity zero contributes no body or halo; the enabled horizon
-alone remains. A genuinely active body can cover the horizon at the shared seam.
+independent horizon uses its configured final-pixel coverage and opacity. Exactly
+zero processed waveform geometry with idle activity zero contributes no body or
+halo; the enabled horizon alone remains. A zero source-audio instant after
+activity can retain nonzero mapping history and need not mean exactly zero
+processed geometry. A genuinely active body can cover the horizon at the shared
+seam.
 
 Composite these assets with straight-alpha interpretation. Applying a
 premultiplied-alpha interpretation to straight RGB can make a low-alpha lower
@@ -106,25 +109,86 @@ from geometry/coverage correctness. These checks do not establish consumer/NLE
 compositing or operator visual acceptance.
 
 
-#### Viewing-copy CLI example (outside canonical production outputs)
+#### Observed playback and alpha-aware composition
 
-With an existing transparent 1400x280/60 master, the installed FFmpeg can make a
-bounded inspection copy without re-running analysis or waveform rendering:
+In the bounded operator assessment on 2026-11-11, both full-length MP4 viewing
+copies looked correct, and the transparent MOV inspected in DaVinci Resolve
+also displayed correctly there. Ordinary-player playback of the MOV still showed
+the uniformly filled appearance described above. These are actual observations,
+not a compatibility guarantee for every player or Resolve configuration, exhaustive
+frame-by-frame inspection, performance acceptance or release approval. They do not
+confirm download or authorize cleanup.
+
+The viewing-copy tasks left the transparent MOV masters unchanged. The difference
+is playback/compositing: discarding alpha can make the reflection and weak halo
+look uniformly filled and obscure the horizon. Correct straight-alpha composition
+recovers their intended opacity; it is not a newly corrected raster implementation.
+Keep the transparent master for alpha-aware composition and use a separate opaque
+MP4 for ordinary viewing.
+
+#### Full-master MOV-to-MP4 viewing copies (external FFmpeg workflow)
+
+These two commands reproduce the verified full-viewing recipe with portable,
+quoted filenames. They are external FFmpeg commands, **not new waveform CLI
+commands or canonical application output formats**. They require the existing
+`libx264` encoder; no installation is implied. Supply the corresponding existing
+transparent masters and choose new, distinct output paths. `-n` refuses to
+overwrite an existing output; never select a master as an output path.
+
+The tested example is **1400x280, 60 fps, 23741 frames** for each master. The dark
+foreground mode is composed over RGB(8,16,24), hexadecimal `0x081018`; the light
+foreground mode uses RGB(240,240,240), hexadecimal `0xf0f0f0`.
+
+Dark background:
 
 ```bash
-ffmpeg -ss 104 -i transparent-master.mov \
-  -f lavfi -i 'color=c=0x081018:s=1400x280:r=60:d=2' \
-  -filter_complex '[1:v]format=rgba[bg];[bg][0:v]overlay=alpha=straight:format=auto:shortest=1,format=yuv420p[v]' \
-  -map '[v]' -an -frames:v 120 -c:v libx264 -crf 16 \
-  -pix_fmt yuv420p -movflags +faststart inspection-NOT-TRANSPARENT.mp4
+ffmpeg -nostdin -n -v info -xerror -i 'transparent-master-dark.mov' \
+  -f lavfi -i 'color=c=0x081018:s=1400x280:r=60' \
+  -filter_complex '[0:v]format=rgba[fg];[1:v][fg]overlay=alpha=straight:format=auto,format=yuv420p[v]' \
+  -map '[v]' -frames:v 23741 -an -c:v libx264 -preset fast -crf 12 \
+  -pix_fmt yuv420p -threads 2 -movflags +faststart 'dark-OPAQUE-viewing-full.mp4'
 ```
 
-The example requires the existing `libx264` encoder; it does not install it or
-add MP4 to the application's canonical format registry. Change the source seek,
-bounded duration/frame count, dimensions/FPS and explicit background together
-when inspecting a different asset. For the light-background foreground mode use
-an intended light inspection background, for example `0xF0F0F0`. Never overwrite
-the master. The MP4 has no alpha and is only a viewing copy; retain its input
-identity, source interval, background and output hash beside the master. A
-cropped viewing transcode retains the master's already-rendered whole-source
-normalization/mapping context, unlike a newly analysed waveform preview.
+Light background:
+
+```bash
+ffmpeg -nostdin -n -v info -xerror -i 'transparent-master-light.mov' \
+  -f lavfi -i 'color=c=0xf0f0f0:s=1400x280:r=60' \
+  -filter_complex '[0:v]format=rgba[fg];[1:v][fg]overlay=alpha=straight:format=auto,format=yuv420p[v]' \
+  -map '[v]' -frames:v 23741 -an -c:v libx264 -preset fast -crf 12 \
+  -pix_fmt yuv420p -threads 2 -movflags +faststart 'light-OPAQUE-viewing-full.mp4'
+```
+
+`format=rgba` prepares the foreground; `overlay=alpha=straight:format=auto`
+composites its unassociated alpha over the background before `format=yuv420p`
+drops alpha. Simply dropping alpha is not equivalent. Both commands produce
+silent (`-an`), lossy, opaque H.264/libx264 viewing derivatives with preset `fast`,
+CRF 12, `yuv420p`, encoder threads 2 and `+faststart`. The thread setting applies
+to the encoder, **not a whole-process thread cap**. These copies cannot replace
+the alpha masters and may differ in RGB because of compression/color conversion.
+
+For another master, obtain its actual width, height, exact frame rate (including
+any rational numerator/denominator), frame count and timestamp cadence from that
+master's validated metadata/frame inspection, not from these example constants.
+Set the background `s` and `r` to the actual dimensions and cadence, and
+`-frames:v` to the actual complete frame count. Select the intended background
+for that foreground mode. The verified recipe assumes a zero-start regular frame
+grid; do not claim it preserves arbitrary variable or irregular timestamps.
+
+The finite `-frames:v 23741` bound is essential: the generated lavfi background
+has no duration limit and must not be allowed to keep the output running
+indefinitely. Preserve the master's exact frame count and cadence, not a rounded
+audio duration. In this example the frame grid is exactly `23741/60` seconds
+(approximately 395.683333 seconds), not the source audio's 395.6785 seconds; do not
+replace the frame limit with an audio-duration `-t`. Verify the derivative's
+complete decode, dimensions, exact count, FPS and frame timestamps against its
+master, and confirm opacity/no audio and faststart. Retain input/output identities,
+background and conversion settings separately; do not overwrite the masters.
+
+A viewing copy can be regenerated from an existing MOV without audio re-analysis
+or waveform rendering, retaining that master's normalization and mapping context.
+Automatic transparent MOV plus optional MP4 companion export remains a **future
+requirement**, not a current CLI option. See the [delivery and manuals roadmap](
+99-roadmap.md#output-delivery-and-manuals--future-only). Full user manuals will be
+separate CLI and GUI documents later; this focused conversion recipe is not either
+manual.

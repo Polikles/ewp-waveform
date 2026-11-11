@@ -12,6 +12,14 @@ The project follows Semantic Versioning. Development is an internal beta; there 
 
 ## Unreleased
 
+### Documentation
+
+- Document bounded full-length MP4/Resolve observations and the verified full-master
+  straight-alpha MOV-to-MP4 workflow, preserving exact cadence/count and no-overwrite
+  safeguards. Transparent masters and runtime behavior are unchanged.
+- Retain future optional MP4 companion export and separate CLI/GUI manuals; add the
+  future-only Monowave style proposal without changing other styles or public options.
+
 ### Changed
 - Refined filled ribbon mapping revision6 uses seven overlapping causal audio
   envelopes with independently evolving local lobe heights and widths, minority
