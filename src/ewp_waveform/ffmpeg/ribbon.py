@@ -6,6 +6,8 @@ horizon -> constant unassociated color. Other styles keep their existing graph.
 
 from __future__ import annotations
 
+from math import ceil, floor
+
 from ewp_waveform.ffmpeg.draw import parse_rgb
 
 
@@ -44,6 +46,13 @@ def ribbon_graph(
         )
     body = f"lum(X,Y)*if(gt(Y,{height // 2}),{reflection},1)"
     expression = f"255*{line}+({body})*(1-{line})"
+    if line != "0" and thickness > 0:
+        # Pixel row Y intersects [top, bottom) iff top < Y+1 and Y < bottom.
+        # Keep the original arithmetic on every intersecting row and geq's lum
+        # sampling/default interpolation even on the cheaper zero-coverage path.
+        first_row, last_row = floor(top), ceil(bottom) - 1
+        if first_row > 0 or last_row < height - 1:
+            expression = f"if(between(Y,{first_row},{last_row}),{expression},{body})"
     # geq evaluates a gray mask; no per-pixel Python or RGB multiplied by alpha.
     head += f",geq=lum='{expression}',split=2[alpha][luma];"
     r, g, b = parse_rgb(color)
