@@ -188,6 +188,11 @@ def test_literal_legacy_signatures_and_defaults() -> None:
                 ("background_mode", "KEYWORD_ONLY", "str | None", None),
                 ("color_mode", "KEYWORD_ONLY", "str | None", None),
             ]
+        # The opt-in experiment bridge is an intentional 0.3.0 API addition.
+        # Keep every pre-existing parameter/type/default exact above, and require
+        # the only new public parameter to remain keyword-only and inactive by default.
+        if function in (render_module.render_job, service.render):
+            expected = [*expected, ("experiment", "KEYWORD_ONLY", "ServiceExperiment | None", None)]
         assert actual == expected
         for got, want in zip(actual, expected, strict=True):
             assert type(got[3]) is type(want[3])  # False must not silently become 0.
@@ -201,6 +206,7 @@ def test_literal_legacy_signatures_and_defaults() -> None:
     ] == [
         ("context", "POSITIONAL_OR_KEYWORD", "RenderContext", REQUIRED),
         ("options", "POSITIONAL_OR_KEYWORD", "RenderOptions", REQUIRED),
+        ("experiment", "KEYWORD_ONLY", "ServiceExperiment | None", None),
     ]
     assert executor_signature.return_annotation == "RendererOutcome"
 
