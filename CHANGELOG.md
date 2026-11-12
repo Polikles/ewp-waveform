@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.1] - 2026-11-12
+
+- Correct opt-in WSL experiment export usability with immutable human-readable
+  Markdown alongside JSON/CSV, a returned report handle and exact serialized-byte
+  admission for all four export files. Include scoped paired wall-time changes,
+  repetition limits, separate cost/acceptance axes and hash-deduplicated visual
+  artifact navigation. No media execution, default/render/performance change or
+  WSL/GPU/Resolve qualification is implied.
+- Add checksum-pinned retained-JSON diagnostic presentation without weakening
+  live session/source/ledger guards; historical media is explicitly unverified.
+- Keep all cost-table rows contiguous and retain late views comparison validation
+  in either pair order. Lead with all-cell status/cost/validation, compact identity
+  and paired results; preserve full provenance in an appendix. Escape recorded
+  inline diagnostics and reject extra retained pair members; no approval is inferred.
+
 ## [0.4.0] - 2026-11-12
 
 - Add the opt-in checkout-delivered WSL CPU/GPU experiment suite: stock-service

@@ -6,7 +6,7 @@
 
 - Specification baseline: accepted.
 - Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
-- Development version: **0.4.0**; opt-in experiment tooling adds reproducible bounded
+- Development version: **0.4.1**; opt-in experiment tooling adds reproducible bounded
   CPU screening without changing normal renderer defaults, appearance or output
   identities. Approximation experiments remain operator-assessed; see
   [the experiment contract](docs/24-experiments.md).

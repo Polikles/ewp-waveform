@@ -7,7 +7,9 @@ Specification baseline accepted.
 License: EWP Waveform Community License 1.0.
 
 The operator accepted the internal MVP at 0.1.0; current development version is
-0.4.0, adding opt-in bounded experiment tooling and preserving filled ribbon mapping7, separate Moving mouth revision4,
+0.4.1, including a compatible WSL experiment reporting correction (readable exports,
+not new performance or WSL/GPU/Resolve qualification), and preserving opt-in bounded
+experiment tooling, filled ribbon mapping7, separate Moving mouth revision4,
 selectable appearance/noise/idle controls, reflection and independent horizon,
 and dark/light-background foreground modes. Production appearance regressions
 and alpha-aware output/viewing documentation accompany this functionality.

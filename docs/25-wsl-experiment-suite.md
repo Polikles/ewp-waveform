@@ -232,7 +232,7 @@ compatibility. Separately validated opaque dark/light/checker MP4s use straight
 alpha before dropping alpha. Full views default off to avoid redundant multi-GB
 artifacts; changing that choice requires a fresh frozen manifest/envelope.
 
-Numbered immutable JSON/CSV exports and an artifact-role/hash index include every
+Numbered immutable JSON/CSV/Markdown exports and an artifact-role/hash index include every
 planned cell, retained failed/partial artifacts, selected tools/device/settings,
 measurement route and timer boundaries, skips, pairs, validation and outstanding
 visual/Studio status. Skipped/failed/unvalidated/reused/unknown measurements have
@@ -240,10 +240,89 @@ null throughput; no fresh observations are added by export. TECHNICAL_COMPLETE
 means the technical matrix succeeded, not operator promotion. COMPLETE_WITH_SKIPS
 and INCOMPLETE/HOLD cannot be reported as a fully exercised target matrix.
 
+### Human-readable report (0.4.1 reporting correction)
+
+The existing `results`/`export` path also writes `exports/results-NNNN.md` and
+returns its path as `report` beside the unchanged `json` handle. It lists all
+planned cells, explicit failure/skip/pending reasons, workload interval, timer
+scope, recorded attempted/eligible wall, recorded native output size and strict
+validation; source/interpreter/dependency/environment and selected tool/build
+identities accompany the requested device selector. A requested device is not an
+observation: preflight and hashed command evidence retain the selected-device
+proof. New JSON snapshots add the frozen initial host/resource observations;
+older exports show these as unavailable, never substitute the reporting host.
+
+The front **At a glance** table includes every planned cell's status, scope,
+recorded attempted wall, native output bytes and validation-passed field. A compact
+recorded source/interpreter/host/tool identity summary and the explicit paired
+results precede long detail JSON; full provenance remains in the appendix. Cost
+table rows are contiguous, with reasons and artifact/comparison details below the
+table. Inline recorded diagnostics are literal text, not Markdown links or claims.
+Candidate-before-control order can record comparison validation in the candidate's
+views attempt: the report retains its status, passed flag and complete descriptive
+metrics alongside the pair association and recorded equality, without inferring
+approval. Unavailable comparison evidence stays unavailable.
+
+Only explicitly declared supported pairs with the same workload and known timer
+scope, two fresh successful validated positive-time PROCESS records, and required
+B/C or F decoded equality receive percentage changes. F also requires the same
+decoded fixture identity. Both times remain visible when a comparison is withheld.
+`100 * (candidate/control - 1)` is a wall-time change, not pure GPU/encoder speedup.
+Counts are planned/eligible paired observations per workload/factor/scope, not the
+number of exports or resumed reads. Sequential small samples are descriptive;
+no unlike-codec, unlike-service or historical VM-versus-WSL GPU ranking is produced.
+
+Service wall (including service validation/publication), codec package wall
+(including fixture decode/conversion/encode/container), fixture preparation,
+external verification, view/proxy generation and worker/accounted envelopes have
+separate labels. Missing costs are unavailable, not zero; inclusive phase spans
+and worker envelopes overlap and are not additive partitions. Visual navigation
+uses only actual recorded artifact paths/roles/SHA-256, grouping equal hashes
+while retaining all aliases. A comparison MOV can be the same master; an MKV
+comparison proxy does not prove native FFV1 Resolve acceptance. Technical validity,
+file-byte identity, decoded equality, operator visual review and Resolve acceptance
+remain independent axes, with no metric-based approval or promotion.
+
+Admission uses the actual UTF-8 serialized JSON + CSV + artifact index + Markdown
+bytes, including quoting and final newlines, before creating export files. All
+snapshots remain numbered/exclusive; reporting never changes source/session/ledger
+identity guards or invokes media tools. The CSV's ten columns remain unchanged.
+
+### Historical JSON-only diagnostics (not a session export/resume bypass)
+
+Live `results`/`export` still calls `session_at` and refuses exact-source or other
+identity drift. To present an already retained immutable JSON snapshot under a
+new checkout, use the public **read-only** helper instead:
+
+```python
+from pathlib import Path
+from ewp_waveform.application.experiment_suite_reporting import render_retained_export
+
+text = render_retained_export(
+    Path(RETAINED_RESULTS_JSON), expected_sha256=SEPARATELY_RETAINED_SHA256
+)
+# After admitting len(text.encode("utf-8")) under the caller's own envelope,
+# write only to a NEW report path (never rewrite the historical run):
+with Path(NEW_REPORT_MD).open("x", encoding="utf-8", newline="") as stream:
+    stream.write(text)
+```
+
+This helper checks pinned JSON bytes and snapshot consistency only, returns text,
+requires each pair to contain exactly its referenced control and candidate,
+and never opens linked media, checks current source/session authority, resumes a
+run or creates observations. Its heading is **HISTORICAL / UNVERIFIED-MEDIA
+DIAGNOSTIC**. A supplied checksum does not prove trusted ledger ancestry or current
+artifact validity. In particular, end-of-test CPU-flow exports can still describe
+success after their fixture media was intentionally corrupted: presenting those
+records does **not** authenticate or approve the fixture/session. Keep that
+qualification with the derived report, preserve the original JSON, and perform
+any separately authorized evidence verification independently.
+
 ## Tests and current qualification boundary
 
 ```bash
-python -m pytest -q tests/unit/test_wsl_experiment_suite.py
+python -m pytest -q tests/unit/test_wsl_experiment_suite.py \
+  tests/unit/test_wsl_experiment_reporting.py
 # Parent only, after media/capacity authorization, outside-Git pytest basetemp:
 EWP_SUITE_MEDIA_TESTS=1 python -m pytest -q \
   --basetemp "$PRIVATE_TEST_ROOT" tests/integration/test_wsl_suite_cpu_flow.py
