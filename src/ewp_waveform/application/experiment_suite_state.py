@@ -42,7 +42,7 @@ def artifact(path: Path, role: str = "EVIDENCE") -> dict[str, Any]:
 def source_identity() -> dict[str, Any]:
     value = source_fingerprint()
     value["distributions"] = sorted(
-        (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
+        [d.metadata["Name"], d.version] for d in importlib.metadata.distributions()
     )
     package = Path(value["imported_product_file"]).parents[2]
     proc = subprocess.run(
@@ -154,6 +154,12 @@ def memory_headroom(snapshot: dict[str, Any]) -> int:
     return int(value)
 
 
+class ResourceLimitError(RuntimeError):
+    def __init__(self, reason: str, snapshot: dict[str, Any]) -> None:
+        super().__init__(reason)
+        self.snapshot = snapshot
+
+
 def check_envelope(
     session: dict[str, Any], estimate: dict[str, Any], *, elapsed: float = 0, spent: float = 0
 ) -> dict[str, Any]:
@@ -163,21 +169,25 @@ def check_envelope(
         max(0, v["tree_bytes"] - session["growth_baseline"][p])
         for p, v in snapshot["roots"].items()
     )
+    snapshot["observed_growth_bytes"] = growth
+    snapshot["elapsed_seconds"] = elapsed
+    snapshot["previous_accounted_seconds"] = spent
+    snapshot["prospective_allowance"] = estimate
     if growth + estimate["growth_bytes"] > limits["growth_bytes"]:
-        raise RuntimeError("growth admission/monitor limit")
+        raise ResourceLimitError("growth admission/monitor limit", snapshot)
     # Each filesystem counted once, reserve checked against remaining conservative estimate.
     devices: dict[int, int] = {}
     for v in snapshot["roots"].values():
         devices[v["device"]] = min(devices.get(v["device"], v["free_bytes"]), v["free_bytes"])
     if any(free < limits["reserve_bytes"] + estimate["growth_bytes"] for free in devices.values()):
-        raise RuntimeError("filesystem reserve admission/monitor limit")
+        raise ResourceLimitError("filesystem reserve admission/monitor limit", snapshot)
     if memory_headroom(snapshot) < limits["memory_floor_bytes"] + estimate["memory_bytes"]:
-        raise RuntimeError("available RAM/cgroup admission/monitor limit")
+        raise ResourceLimitError("available RAM/cgroup admission/monitor limit", snapshot)
     if (
         spent + elapsed + estimate["seconds"] > limits["seconds"]
         or elapsed > limits["attempt_seconds"]
     ):
-        raise RuntimeError("finite elapsed-time allowance exhausted")
+        raise ResourceLimitError("finite elapsed-time allowance exhausted", snapshot)
     return {**snapshot, "observed_growth_bytes": growth}
 
 
@@ -196,6 +206,8 @@ def lock(run: Path) -> Iterator[None]:
 
 class Ledger:
     def __init__(self, run: Path) -> None:
+        if any((run / "attempts").glob("*/resource-refusal.json")):
+            raise RuntimeError("final resource refusal retained; no successful readback/replay")
         self.path = run / "ledger.jsonl"
         self.rows: list[dict[str, Any]] = []
         previous = "0" * 64
@@ -357,7 +369,9 @@ def execute(
     limits = session["manifest"]["limits"]
     if len(existing) >= limits["attempts"]:
         raise RuntimeError("finite attempt allowance exhausted")
-    spent = sum(row["worker_wall_seconds"] for row in existing.values())
+    spent = sum(
+        row.get("accounted_wall_seconds", row["worker_wall_seconds"]) for row in existing.values()
+    )
     estimate = limits["estimates"][kind]
     before = check_envelope(session, estimate, spent=spent)
     root = run / "attempts" / ident
@@ -447,6 +461,56 @@ def execute(
         if p.is_file() and not p.is_symlink()
     ]
     result["artifacts"] = result.get("artifacts", []) + files + partial
+    # Snapshot after group shutdown AND artifact hashing. Reserve our own result,
+    # ledger row and emergency refusal receipt; this is prospective headroom, not
+    # a promise that other filesystem users cannot consume the reserve afterward.
+    allowance = 16384 + 2 * len(
+        json.dumps({**result, "resource_final": before}, indent=2, sort_keys=True).encode()
+    )
+    result["final_write_allowance_bytes"] = allowance
+    result["final_write_allowance_seconds"] = 0.25
+    result["resource_final_scope"] = "post-shutdown/post-hash; prospective receipt headroom"
+    try:
+        result["resource_final"] = check_envelope(
+            session,
+            {"growth_bytes": allowance, "memory_bytes": 0, "seconds": 0.25},
+            elapsed=time.monotonic() - started,
+            spent=spent,
+        )
+        result["resource_final_status"] = "ADMITTED"
+    except ResourceLimitError as exc:
+        result.update(
+            status="FAILED",
+            error=str(exc),
+            throughput_fresh=False,
+            resource_final=exc.snapshot,
+            resource_final_status="REFUSED",
+        )
+    result["worker_wall_seconds"] = time.monotonic() - started
+    # Charge the bounded final-write interval to future admissions as well; do
+    # not silently omit receipt I/O from cumulative suite elapsed accounting.
+    result["accounted_wall_seconds"] = result["worker_wall_seconds"] + 0.25
+    # Fail closed rather than silently exceeding the computed serialization bound.
+    if len(json.dumps(result, indent=2, sort_keys=True).encode()) + 4096 > allowance:
+        result.update(status="FAILED", error="final receipt size bound", throughput_fresh=False)
     save_new(root / "result.json", result)
     ledger.append("FINISHED", ident, result=artifact(root / "result.json"))
+    try:
+        if time.monotonic() - started > result["accounted_wall_seconds"]:
+            raise ResourceLimitError(
+                "final receipt elapsed bound exceeded",
+                resources([Path(p) for p in session["growth_baseline"]]),
+            )
+        check_envelope(
+            session,
+            {"growth_bytes": 0, "memory_bytes": 0, "seconds": 0},
+            elapsed=time.monotonic() - started,
+            spent=spent,
+        )
+    except ResourceLimitError as exc:
+        if result["status"] != "FAILED":
+            # Preserve immutable original bytes; make late external consumption or
+            # unexpectedly slow receipt I/O an explicit refusal, never a PASS.
+            save_new(root / "resource-refusal.json", {"error": str(exc), "resources": exc.snapshot})
+            raise RuntimeError("final resource refusal after evidence writes: " + str(exc)) from exc
     return result

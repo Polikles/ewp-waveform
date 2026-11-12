@@ -48,6 +48,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("both old build tools required")
     if args.old_ffmpeg:
         tools["old"] = {"ffmpeg": tool(args.old_ffmpeg), "ffprobe": tool(args.old_ffprobe)}
+    manifest.validate_attempt_budget(old_tools=tools["old"] is not None)
     for selected in tools.values():
         if selected is not None and (
             Path(selected["ffmpeg"]["path"]).name != "ffmpeg"
@@ -202,6 +203,8 @@ def dispatch(run: Path, command: str, cell_id: str | None = None) -> dict[str, A
                 "retained failure blocks dispatch; inspect and prepare a fresh namespace"
             )
         for cell in cells:
+            if any(p["status"] == "HOLD" for p in completed_pairs(cells, results)):
+                break
             if cell_id is not None and cell["id"] != cell_id:
                 continue
             if cell["id"] in results:
@@ -259,7 +262,9 @@ def dispatch(run: Path, command: str, cell_id: str | None = None) -> dict[str, A
                 w["kind"],
             )
             results[cell["id"]] = value
-            if value["status"] == "FAILED":
+            if value["status"] == "FAILED" or any(
+                p["status"] == "HOLD" for p in completed_pairs(cells, results)
+            ):
                 break
         return export_results(run)
 
@@ -392,6 +397,47 @@ def worker(request_path: Path) -> None:
     save_new(attempt / "worker-result.json", result)
 
 
+def completed_pairs(
+    cells: list[dict[str, Any]], results: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Pure order-independent pair correctness shared by admission and export."""
+    pairs = []
+    for name in sorted({c["pair"] for c in cells if c["pair"]}):
+        members = [c for c in cells if c["pair"] == name]
+        a = next(c for c in members if c["role"] == "control")
+        b = next(c for c in members if c["role"] == "candidate")
+        values = [results.get(c["id"], {}) for c in (a, b)]
+        paired = all(
+            v.get("status") == "SUCCEEDED"
+            and v.get("actual_action") == "PROCESS"
+            and v.get("throughput_fresh") is True
+            and v.get("validation", {}).get("passed") is True
+            and v.get("wall_seconds") is not None
+            for v in values
+        )
+        equality = None
+        if paired and (a["scenario"], b["scenario"]) in (("B", "C"), ("F0", "F1")):
+            hashes = [v["validation"].get("decoded_rgba_sha256") for v in values]
+            equality = bool(hashes[0]) and hashes[0] == hashes[1]
+        pairs.append(
+            {
+                "id": name,
+                "control": a["id"],
+                "candidate": b["id"],
+                "status": "HOLD" if equality is False else "PAIRED" if paired else "NOT_COMPARABLE",
+                "decoded_rgba_equal": equality,
+                "wall_ratio_control_over_candidate": values[0]["wall_seconds"]
+                / values[1]["wall_seconds"]
+                if paired and equality is not False
+                else None,
+                "claim": "build-factor"
+                if a["scenario"] == "A"
+                else "same-host same-build backend/topology factor",
+            }
+        )
+    return pairs
+
+
 def export_results(run: Path) -> dict[str, Any]:
     # Export/readback never invokes media tools or creates new throughput observations.
     session = session_at(run)
@@ -419,33 +465,7 @@ def export_results(run: Path) -> dict[str, Any]:
                 "result": value,
             }
         )
-    pairs = []
-    for name in sorted({c["pair"] for c in session["manifest"]["cells"] if c["pair"]}):
-        members = [r for r in rows if r["pair"] == name]
-        a = next(r for r in members if r["role"] == "control")
-        b = next(r for r in members if r["role"] == "candidate")
-        paired = all(r["wall_seconds"] is not None for r in (a, b))
-        equality = None
-        if paired and (a["scenario"], b["scenario"]) in (("B", "C"), ("F0", "F1")):
-            equality = (
-                a["result"]["validation"]["decoded_rgba_sha256"]
-                == b["result"]["validation"]["decoded_rgba_sha256"]
-            )
-        pairs.append(
-            {
-                "id": name,
-                "control": a["id"],
-                "candidate": b["id"],
-                "status": "HOLD" if equality is False else "PAIRED" if paired else "NOT_COMPARABLE",
-                "decoded_rgba_equal": equality,
-                "wall_ratio_control_over_candidate": a["wall_seconds"] / b["wall_seconds"]
-                if paired and equality is not False
-                else None,
-                "claim": "build-factor"
-                if a["scenario"] == "A"
-                else "same-host same-build backend/topology factor",
-            }
-        )
+    pairs = completed_pairs(session["manifest"]["cells"], results)
     status = (
         "TECHNICAL_COMPLETE"
         if all(r["status"] in ("SUCCEEDED", "SKIPPED") for r in rows)
@@ -491,7 +511,9 @@ def export_results(run: Path) -> dict[str, Any]:
     check_envelope(
         session,
         {"growth_bytes": payload_size + index_size + csv_bound, "memory_bytes": 0, "seconds": 0},
-        spent=sum(r["worker_wall_seconds"] for r in results.values()),
+        spent=sum(
+            r.get("accounted_wall_seconds", r["worker_wall_seconds"]) for r in results.values()
+        ),
     )
     # Numbered immutable snapshots; prior exports never overwritten.
     folder = run / "exports"

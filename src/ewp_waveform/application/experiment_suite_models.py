@@ -125,9 +125,19 @@ class Manifest(Strict):
             a, b = roles["control"], roles["candidate"]
             if a.workload != b.workload or (a.scenario, b.scenario) not in allowed:
                 raise ValueError("unsupported/multifactor comparison")
-        if self.limits.attempts < len(self.cells) + 2:
-            raise ValueError("budget must include preflight and at least the planned cells")
+        self.validate_attempt_budget()
         return self
+
+    def lifecycle_attempts(self, *, old_tools: bool = False) -> int:
+        fixtures = {c.workload for c in self.cells if c.scenario in ("F0", "F1")}
+        views = sum(self.workload(c.workload).kind != "full" or self.full_views for c in self.cells)
+        old_probe = old_tools and any(c.scenario == "A" for c in self.cells)
+        return 1 + int(old_probe) + len(self.cells) + len(fixtures) + views
+
+    def validate_attempt_budget(self, *, old_tools: bool = False) -> None:
+        required = self.lifecycle_attempts(old_tools=old_tools)
+        if self.limits.attempts < required:
+            raise ValueError(f"attempt budget must cover complete frozen lifecycle: {required}")
 
     def workload(self, ident: str) -> Workload:
         return next(w for w in self.workloads if w.id == ident)

@@ -8,6 +8,7 @@ from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
+
 from ewp_waveform.application import experiment_suite as app
 from ewp_waveform.application import experiment_suite_state as state
 from ewp_waveform.application.experiment_suite_models import GPU, Manifest
