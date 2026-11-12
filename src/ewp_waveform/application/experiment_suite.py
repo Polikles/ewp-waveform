@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import io
 import json
 import os
 import sys
@@ -481,6 +483,7 @@ def export_results(run: Path) -> dict[str, Any]:
         "schema_version": 1,
         "status": status,
         "source": session["source"],
+        "environment": {"initial_resources": session.get("initial_resources")},
         "tool_identity": session["tools"],
         "build": session["build"],
         "settings": session["manifest"],
@@ -500,50 +503,68 @@ def export_results(run: Path) -> dict[str, Any]:
             if r["status"] == "SUCCEEDED" and "views-" + r["id"] not in results
         ],
     }
-    # Admit each export's actual serialized size, not an inherited multi-GiB floor.
-    payload_size = len(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False).encode())
-    index_items = [a for r in results.values() for a in r.get("artifacts", [])]
-    index_size = len(json.dumps({"artifacts": index_items}, indent=2, sort_keys=True).encode())
-    csv_bound = (
-        sum(len(json.dumps({k: v for k, v in row.items() if k != "result"})) for row in rows) * 2
-        + 8192
+    from ewp_waveform.application.experiment_suite_reporting import render_report
+
+    # Serialize every artifact before admission: UTF-8 bytes, CSV quoting and JSON
+    # final newlines included. No export directory/files exist on admission refusal.
+    folder = run / "exports"
+    index = len(list(folder.glob("results-*.json"))) + 1
+    stem = f"results-{index:04d}"
+
+    def json_bytes(value: Any) -> bytes:
+        return (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+
+    json_data = json_bytes(payload)
+    csv_stream = io.StringIO(newline="")
+    fields = [
+        "id",
+        "scenario",
+        "workload",
+        "pair",
+        "role",
+        "status",
+        "wall_seconds",
+        "fps",
+        "rtf",
+        "measurement_scope",
+    ]
+    writer = csv.DictWriter(csv_stream, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    report = render_report(
+        payload,
+        snapshot=f"{folder / (stem + '.json')}; SHA-256 {hashlib.sha256(json_data).hexdigest()}",
     )
+    files = {
+        stem + ".json": json_data,
+        stem + ".csv": csv_stream.getvalue().encode("utf-8"),
+        stem + "-artifact-index.json": json_bytes(
+            {"artifacts": [a for r in results.values() for a in r.get("artifacts", [])]}
+        ),
+        stem + ".md": report.encode("utf-8"),
+    }
     check_envelope(
         session,
-        {"growth_bytes": payload_size + index_size + csv_bound, "memory_bytes": 0, "seconds": 0},
+        {
+            "growth_bytes": sum(len(data) for data in files.values()),
+            "memory_bytes": 0,
+            "seconds": 0,
+        },
         spent=sum(
             r.get("accounted_wall_seconds", r["worker_wall_seconds"]) for r in results.values()
         ),
     )
-    # Numbered immutable snapshots; prior exports never overwritten.
-    folder = run / "exports"
+    # Numbered immutable snapshots; existing exports and session/ledger never edited.
     folder.mkdir(exist_ok=True)
-    index = len(list(folder.glob("results-*.json"))) + 1
-    stem = f"results-{index:04d}"
-    save_new(folder / (stem + ".json"), payload)
-    with (folder / (stem + ".csv")).open("x", newline="") as stream:
-        fields = [
-            "id",
-            "scenario",
-            "workload",
-            "pair",
-            "role",
-            "status",
-            "wall_seconds",
-            "fps",
-            "rtf",
-            "measurement_scope",
-        ]
-        writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-    save_new(
-        folder / (stem + "-artifact-index.json"),
-        {"artifacts": [a for r in results.values() for a in r.get("artifacts", [])]},
-    )
+    for name, data in files.items():
+        with (folder / name).open("xb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
     return {
         "status": status,
         "json": str(folder / (stem + ".json")),
+        "report": str(folder / (stem + ".md")),
         "cells": len(rows),
         "not_run": sum(r["status"] == "NOT_RUN" for r in rows),
         "visual": "PENDING",
