@@ -365,6 +365,6 @@ def test_final_resource_traversal_is_inside_complete_elapsed_budget(
     assert calls == [1, 2, 3]
     assert (run / "attempts/fast/resource-refusal.json").is_file()
     # The prior immutable result remains untouched, but cannot be read as success.
-    assert state.load(run / "attempts/fast/result.json")["status"] == "SUCCEEDED"
+    assert json.loads((run / "attempts/fast/result.json").read_text())["status"] == "SUCCEEDED"
     with pytest.raises(RuntimeError, match="resource refusal"):
         state.Ledger(run)
