@@ -496,17 +496,23 @@ def execute(
     save_new(root / "result.json", result)
     ledger.append("FINISHED", ident, result=artifact(root / "result.json"))
     try:
-        if time.monotonic() - started > result["accounted_wall_seconds"]:
-            raise ResourceLimitError(
-                "final receipt elapsed bound exceeded",
-                resources([Path(p) for p in session["growth_baseline"]]),
-            )
-        check_envelope(
+        final_snapshot = check_envelope(
             session,
             {"growth_bytes": 0, "memory_bytes": 0, "seconds": 0},
             elapsed=time.monotonic() - started,
             spent=spent,
         )
+        # The final resource traversal is inside the admitted supervisor interval.
+        # Sample after it; reuse its snapshot so refusal does not need another scan.
+        complete_elapsed = time.monotonic() - started
+        if complete_elapsed > result["accounted_wall_seconds"]:
+            raise ResourceLimitError("final receipt elapsed bound exceeded", final_snapshot)
+        limits = session["manifest"]["limits"]
+        if (
+            complete_elapsed > limits["attempt_seconds"]
+            or spent + complete_elapsed > limits["seconds"]
+        ):
+            raise ResourceLimitError("final reconciliation time limit exceeded", final_snapshot)
     except ResourceLimitError as exc:
         if result["status"] != "FAILED":
             # Preserve immutable original bytes; make late external consumption or

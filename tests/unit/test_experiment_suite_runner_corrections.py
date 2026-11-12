@@ -338,3 +338,33 @@ def test_source_identity_json_roundtrip_and_strict_comparison(
     distributions[0].version = "3"
     with pytest.raises(ValueError, match="identity drift"):
         state.verify_session(session)
+
+
+def test_final_resource_traversal_is_inside_complete_elapsed_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    run, session = fast_session(monkeypatch, tmp_path)
+    real_resources = state.resources
+    real_clock = time.monotonic
+    delay = [0.0]
+    calls: list[int] = []
+    monkeypatch.setattr(time, "monotonic", lambda: real_clock() + delay[0])
+    session["manifest"]["limits"].update(seconds=0.5, attempt_seconds=0.5)
+    session["manifest"]["limits"]["estimates"]["short"]["seconds"] = 0.01
+
+    def delayed_resources(roots: list[Path]) -> dict[str, Any]:
+        snapshot = real_resources(roots)
+        calls.append(len(calls) + 1)
+        if len(calls) == 3:
+            delay[0] += 1.0
+        return snapshot
+
+    monkeypatch.setattr(state, "resources", delayed_resources)
+    with pytest.raises(RuntimeError, match="final resource refusal"):
+        state.execute(run, session, "fast", {}, "short")
+    assert calls == [1, 2, 3]
+    assert (run / "attempts/fast/resource-refusal.json").is_file()
+    # The prior immutable result remains untouched, but cannot be read as success.
+    assert state.load(run / "attempts/fast/result.json")["status"] == "SUCCEEDED"
+    with pytest.raises(RuntimeError, match="resource refusal"):
+        state.Ledger(run)
