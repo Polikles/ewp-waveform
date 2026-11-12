@@ -280,6 +280,12 @@ class RefinedRibbonMapping(CenterOutMapping):
         self.noise_rate = noise_rate
         self.noise_seed = noise_seed
         self.audio_start_seconds = audio_start_seconds
+        # A bounded, sequence-identity-scoped descriptor memo, not temporal state.
+        # Each immutable slot update is independent; concurrent/random accesses
+        # may recompute a value but cannot change the returned field.
+        self._texture_memo: tuple[
+            AnalysisSequence, list[tuple[int, tuple[float, ...]] | None]
+        ] | None = None
         sigma = {"smooth": 2.6, "balanced": 1.2, "detailed": 0.6}[detail_level]
         self.contrast = 2.0
         self.width_scale = {"smooth": 1.8, "balanced": 1.0, "detailed": 0.65}[detail_level]
@@ -308,6 +314,26 @@ class RefinedRibbonMapping(CenterOutMapping):
             for row in self.feature_weights
         ]
         return tuple(v / (v + mean) for v in energies)
+
+    def _texture_at(self, sequence: AnalysisSequence, index: int) -> tuple[float, ...]:
+        """Reuse exact frame-local descriptors within the finite history window.
+
+        Capture one memo locally so another caller switching sequences cannot
+        associate a descriptor with the wrong sequence. There are no global
+        caches, float-key comparisons, rounded keys or changes to reduction order.
+        """
+        capacity = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps) + 1
+        memo = self._texture_memo
+        if memo is None or memo[0] is not sequence or len(memo[1]) != capacity:
+            memo = (sequence, [None] * capacity)
+            self._texture_memo = memo
+        slot = index % capacity
+        entry = memo[1][slot]
+        if entry is not None and entry[0] == index:
+            return entry[1]
+        value = self._texture(sequence[index])
+        memo[1][slot] = (index, value)
+        return value
 
     def _value(self, channel: int, tick: int) -> float:
         # Integer hash; never Python's randomized hash or mutable RNG state.
@@ -388,7 +414,7 @@ class RefinedRibbonMapping(CenterOutMapping):
         support = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps)
         for lag in range(min(index, support) + 1):
             weight = math.exp(-lag / (self.fps * self.SHAPE_SECONDS))
-            for k, value in enumerate(self._texture(sequence[index - lag])):
+            for k, value in enumerate(self._texture_at(sequence, index - lag)):
                 texture[k] += weight * value
             total += weight
         return self._compose_field(
