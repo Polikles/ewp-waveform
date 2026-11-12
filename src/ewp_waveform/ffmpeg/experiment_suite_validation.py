@@ -236,7 +236,7 @@ def view_argv(
     background: str,
 ) -> list[str]:
     if background != "checker":
-        return viewing_argv(
+        argv = viewing_argv(
             ffmpeg,
             source,
             output,
@@ -246,12 +246,24 @@ def view_argv(
             fps="60/1",
             background=background,
         )
+        # Native Matroska timestamps are nearest-millisecond representations of
+        # the validated CFR grid. Canonicalize each frame's timestamp, not its
+        # content or count, before framesync; otherwise shortest can drop the
+        # final foreground frame when 83ms precedes the background's 5/60s tick.
+        index = argv.index("-filter_complex") + 1
+        graph = argv[index]
+        if graph.count("[bg][0:v]") != 1:
+            raise ValueError("unknown straight-alpha viewing boundary")
+        argv[index] = "[0:v]settb=1/60,setpts=N[fg];" + graph.replace(
+            "[bg][0:v]", "[bg][fg]"
+        )
+        return argv
     graph = (
         f"nullsrc=s={width}x{height}:r=60,format=rgba,"
         "geq=r='if(mod(floor(X/16)+floor(Y/16),2),224,48)':"
         "g='if(mod(floor(X/16)+floor(Y/16),2),224,48)':"
         "b='if(mod(floor(X/16)+floor(Y/16),2),224,48)':a=255[bg];"
-        "[0:v]format=rgba[fg];"
+        "[0:v]settb=1/60,setpts=N,format=rgba[fg];"
         "[bg][fg]overlay=alpha=straight:format=auto:shortest=1,format=yuv420p[v]"
     )
     return [

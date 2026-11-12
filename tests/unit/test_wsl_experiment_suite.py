@@ -513,3 +513,18 @@ def test_attempt_supervisor_timeout_retains_failure_no_replay(
     assert launched[0].poll() is not None
     again = state.execute(run, session, "timeout", {"operation": "unit"}, "short")
     assert again == result and len(launched) == 1
+
+
+@pytest.mark.parametrize("background", ["#081018", "#F0F0F0", "checker"])
+def test_native_mkv_view_preserves_every_canonical_frame(
+    tmp_path: Path, background: str
+) -> None:
+    command = view_argv(
+        "/selected/ffmpeg", tmp_path / "native.mkv", tmp_path / "view.mp4",
+        width=1400, height=280, frames=6, background=background,
+    )
+    graph = command[command.index("-filter_complex") + 1]
+    assert "[0:v]settb=1/60,setpts=N" in graph
+    assert "alpha=straight" in graph and "shortest=1" in graph
+    assert command[command.index("-frames:v") + 1] == "6"
+    assert "fps=" not in graph and "select=" not in graph
