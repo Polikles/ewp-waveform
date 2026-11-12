@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
+
 from ewp_waveform.analysis.frames import AnalysisFrame, AnalysisSequence
 from ewp_waveform.visual.mapping import RefinedRibbonMapping, _broadband
 from ewp_waveform.visual.models import VisualField
@@ -50,15 +51,17 @@ def sequence(size: int = 81, offset: int = 0) -> AnalysisSequence:
 @pytest.mark.parametrize("fps", [24.0, 30.0, 59.94, 60.0])
 @pytest.mark.parametrize("origin", [0.0, 25.0])
 def test_exact_random_access_and_sequence_switch(detail: str, fps: float, origin: float) -> None:
-    options = dict(
-        detail_level=detail,
-        fps=fps,
-        audio_start_seconds=origin,
-        visual_noise=0.35,
-        idle_activity=0.035,
-        noise_seed=1729,
-    )
-    cached, base = RefinedRibbonMapping(**options), UncachedRibbon(**options)
+    def make(cls: type[RefinedRibbonMapping]) -> RefinedRibbonMapping:
+        return cls(
+            detail_level=detail,
+            fps=fps,
+            audio_start_seconds=origin,
+            visual_noise=0.35,
+            idle_activity=0.035,
+            noise_seed=1729,
+        )
+
+    cached, base = make(RefinedRibbonMapping), make(UncachedRibbon)
     a, b = sequence(), sequence(offset=19)
     order = [0, 1, 14, 36, 37, 40, 41, 46, 47, 79, 80, 37, 2, 80]
     for seq in (a, b, a):
