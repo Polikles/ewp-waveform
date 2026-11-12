@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP baseline extended by development version 0.3.0,
+**Status:** accepted internal MVP baseline extended by development version 0.3.1,
 checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
 selectable appearance, reflection/horizon and dark/light-background foreground
 controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
@@ -170,7 +170,7 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Current development version is 0.3.0: opt-in experiment tooling is described in
+new results/examples must agree. Current development version is 0.3.1: opt-in experiment tooling is described in
 [document 24](../docs/24-experiments.md), with no canonical default/output-profile
 change. The preceding 0.2.1 patch
 adds a ribbon-only exact row-support guard to native horizon finishing. Rows outside

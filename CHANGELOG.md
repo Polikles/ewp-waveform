@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1] - 2026-11-12
+
+- Reuse exact refined-ribbon frame-local texture descriptors in a bounded,
+  sequence-identity-scoped memo. Arithmetic, history, noise origins, finishing,
+  output contracts and default appearance are unchanged.
+- VM-bounded matched service screens retain byte-identical MOVs across speech,
+  quiet, onset and 32-second pool execution. Full-source qualification remains
+  capacity-pending; short results are not a whole-episode speedup claim.
+
 ## [0.3.0] - 2026-11-11
 
 Internal opt-in experiment-tooling increment; no public release/tag, dependency
