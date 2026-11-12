@@ -1,5 +1,13 @@
 # 24 — Opt-in reproducible experiments
 
+Version 0.4.0 adds the separate [executable WSL CPU/GPU suite](25-wsl-experiment-suite.md).
+It implements stock-service full/production32 and opt-in GPU campaign adapters,
+real runtime probes and checkout delivery. The limitations and CLI below describe
+the unchanged legacy `scripts/experiments.py` CPU-screen slice, not the new suite.
+GPU target runtime and output-changing visual/Studio promotion remain pending.
+Short valid assessment generation is not blocked on Studio import; the legacy
+FFV1 gates below remain specific to that older CLI, not a new promotion waiver.
+
 This is experiment tooling, not a replacement renderer, deployment platform or
 promotion of a new output profile. Normal rendering remains transparent ProRes
 4444 or PNG with the existing exact same-contract regression tests. Experiment

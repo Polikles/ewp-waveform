@@ -6,7 +6,7 @@
 
 - Specification baseline: accepted.
 - Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
-- Development version: **0.3.1**; opt-in experiment tooling adds reproducible bounded
+- Development version: **0.4.0**; opt-in experiment tooling adds reproducible bounded
   CPU screening without changing normal renderer defaults, appearance or output
   identities. Approximation experiments remain operator-assessed; see
   [the experiment contract](docs/24-experiments.md).
@@ -71,3 +71,7 @@ See `docs/README.md` for the documentation index and normative precedence.
 `ewp-waveform` is source-available under the **EWP Waveform Community License 1.0**. It is not Open Source software in the OSI sense.
 
 See [`LICENSE`](./LICENSE) and [`LICENSING.md`](./LICENSING.md).
+
+For the opt-in runnable CPU/GPU experiment suite, use
+[chapter 25](docs/25-wsl-experiment-suite.md).
+Its adapters do not select GPU in production or establish target/Studio acceptance.

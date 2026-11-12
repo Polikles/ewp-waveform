@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP baseline extended by development version 0.3.1,
+**Status:** accepted internal MVP baseline extended by development version 0.4.0,
 checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
 selectable appearance, reflection/horizon and dark/light-background foreground
 controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
@@ -170,7 +170,7 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Current development version is 0.3.1: opt-in experiment tooling is described in
+new results/examples must agree. Current development version is 0.4.0: opt-in experiment tooling is described in
 [document 24](../docs/24-experiments.md), with no canonical default/output-profile
 change. The preceding 0.2.1 patch
 adds a ribbon-only exact row-support guard to native horizon finishing. Rows outside
@@ -297,3 +297,7 @@ Long s2e9 / ~2.5 h jobs stay off undersized VMs.
 | Disk growth threatens reserve | Postpone further renders; notify the operator and inspect selected disposable workdirs. Never automatically delete baselines, source media, environments or unreviewed evidence. |
 | Resume did not reuse chunks | Checkpoint must match source hash and render signature. Stale files are discarded on purpose. |
 | CPU stays at a few percent | Check the active path: scroll can use `render --performance balanced` (up to 2 workers) or `maximum` (up to 4), while legacy spectrum and short field renders are serial. `preview` has no performance flag. A custom performance TOML affects only paths that consume `jobs`; it does not enable GPU or general spectrum parallelism. |
+
+For the opt-in runnable CPU/GPU experiment suite, use
+[chapter 25](../docs/25-wsl-experiment-suite.md).
+Its adapters do not select GPU in production or establish target/Studio acceptance.

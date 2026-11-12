@@ -1,7 +1,7 @@
 # Operator instructions
 
 These files describe internal-MVP checkout-based installation and operation of
-`waveform` 0.3.1 with uv, Python >=3.12,<3.13 and system FFmpeg. Ubuntu/WSL is a
+`waveform` 0.4.0 with uv, Python >=3.12,<3.13 and system FFmpeg. Ubuntu/WSL is a
 reference recipe, not a blanket clean-host qualification. They are not the
 architecture spec (`docs/`).
 
@@ -16,3 +16,7 @@ separate performance qualification; automatic MP4 export and full manuals remain
 work.
 
 Developer quality gates remain in [`../DEVELOPMENT.md`](../DEVELOPMENT.md).
+
+The opt-in [WSL CPU/GPU suite](../docs/25-wsl-experiment-suite.md) is obtained
+from a pinned normal checkout. GPU adapters are executable experiment tooling,
+not production defaults or a claim of target runtime/Studio qualification.

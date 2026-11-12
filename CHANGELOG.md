@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0] - 2026-11-12
+
+- Add the opt-in checkout-delivered WSL CPU/GPU experiment suite: stock-service
+  full reference/production32, same-host CPU controls, Vulkan transfer/blur/ProRes
+  and conditional shared-buffer CPU/GPU FFV1, runtime probes, strict decode/alpha
+  checks, immutable resume, viewing artifacts and JSON/CSV export.
+- Version finite manifests/schema, authenticated historical VM reference and a
+  separately pinned FFmpeg source-build helper. No binary/tool/driver installation,
+  production GPU selection or canonical default/output-contract change.
+- Target WSL/GPU execution and all output-changing visual/Studio promotion remain
+  pending until actually performed; source implementation is not target qualification.
+
 ## [0.3.1] - 2026-11-12
 
 - Reuse exact refined-ribbon frame-local texture descriptors in a bounded,
