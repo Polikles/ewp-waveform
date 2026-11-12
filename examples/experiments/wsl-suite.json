@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "input_sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+  "source_duration_seconds": 395.6785,
+  "visual_overrides": {
+    "detail_level": "balanced",
+    "amplitude": 0.82,
+    "stroke_width": 1.0,
+    "glow_level": "high",
+    "visual_noise": 0.35,
+    "idle_activity": 0.0,
+    "noise_rate": 0.8,
+    "noise_seed": 1729,
+    "reflection_opacity": 0.45,
+    "center_line": true,
+    "center_line_extent": 0.96,
+    "center_line_opacity": 0.55,
+    "background_mode": "dark-background",
+    "color_mode": "auto"
+  },
+  "workloads": [
+    {
+      "id": "full",
+      "kind": "full",
+      "start": null,
+      "duration": null,
+      "frames": 23741
+    },
+    {
+      "id": "production32",
+      "kind": "production32",
+      "start": 25.0,
+      "duration": 32.0,
+      "frames": 1920
+    },
+    {
+      "id": "speech",
+      "kind": "short",
+      "start": 25.0,
+      "duration": 4.0,
+      "frames": 240
+    }
+  ],
+  "cells": [
+    {
+      "id": "full-reference",
+      "scenario": "FULL",
+      "workload": "full"
+    },
+    {
+      "id": "production32",
+      "scenario": "PRODUCTION32",
+      "workload": "production32"
+    },
+    {
+      "id": "build-r1-A",
+      "scenario": "A",
+      "workload": "speech",
+      "pair": "build-r1",
+      "role": "control"
+    },
+    {
+      "id": "build-r1-B",
+      "scenario": "B",
+      "workload": "speech",
+      "pair": "build-r1",
+      "role": "candidate"
+    },
+    {
+      "id": "build-r2-B",
+      "scenario": "B",
+      "workload": "speech",
+      "pair": "build-r2",
+      "role": "candidate"
+    },
+    {
+      "id": "build-r2-A",
+      "scenario": "A",
+      "workload": "speech",
+      "pair": "build-r2",
+      "role": "control"
+    },
+    {
+      "id": "transfer-r1-B",
+      "scenario": "B",
+      "workload": "speech",
+      "pair": "transfer-r1",
+      "role": "control"
+    },
+    {
+      "id": "transfer-r1-C",
+      "scenario": "C",
+      "workload": "speech",
+      "pair": "transfer-r1",
+      "role": "candidate"
+    },
+    {
+      "id": "transfer-r2-C",
+      "scenario": "C",
+      "workload": "speech",
+      "pair": "transfer-r2",
+      "role": "candidate"
+    },
+    {
+      "id": "transfer-r2-B",
+      "scenario": "B",
+      "workload": "speech",
+      "pair": "transfer-r2",
+      "role": "control"
+    },
+    {
+      "id": "blur-r1-C",
+      "scenario": "C",
+      "workload": "speech",
+      "pair": "blur-r1",
+      "role": "control"
+    },
+    {
+      "id": "blur-r1-D",
+      "scenario": "D",
+      "workload": "speech",
+      "pair": "blur-r1",
+      "role": "candidate"
+    },
+    {
+      "id": "blur-r2-D",
+      "scenario": "D",
+      "workload": "speech",
+      "pair": "blur-r2",
+      "role": "candidate"
+    },
+    {
+      "id": "blur-r2-C",
+      "scenario": "C",
+      "workload": "speech",
+      "pair": "blur-r2",
+      "role": "control"
+    },
+    {
+      "id": "prores-r1-E0",
+      "scenario": "E0",
+      "workload": "speech",
+      "pair": "prores-r1",
+      "role": "control"
+    },
+    {
+      "id": "prores-r1-E1",
+      "scenario": "E1",
+      "workload": "speech",
+      "pair": "prores-r1",
+      "role": "candidate"
+    },
+    {
+      "id": "prores-r2-E1",
+      "scenario": "E1",
+      "workload": "speech",
+      "pair": "prores-r2",
+      "role": "candidate"
+    },
+    {
+      "id": "prores-r2-E0",
+      "scenario": "E0",
+      "workload": "speech",
+      "pair": "prores-r2",
+      "role": "control"
+    },
+    {
+      "id": "ffv1-r1-F0",
+      "scenario": "F0",
+      "workload": "speech",
+      "pair": "ffv1-r1",
+      "role": "control"
+    },
+    {
+      "id": "ffv1-r1-F1",
+      "scenario": "F1",
+      "workload": "speech",
+      "pair": "ffv1-r1",
+      "role": "candidate"
+    },
+    {
+      "id": "ffv1-r2-F1",
+      "scenario": "F1",
+      "workload": "speech",
+      "pair": "ffv1-r2",
+      "role": "candidate"
+    },
+    {
+      "id": "ffv1-r2-F0",
+      "scenario": "F0",
+      "workload": "speech",
+      "pair": "ffv1-r2",
+      "role": "control"
+    }
+  ],
+  "limits": {
+    "attempts": 64,
+    "seconds": 18000.0,
+    "growth_bytes": 25769803776,
+    "reserve_bytes": 10737418240,
+    "memory_floor_bytes": 536870912,
+    "attempt_seconds": 2400.0,
+    "estimates": {
+      "full": {
+        "growth_bytes": 9663676416,
+        "memory_bytes": 3221225472,
+        "seconds": 1800.0
+      },
+      "production32": {
+        "growth_bytes": 838860800,
+        "memory_bytes": 1073741824,
+        "seconds": 180.0
+      },
+      "short": {
+        "growth_bytes": 83886080,
+        "memory_bytes": 536870912,
+        "seconds": 60.0
+      },
+      "fixture": {
+        "growth_bytes": 16777216,
+        "memory_bytes": 536870912,
+        "seconds": 60.0
+      },
+      "probe": {
+        "growth_bytes": 83886080,
+        "memory_bytes": 268435456,
+        "seconds": 600.0
+      },
+      "views": {
+        "growth_bytes": 83886080,
+        "memory_bytes": 268435456,
+        "seconds": 180.0
+      }
+    }
+  },
+  "full_views": false
+}

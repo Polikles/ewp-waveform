@@ -9,6 +9,7 @@ from __future__ import annotations
 from math import ceil, floor
 
 from ewp_waveform.ffmpeg.draw import parse_rgb
+from ewp_waveform.ffmpeg.experiment_suite import halo_filter
 
 
 def ribbon_graph(
@@ -21,6 +22,7 @@ def ribbon_graph(
     color: str,
     glow: float,
     finish: tuple[float, bool, float, float, float],
+    suite_candidate: str | None = None,
 ) -> str:
     reflection, enabled, thickness, extent, opacity = finish
     padded_w, padded_h = width + 2 * overscan, height + 2 * overscan
@@ -29,7 +31,7 @@ def ribbon_graph(
         head += f",scale={padded_w}:{padded_h}:flags=area"
     if glow > 0:
         head += (
-            f",split=2[body][halo];[halo]gblur=sigma={glow}:steps=3[blur];"
+            f",split=2[body][halo];[halo]{halo_filter(glow, suite_candidate)}[blur];"
             "[body][blur]blend=all_expr='A+B*(1-A/255)':shortest=1"
         )
     if overscan:

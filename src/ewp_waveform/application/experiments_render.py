@@ -14,6 +14,7 @@ from ewp_waveform.application import render_fixed, render_lifecycle
 from ewp_waveform.application.render_pipelines import PipelineHooks
 from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.domain.models import PlannedJob
+from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding
 from ewp_waveform.ffmpeg.experiments import EncodeExperiment
 
 
@@ -29,7 +30,7 @@ class _View:
 class ServiceExperiment:
     """Opt-in internal API, not a production performance/profile option."""
 
-    encoding: EncodeExperiment
+    encoding: EncodeExperiment | SuiteEncoding
     expected_preset: dict[str, Any] | None = None
 
     def validate(
@@ -59,6 +60,8 @@ class ServiceExperiment:
             raise ValueError("experiment requires command evidence")
 
     def identity(self) -> dict[str, Any]:
+        if isinstance(self.encoding, SuiteEncoding):
+            return self.encoding.identity()
         return {
             "adapter_revision": 1,
             "candidate": self.encoding.candidate,

@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "purpose": "Portable authenticated VM.1 environment/reference contract, not new full-render evidence",
+  "source_input": {
+    "sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+    "source_seconds": 395.6785,
+    "frames": 23741,
+    "fps": "60/1",
+    "width": 1400,
+    "height": 280
+  },
+  "effective_visual_config": {
+    "effective_preset": {
+      "schema_version": 1,
+      "name": "iuris-ribbon-refined",
+      "description": "Opt-in refined ribbon: configurable audio-derived smooth/balanced/detailed contours. Experimental; v1 unchanged.",
+      "canvas": {
+        "width": 1400,
+        "height": 280,
+        "fps": 60.0
+      },
+      "waveform": {
+        "style": "filled",
+        "color": "#C7E6EC",
+        "amplitude": 0.82,
+        "stroke_width": 1.0,
+        "center_line": true,
+        "reflection_opacity": 0.45,
+        "center_line_extent": 0.96,
+        "center_line_opacity": 0.55,
+        "background_mode": "dark-background",
+        "color_mode": "auto",
+        "domain": "frequency",
+        "time_mode": null,
+        "window_seconds": 5.0
+      },
+      "signal": {
+        "visual_noise": 0.35,
+        "idle_activity": 0.0,
+        "noise_rate": 0.8,
+        "noise_seed": 1729,
+        "fixed_axis_profile": "filled-ribbon-v2",
+        "detail_level": "balanced",
+        "scale": "sqrt",
+        "smoothing": 0.06,
+        "normalization": {
+          "mode": "auto",
+          "soft_clip": true
+        },
+        "frequency": {
+          "range": "auto"
+        }
+      },
+      "effects": {
+        "glow": {
+          "enabled": true,
+          "level": "high",
+          "color": "#C7E6EC"
+        },
+        "particles": {
+          "enabled": false
+        }
+      },
+      "palette": {
+        "steel_blue": "#3D5D73",
+        "periwinkle_blue": "#6E7BA7",
+        "slate_teal": "#2F474F",
+        "pale_cyan": "#C7E6EC",
+        "soft_yellow": "#F2C558"
+      }
+    },
+    "fixed_axis_recipe": {
+      "version": 1,
+      "visual_geometry": "spectrum",
+      "profile": "filled-ribbon-v2",
+      "detail_level": "balanced",
+      "mapping_revision": 7,
+      "baseline_thickness": 1.0,
+      "visual_noise": 0.35,
+      "idle_activity": 0.0,
+      "noise_rate": 0.8,
+      "noise_seed": 1729,
+      "ribbon_appearance_revision": 1,
+      "reflection_opacity": 0.45,
+      "center_line": true,
+      "center_line_extent": 0.96,
+      "center_line_opacity": 0.55,
+      "foreground_appearance_revision": 1,
+      "background_mode": "dark-background",
+      "color_mode": "auto",
+      "foreground_color": "#C7E6EC",
+      "layout": "field_center_out",
+      "n_bands": 64,
+      "spatial_sigma": 3.15,
+      "spatial_filter": "gaussian",
+      "tilt_db_per_octave": 3.0,
+      "compress": 1.0,
+      "field_geometry": "ribbon",
+      "supersample": 2,
+      "aa_mode": "physical_ss",
+      "aa_taps": 1
+    },
+    "fps": 60.0,
+    "style": "filled",
+    "domain": "frequency",
+    "time_mode": null,
+    "color": "#C7E6EC",
+    "window_seconds": 5.0,
+    "classic_alternate_opacity": 0.25,
+    "envelope_oversample": 1,
+    "envelope_aa": "none",
+    "envelope_aa_support": 1.0,
+    "shutter_degrees": 0,
+    "shutter_mix": 0.25,
+    "envelope_motion_lpf": "sinc",
+    "envelope_motion_cutoff": 0.09107142857142857,
+    "glow": {
+      "enabled": true,
+      "level": "high",
+      "color": "#C7E6EC"
+    }
+  },
+  "requested_processing": {
+    "jobs": 2,
+    "chunk_seconds": 60,
+    "ffmpeg_threads": 0
+  },
+  "actual_pool_contract": {
+    "minimum_frames": 1800,
+    "full_ranges": [
+      [
+        0,
+        11871
+      ],
+      [
+        11871,
+        11870
+      ]
+    ],
+    "32s_ranges": [
+      [
+        0,
+        960
+      ],
+      [
+        960,
+        960
+      ]
+    ],
+    "encoder_threads_argument": 1,
+    "option_role": "output_encoder",
+    "filter_process_effective_threads": "not inferred from -threads; hardware-dependent auto selection",
+    "nproc_VM_historical": 8,
+    "WSL_limit_to_8": false
+  },
+  "tools": {
+    "ffmpeg": {
+      "version_and_build": "ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025 the FFmpeg developers\nbuilt with gcc 15 (Ubuntu 15.2.0-13ubuntu3)\nconfiguration: --prefix=/usr --extra-version=3ubuntu2 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-pocketsphinx --disable-libcaca --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libjxl --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-shared\nlibavutil      60.  8.100 / 60.  8.100\nlibavcodec     62. 11.100 / 62. 11.100\nlibavformat    62.  3.100 / 62.  3.100\nlibavdevice    62.  1.100 / 62.  1.100\nlibavfilter    11.  4.100 / 11.  4.100\nlibswscale      9.  1.100 /  9.  1.100\nlibswresample   6.  1.100 /  6.  1.100\n\nExiting with exit code 0\n",
+      "sha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6"
+    },
+    "ffprobe": {
+      "version_and_build": "ffprobe version 8.0.1-3ubuntu2 Copyright (c) 2007-2025 the FFmpeg developers\nbuilt with gcc 15 (Ubuntu 15.2.0-13ubuntu3)\nconfiguration: --prefix=/usr --extra-version=3ubuntu2 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-pocketsphinx --disable-libcaca --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libjxl --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-shared\nlibavutil      60.  8.100 / 60.  8.100\nlibavcodec     62. 11.100 / 62. 11.100\nlibavformat    62.  3.100 / 62.  3.100\nlibavdevice    62.  1.100 / 62.  1.100\nlibavfilter    11.  4.100 / 11.  4.100\nlibswscale      9.  1.100 /  9.  1.100\nlibswresample   6.  1.100 /  6.  1.100\n",
+      "sha256": "a6dac1e9e8631e04075d06854cc4069308aec279bb04683b4a0bca5e4f54b2fe"
+    }
+  },
+  "historical_full_reference": {
+    "source_commit": "63600840bb44fd3e91af3098e74eaa43ae15e482",
+    "source_tree": "0faaca9377c9d6c1104113cc2a36a8ebca2a2243",
+    "version": "0.2.1",
+    "candidate_service_wall_s": 318.0956148810001,
+    "candidate_process_wall_s": 318.45208234299935,
+    "frames": 23741,
+    "file_sha256": "00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78",
+    "file_bytes": 2848387115,
+    "native_plane_equality": "PASS_ALL23741FRAMES_YUVA444P12LE_INCLUDING_ALPHA",
+    "native_plane_sha256": {
+      "Y": "81a85e1b19482dd36363a1e3e9ca26a6fab81139e9d7b5ce35dd9a2726ad5ae7",
+      "U": "20a99cd23ff45a20831880695a043c3c040da5f80127ee6463f8fa3429e0881c",
+      "V": "1f6883ae62cd1a8ab052dc24f3c84696d483457f12012dbe07730a3d2e723cfc",
+      "A": "8f832b25a1ac81514c43dee5a46ba346568ccfa042e6e44c19ac77e1df3752b4"
+    },
+    "source_signature": "fb23e47e5f069a9e83cb8379d4b9a24fdd95b3578df2435899674e979d7d2da2"
+  },
+  "new_exact_mapping_source": "480035fa97391b23f03464ab73ce1b4ee123e3bd",
+  "final_source_full_MOV_qualification": "PENDING_CAPACITY; new mapping full-source23741fields exact, no new full MOV rendered",
+  "new_VM_production32": {
+    "control_service_seconds": 29.23320809400002,
+    "candidate_service_seconds": 26.144143098999848,
+    "file_sha256": "c75573780b5048760369de790c4acfa8358c746d187c8448976a26368a1f4725",
+    "frames": 1920,
+    "interval": [
+      25,
+      57
+    ],
+    "analysis_context": "interval-local, NOT historical full source context",
+    "same_MOV_bytes": true,
+    "repetitions_per_variant": 1
+  },
+  "provenance": {
+    "historical_measurement_repository": "Polikles/ewp-waveform-ops",
+    "historical_evidence_commit": "97668ad0b916f933c010078816de939834e850fa",
+    "effective_result_path": "tasks/results/EWP-NATIVE-OPT-001/ewp-native-opt-20261111T162325Z-5de79257/full-candidate/result.json",
+    "local_retained_result_sha256": "cd61c5b8784aadaa55c386dc201fef85874cbbbacbbfa0701a3883793f1cb9fe"
+  },
+  "comparison_rule": "WSL environment reference is not isolated GPU speedup; use same-WSL same-build CPU control for GPU contrasts. Record build and effective thread differences."
+}

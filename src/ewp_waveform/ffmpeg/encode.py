@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding
     from ewp_waveform.ffmpeg.experiments import EncodeExperiment
 
 from ewp_waveform.ffmpeg.draw import parse_rgb
@@ -62,6 +63,7 @@ def _glow_crop_graph(
     fps: float = 60.0,
     n_frames: int | None = None,
     ribbon_finish: tuple[float, bool, float, float, float] | None = None,
+    suite_candidate: str | None = None,
 ) -> str:
     """Downsample, optional hybrid temporal mix, glow under a sharp-ish base, crop.
 
@@ -80,6 +82,7 @@ def _glow_crop_graph(
             color=color,
             glow=glow,
             finish=ribbon_finish,
+            suite_candidate=suite_candidate,
         )
     padded_w = width + 2 * overscan
     padded_h = height + 2 * overscan
@@ -142,7 +145,7 @@ def encode_rgba_stream(
     color: str | None = None,
     n_frames: int | None = None,
     ribbon_finish: tuple[float, bool, float, float, float] | None = None,
-    experiment: EncodeExperiment | None = None,
+    experiment: EncodeExperiment | SuiteEncoding | None = None,
 ) -> None:
     if experiment is not None and (png_dir is not None or prores_path is None):
         raise ValueError("experiments require one MOV output, never simultaneous PNG")
@@ -179,6 +182,7 @@ def encode_rgba_stream(
         fps=fps,
         n_frames=n_frames,
         ribbon_finish=ribbon_finish,
+        suite_candidate=getattr(experiment, "candidate", None),
     )
     argv: list[str] = [
         str(ffmpeg),
@@ -261,10 +265,23 @@ def encode_rgba_stream(
             ]
         )
     if experiment is not None:
+        from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding, service_argv
         from ewp_waveform.ffmpeg.experiments import experiment_argv
 
-        argv = experiment_argv(argv, experiment)
+        argv = (
+            service_argv(argv, experiment)
+            if isinstance(experiment, SuiteEncoding)
+            else experiment_argv(argv, experiment)
+        )
     completed = run_argv_stdin(argv, frames, phases=phases)
+    if experiment is not None:
+        from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding, selected_device
+
+        if isinstance(experiment, SuiteEncoding):
+            diagnostic = completed.stderr.decode("utf-8", errors="replace")
+            experiment.command_log.with_suffix(".service.stderr").write_text(diagnostic)
+            if completed.returncode == 0 and experiment.gpu:
+                selected_device(diagnostic, experiment.expect_device_regex)
     if completed.returncode != 0:
         msg = completed.stderr.decode("utf-8", errors="replace")
         raise EncodeError(msg.strip() or "ffmpeg encode failed")

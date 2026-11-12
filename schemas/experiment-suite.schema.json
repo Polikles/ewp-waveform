@@ -1,0 +1,274 @@
+{
+  "$defs": {
+    "Cell": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "scenario": {
+          "enum": [
+            "FULL",
+            "PRODUCTION32",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E0",
+            "E1",
+            "F0",
+            "F1"
+          ],
+          "title": "Scenario",
+          "type": "string"
+        },
+        "workload": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+          "title": "Workload",
+          "type": "string"
+        },
+        "pair": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pair"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "control",
+                "candidate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        }
+      },
+      "required": [
+        "id",
+        "scenario",
+        "workload"
+      ],
+      "title": "Cell",
+      "type": "object"
+    },
+    "Estimate": {
+      "additionalProperties": false,
+      "properties": {
+        "growth_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Growth Bytes",
+          "type": "integer"
+        },
+        "memory_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Memory Bytes",
+          "type": "integer"
+        },
+        "seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "growth_bytes",
+        "memory_bytes",
+        "seconds"
+      ],
+      "title": "Estimate",
+      "type": "object"
+    },
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "exclusiveMinimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        },
+        "growth_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Growth Bytes",
+          "type": "integer"
+        },
+        "reserve_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Reserve Bytes",
+          "type": "integer"
+        },
+        "memory_floor_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Memory Floor Bytes",
+          "type": "integer"
+        },
+        "attempt_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt Seconds",
+          "type": "number"
+        },
+        "estimates": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Estimate"
+          },
+          "propertyNames": {
+            "enum": [
+              "full",
+              "production32",
+              "short",
+              "fixture",
+              "probe",
+              "views"
+            ]
+          },
+          "title": "Estimates",
+          "type": "object"
+        }
+      },
+      "required": [
+        "attempts",
+        "seconds",
+        "growth_bytes",
+        "reserve_bytes",
+        "memory_floor_bytes",
+        "attempt_seconds",
+        "estimates"
+      ],
+      "title": "Limits",
+      "type": "object"
+    },
+    "Workload": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "full",
+            "production32",
+            "short"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration"
+        },
+        "frames": {
+          "exclusiveMinimum": 0,
+          "title": "Frames",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "start",
+        "duration",
+        "frames"
+      ],
+      "title": "Workload",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "input_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "source_duration_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Source Duration Seconds",
+      "type": "number"
+    },
+    "visual_overrides": {
+      "additionalProperties": true,
+      "title": "Visual Overrides",
+      "type": "object"
+    },
+    "workloads": {
+      "items": {
+        "$ref": "#/$defs/Workload"
+      },
+      "title": "Workloads",
+      "type": "array"
+    },
+    "cells": {
+      "items": {
+        "$ref": "#/$defs/Cell"
+      },
+      "title": "Cells",
+      "type": "array"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "full_views": {
+      "default": false,
+      "title": "Full Views",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "input_sha256",
+    "source_duration_seconds",
+    "visual_overrides",
+    "workloads",
+    "cells",
+    "limits"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}
