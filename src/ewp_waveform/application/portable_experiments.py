@@ -79,6 +79,7 @@ TIMING_ENV_PREFIXES = (
     "CUDNN_",
     "PYTORCH_",
     "TORCH_",
+    "TORCHINDUCTOR_",
     "VK_",
     "MESA_",
     "NVIDIA_",

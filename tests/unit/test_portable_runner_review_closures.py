@@ -101,10 +101,15 @@ def test_optional_matched_prores_failure_does_not_abort_independent_work(monkeyp
     assert any(name == "speech-fir-algorithm-r01-B" for name, _ in calls)
 
 
+@pytest.mark.parametrize(
+    "new_selector", ["CUDA_NEW_TIMING_SELECTOR_TEST", "TORCHINDUCTOR_CACHE_DIR"]
+)
 def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
     tmp_path: Path,
     monkeypatch: Any,
+    new_selector: str,
 ) -> None:
+    monkeypatch.delenv(new_selector, raising=False)
     monkeypatch.setattr(shutil, "which", lambda *a: None)
     monkeypatch.setattr(app, "discover_tools", lambda *a: {})
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "3")
@@ -131,7 +136,7 @@ def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
     with pytest.raises(ValueError, match="OPENBLAS_NUM_THREADS changed"):
         app.verify_config(tmp_path, tmp_path)
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "3")
-    monkeypatch.setenv("CUDA_NEW_TIMING_SELECTOR_TEST", "1")
+    monkeypatch.setenv(new_selector, "1")
     with pytest.raises(ValueError, match="new computational environment selectors"):
         app.verify_config(tmp_path, tmp_path)
 
