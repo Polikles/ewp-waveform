@@ -44,12 +44,12 @@ For the opt-in WSL/CUDA/native Windows CPU/Vulkan experiments, use the single
 
 ```bash
 # WSL
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav"
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --install-cuda
 ```
 
 ```powershell
 # Native Windows
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg
 ```
 
 The driver inventories the original environment, selects/prepares the locked

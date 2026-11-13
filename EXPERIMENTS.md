@@ -12,22 +12,60 @@ From a clean current `Polikles/ewp-waveform` checkout:
 WSL:
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav"
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --install-cuda
 ```
 
 Native Windows, in PowerShell:
 
 ```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg
 ```
 
 No environment activation, exports, manifest editing or private startup documents.
-Git, a Python bootstrap and a working FFmpeg/ffprobe pair must be available.
+Git, a Python bootstrap and available `uv` (or a pre-existing locked Python3.12
+project environment) are prerequisites. WSL keeps its installed FFmpeg/ffprobe
+baseline; Windows `--prepare-ffmpeg` explicitly permits isolated pinned acquisition
+without requiring a preinstalled pair or replacing system tools.
 The driver discovers/selects the locked Python3.12 project environment; if it is
 missing it uses available `uv` for frozen isolated project setup. It does not
 silently modify a global Python installation or borrow an STT/WhisperX environment.
 A missing prerequisite is an actionable report, not an implicit driver installer.
+The WSL command explicitly opts into a private CUDA dependency download; omit
+`--cuda --install-cuda` for CPU/Vulkan-only operation. No Linux NVIDIA display
+driver, CUDA toolkit compiler or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
+
+## Frozen optional tools and dependencies
+
+The selected CUDA compatibility control is PyTorch2.9.1+cu128, not the latest
+upstream release. The upstream release API observed v2.15.0 (2026-10-28), but the
+selected official CUDA12.8 index directly supplied Python3.12 Linux x86-64 and
+Windows x64 wheels for2.9.1. Both platform-specific full transitive closures are
+committed with hashes under `requirements/`, constrained to the application's
+existing `uv.lock` runtime closure. Startup installs that frozen closure into a
+fresh private worker environment; it never re-resolves dependencies or modifies
+an existing STT environment. It retains setup commands, timing and receipts.
+The installer download may use several GiB; free-space/growth admission can refuse
+it while independent CPU and Vulkan work continues. `--cuda-python` can select an
+existing isolated matching worker environment instead. CUDA driver/device/runtime
+execution still must pass the actual qualification probe.
+
+Native Windows `--prepare-ffmpeg` selects the retained BtbN monthly shared Win64 GPL
+build `n9.0.2-39-g7adfbe40dc-20261031`, release `autobuild-2026-10-31-12-59`,
+source `7adfbe40dcde598f93a6963d2f7b22cd75202ccc`. Its85,920,857-byte archive is
+SHA256 `1d9823c35c7a7e2f54d1438cf61030d6efabe3278de01c191309d1e828bb74df`.
+The provider digest and every installed EXE/DLL hash are frozen in
+`src/ewp_waveform/ffmpeg/portable_ffmpeg_lock.json`; missing/changed assets fail
+without switching to floating latest. The upstream FFmpeg download page observed
+9.0.2 as current stable. Selected-build CPU controls are not replaced by the
+installed baseline. Download/extraction/hash reuse were tested on VM.1; actual
+Windows executable encoder inventory and GPU runtime probes remain mandatory.
+Embedded encoder names in a PE file do not qualify the complete codec matrix.
+
+Use `--ffmpeg PATH --ffprobe PATH` to select another existing same-directory pair
+explicitly; the original installed baseline is still recorded separately. The
+historical Linux `--build-ffmpeg` workflow is not the portable startup contract;
+this package avoids an unbounded WSL graphics-stack/build repair campaign.
 
 The authenticated original WAV is 37,985,180 bytes, 395.6785 seconds, SHA256
 `e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b`.
