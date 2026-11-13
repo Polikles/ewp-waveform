@@ -41,6 +41,7 @@ from ewp_waveform.application.portable_experiments_state import (
     resources,
     save,
     source_identity,
+    tree_bytes,
     verify,
 )
 
@@ -64,6 +65,27 @@ def discover_tools(path: str) -> dict[str, list[dict[str, Any]]]:
                 if item not in entries:
                     entries.append(item)
     return found
+
+
+TIMING_ENV_PREFIXES = (
+    "OMP_",
+    "OPENBLAS_",
+    "MKL_",
+    "NUMEXPR_",
+    "BLIS_",
+    "VECLIB_",
+    "CUDA_",
+    "CUBLAS_",
+    "CUDNN_",
+    "PYTORCH_",
+    "TORCH_",
+    "VK_",
+    "MESA_",
+    "NVIDIA_",
+    "KMP_",
+    "GOMP_",
+    "MALLOC_",
+)
 
 
 def original_inventory(run: Path, media: Path) -> dict[str, Any]:
@@ -96,15 +118,57 @@ def original_inventory(run: Path, media: Path) -> dict[str, Any]:
             for name in (
                 "VIRTUAL_ENV",
                 "CONDA_PREFIX",
+                "LD_LIBRARY_PATH",
+                "LD_PRELOAD",
+                "DYLD_LIBRARY_PATH",
+                "DYLD_INSERT_LIBRARIES",
+                "PYTHONHOME",
+                "PYTHONUSERBASE",
+                "PYTHONNOUSERSITE",
+                "GLIBC_TUNABLES",
+                "GALLIUM_DRIVER",
+                "LP_NUM_THREADS",
                 "CUDA_VISIBLE_DEVICES",
                 "VK_ICD_FILENAMES",
                 "VK_DRIVER_FILES",
                 "OMP_NUM_THREADS",
+                "OMP_DYNAMIC",
+                "OMP_PROC_BIND",
+                "OMP_PLACES",
+                "OMP_SCHEDULE",
+                "OMP_WAIT_POLICY",
+                "KMP_AFFINITY",
+                "KMP_BLOCKTIME",
+                "GOMP_CPU_AFFINITY",
+                "OPENBLAS_NUM_THREADS",
+                "MKL_NUM_THREADS",
+                "MKL_DYNAMIC",
+                "MKL_CBWR",
+                "NUMEXPR_NUM_THREADS",
+                "VECLIB_MAXIMUM_THREADS",
+                "BLIS_NUM_THREADS",
+                "CUDA_DEVICE_ORDER",
+                "CUDA_LAUNCH_BLOCKING",
+                "CUDA_MODULE_LOADING",
+                "CUDA_CACHE_DISABLE",
+                "CUDA_CACHE_MAXSIZE",
+                "CUBLAS_WORKSPACE_CONFIG",
+                "NVIDIA_TF32_OVERRIDE",
+                "TORCH_ALLOW_TF32_CUBLAS_OVERRIDE",
+                "PYTORCH_CUDA_ALLOC_CONF",
+                "PYTORCH_ALLOC_CONF",
+                "PYTORCH_NO_CUDA_MEMORY_CACHING",
+                "TORCH_CUDNN_V8_API_LRU_CACHE_LIMIT",
+                "TORCH_CUDNN_V8_API_DISABLED",
+                "CUDNN_CONV_WSCAP_DBG",
                 "NUMBER_OF_PROCESSORS",
                 "WSL_DISTRO_NAME",
             )
         },
     }
+    value["original_environment"].update(
+        {key: val for key, val in os.environ.items() if key.startswith(TIMING_ENV_PREFIXES)}
+    )
     save(run / "original-environment.json", value)
     observations: dict[str, Any] = {}
     for name, arguments in (
@@ -145,7 +209,13 @@ def probe_python(python: Path, folder: Path, *, optional: bool = False) -> dict[
     return json.loads((folder / "stdout.txt").read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
-def select_python(explicit: Path | None, run: Path) -> tuple[Path, dict[str, Any]]:
+def select_python(
+    explicit: Path | None,
+    run: Path,
+    *,
+    media: Path | None = None,
+    limits: dict[str, Any] | None = None,
+) -> tuple[Path, dict[str, Any]]:
     candidates = [explicit.expanduser().absolute()] if explicit else python_candidates()
     for index, candidate in enumerate(candidates):
         if candidate.is_file():
@@ -160,10 +230,14 @@ def select_python(explicit: Path | None, run: Path) -> tuple[Path, dict[str, Any
     # Never repair an existing user environment: setup gets its own namespace.
     target = run / "python-env"
     outside_git([target])
+    if media is None or limits is None:
+        raise ValueError("automatic Python setup requires explicit run+media admission limits")
+    check_budget(run, media, limits)
     observed = run_command(
         [uv, "sync", "--frozen", "--no-dev", "--python", "3.12", "--project", str(ROOT)],
         run / "uv-sync",
         timeout=900,
+        monitor=lambda: check_budget(run, media, limits),
         env={
             **child_env(),
             "UV_PROJECT_ENVIRONMENT": str(target),
@@ -198,6 +272,7 @@ def inventory_pair(ffmpeg: Path, ffprobe: Path, root: Path) -> dict[str, Any]:
         ("ffprobe-version", [str(ffprobe), "-version"]),
     ):
         record = run_command(argv, root / label)
+        record["stdout_file"] = identity(root / label / "stdout.txt")
         observations[label] = record
         if record["returncode"] != 0 or record["error"]:
             raise ValueError(f"tool inventory failed: {argv!r}: {record['stderr']}")
@@ -222,9 +297,22 @@ def inventory_pair(ffmpeg: Path, ffprobe: Path, root: Path) -> dict[str, Any]:
 
 def tool_score(pair: dict[str, Any]) -> int:
     inventory = pair["observations"]
-    return sum(
-        name in inventory["filters"]["stdout"] for name in ("hwupload", "gblur_vulkan")
-    ) + sum(name in inventory["encoders"]["stdout"] for name in ("prores_ks_vulkan", "ffv1_vulkan"))
+
+    def complete(label: str) -> str:
+        record = inventory[label]
+        if record.get("stdout_file"):
+            verify(record["stdout_file"])
+            return Path(record["stdout_file"]["path"]).read_text(encoding="utf-8", errors="replace")
+        if record.get("logs"):
+            return (Path(record["logs"]) / "stdout.txt").read_text(
+                encoding="utf-8", errors="replace"
+            )
+        return str(record.get("stdout", ""))  # Legacy/synthetic records without capture paths.
+
+    filters, encoders = complete("filters"), complete("encoders")
+    return sum(name in filters for name in ("hwupload", "gblur_vulkan")) + sum(
+        name in encoders for name in ("prores_ks_vulkan", "ffv1_vulkan")
+    )
 
 
 def choose_tools(
@@ -339,7 +427,12 @@ def freeze(
         )
     if args.audio:
         outside_git([run, media], audio)
-    python, environment = select_python(args.python, run)
+    admission = {
+        "growth_bytes": args.max_growth_gib * 1024**3,
+        "reserve_bytes": args.reserve_gib * 1024**3,
+        "memory_floor_bytes": 128 * 1024**2,
+    }
+    python, environment = select_python(args.python, run, media=media, limits=admission)
     if (args.ffmpeg is None) != (args.ffprobe is None):
         raise ValueError("--ffmpeg and --ffprobe must be supplied together")
     installed, selected, tool_acquisition = choose_tools(args, original, run, media, python)
@@ -399,6 +492,8 @@ def freeze(
         "reference_only": args.reference_only,
         "production32": not args.no_production32,
         "cuda": args.cuda,
+        "repeats": args.repeats,
+        "repeat_scope": "speech shortlist (or six-frame smoke); sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
         "cuda_error": cuda_error,
         "cuda_python": str(cuda_python),
@@ -434,12 +529,25 @@ def verify_config(run: Path, verification: Path) -> dict[str, Any]:
     for name, value in config["original_environment"].items():
         if os.environ.get(name) != value:
             raise ValueError(f"original environment {name} changed; use a new namespace")
+    added_selectors = {
+        key
+        for key in os.environ
+        if key.startswith(TIMING_ENV_PREFIXES) and key not in config["original_environment"]
+    }
+    if added_selectors:
+        raise ValueError(
+            f"new computational environment selectors: {sorted(added_selectors)}; "
+            "use a new namespace"
+        )
     for item in (config["audio"], config["original"], config["original_observations"]):
         verify(item)
     for pair in (config["installed"], config["selected"]):
         if pair:
             for item in (*pair["tools"].values(), *pair["libraries"]):
                 verify(item)
+            for record in pair["observations"].values():
+                if record.get("stdout_file"):
+                    verify(record["stdout_file"])
     if probe_python(Path(config["python"]), verification / "python") != config["environment"]:
         raise ValueError("selected environment changed; use a new namespace")
     if config["cuda_environment"] and (
@@ -482,7 +590,9 @@ def invoke(
             root / "process",
             cwd=ROOT,
             env=child_env(),
-            timeout=config["limits"]["stage_timeout"],
+            timeout=min(config["limits"]["stage_timeout"], 120.0)
+            if request["operation"] == "qualify-finish"
+            else config["limits"]["stage_timeout"],
             monitor=lambda: check_budget(run, media, config["limits"]),
         )
         value: dict[str, Any] = (
@@ -505,6 +615,12 @@ def invoke(
                 "argv": observed["argv"],
             }
         value["optional"] = optional
+        if request.get("pair"):
+            value["pair"] = request["pair"]
+        value["execution_settings"] = {
+            key: request.get(key) for key in ("ffmpeg", "ffprobe", "visual_overrides", "workload")
+        }
+        value["execution_settings"]["python"] = python or config["python"]
         value["command"] = observed
         value["cold_process_wall_seconds"] = observed["wall_seconds"]
         stage_media = Path(request["media"])
@@ -540,6 +656,8 @@ def invoke(
         )
         if not observed["shutdown_verified"]:
             raise RuntimeError("process-tree ownership shutdown UNVERIFIED; no further dispatch")
+        # Evidence/event serialization can itself cross the retained-growth cap.
+        check_budget(run, media, config["limits"])
         if not good and not optional:
             raise RuntimeError(
                 f"required {name} failed: {value.get('error')}; {observed['stderr']}"
@@ -608,6 +726,24 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
         qualification = step("backend-qualification", {"operation": "qualify"}, optional=True)
     else:
         skipped("backend-qualification", "CPU smoke only; no GPU qualification requested")
+    # Always admit the independent CPU oracle in the selected interpreter. Torch
+    # qualification is opt-in and each backend is an isolated bounded subprocess.
+    finishing = {
+        "numpy": step(
+            "finish-qualify-numpy",
+            {"operation": "qualify-finish", "backend": "numpy"},
+            optional=True,
+        )
+    }
+    if config.get("cuda") and config.get("cuda_environment"):
+        for backend in ("torch-cpu", "transfer-cuda", "cuda"):
+            finishing[backend] = step(
+                "finish-qualify-" + backend,
+                {"operation": "qualify-finish", "backend": backend},
+                optional=True,
+                python=config["cuda_python"],
+            )
+
     if config["preflight_only"]:
         return results
     same_build = bool(
@@ -617,6 +753,51 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
             for name, item in selected.items()
         )
     )
+
+    def pair(
+        label: str,
+        a: dict[str, Any],
+        b: dict[str, Any],
+        *,
+        comparison: str,
+        python: str | None = None,
+    ) -> None:
+        # New namespace for every observation. Never share a baseline between
+        # pairs or report a reused output as an independently repeated sample.
+        for ordinal in range(1, config.get("repeats", 2) + 1):
+            order = "AB" if ordinal % 2 else "BA"
+            for side in order:
+                request = a if side == "A" else b
+                if side == "B" and request.get("operation") == "service":
+                    # Compare against a matched control, outside the timer. BA
+                    # repeats use the already validated first-pass A master.
+                    control = results.get(f"{label}-r{ordinal:02d}-A") or results.get(
+                        f"{label}-r01-A", {}
+                    )
+                    if control.get("status") == "SUCCEEDED" and control.get("output"):
+                        request = {**request, "reference": control["output"]}
+                    else:
+                        skipped(
+                            f"{label}-r{ordinal:02d}-{side}",
+                            "matched service CPU control unavailable; no candidate render",
+                        )
+                        continue
+                step(
+                    f"{label}-r{ordinal:02d}-{side}",
+                    {
+                        **request,
+                        "pair": {
+                            "id": label,
+                            "repeat": ordinal,
+                            "order": order,
+                            "side": side,
+                            "comparison": comparison,
+                        },
+                    },
+                    optional=True,
+                    python=python,
+                )
+
     for w in workloads:
         base = {"operation": "service", "workload": w}
         cpu = step(w["id"] + "-cpu-selected", base)
@@ -629,79 +810,84 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                 },
                 optional=True,
             )
-        if config["smoke"] or config.get("reference_only"):
+        if config.get("reference_only"):
             continue
-        for backend, variant in (
-            ("transfer", "TRANSFER"),
-            ("blur", "BLUR"),
-            ("prores", "PRORES-GPU"),
-        ):
-            label = w["id"] + "-" + backend
-            if backend_passed(qualification, backend):
-                if backend == "prores":
-                    matched = step(
-                        w["id"] + "-prores-cpu-matched", {**base, "variant": "PRORES-MATCHED"}
+        # Repeat only the speech shortlist, not all four baseline intervals.
+        # Smoke exercises the identical graph with six real frames, no GPU claim.
+        if w["id"] != "speech" and not config["smoke"]:
+            continue
+        if not config["smoke"]:
+            for backend, variant in (
+                ("transfer", "TRANSFER"),
+                ("blur", "BLUR"),
+                ("prores", "PRORES-GPU"),
+            ):
+                label = w["id"] + "-" + backend
+                if backend_passed(qualification, backend):
+                    control = {
+                        **base,
+                        "variant": "PRORES-MATCHED" if backend == "prores" else "CPU-CONTROL",
+                    }
+                    pair(
+                        label,
+                        control,
+                        {**base, "variant": variant},
+                        comparison=(
+                            "algorithm contrast; recursive CPU vs GPU blur"
+                            if backend == "blur"
+                            else "matched service backend control"
+                        ),
                     )
-                    reference = matched["output"]
                 else:
-                    reference = cpu["output"]
-                step(label, {**base, "variant": variant, "reference": reference}, optional=True)
-            else:
-                skipped(
-                    label,
-                    f"{backend} independently not qualified; "
-                    "inspect backend-qualification diagnostics",
-                )
-        ffv1_cpu = step(
-            w["id"] + "-ffv1-cpu",
-            {"operation": "codec", "workload": w, "reference": cpu["output"], "gpu": False},
-            optional=True,
-        )
-        if backend_passed(qualification, "ffv1") and ffv1_cpu["status"] == "SUCCEEDED":
-            step(
-                w["id"] + "-ffv1-gpu",
-                {"operation": "codec", "workload": w, "reference": cpu["output"], "gpu": True},
-                optional=True,
+                    skipped(
+                        label,
+                        f"{backend} independently not qualified; inspect backend-qualification",
+                    )
+        codec = {"operation": "codec", "workload": w, "reference": cpu["output"]}
+        if backend_passed(qualification, "ffv1") and not config["smoke"]:
+            pair(
+                w["id"] + "-ffv1",
+                {**codec, "gpu": False},
+                {**codec, "gpu": True},
+                comparison="matched shared-master decode/conversion/FFV1 encoding",
             )
         else:
-            skipped(w["id"] + "-ffv1-gpu", "FFV1 independently not qualified or CPU oracle failed")
-        # Independent branch: no Vulkan success is required to try explicit CUDA.
-        if config["cuda"] and config["cuda_environment"]:
-            numpy_control = step(
-                w["id"] + "-cuda-numpy",
-                {
-                    "operation": "cuda",
-                    "backend": "numpy",
-                    "workload": w,
-                    "reference": cpu["output"],
-                },
-                optional=True,
-                python=config["cuda_python"],
+            # Retain a native lossless MKV even without a GPU encoder. It aliases
+            # the existing CPU MOV for NLE comparison after exact RGBA proof.
+            step(w["id"] + "-ffv1-cpu", {**codec, "gpu": False}, optional=True)
+            skipped(w["id"] + "-ffv1-gpu", "FFV1 GPU independently not qualified")
+        finish = {"operation": "cuda", "workload": w}
+        numpy_ok = (
+            finishing["numpy"].get("status") == "SUCCEEDED"
+            and finishing["numpy"].get("passed") is True
+        )
+        if numpy_ok:
+            pair(
+                w["id"] + "-fir-algorithm",
+                {**finish, "backend": "ffmpeg"},
+                {**finish, "backend": "numpy"},
+                comparison="algorithm contrast; matched raster, FFmpeg recursive vs NumPy FIR",
             )
-            reference = (
-                numpy_control.get("output") if numpy_control["status"] == "SUCCEEDED" else None
-            )
-            for suffix, backend in (
-                ("-cuda-torch-cpu", "torch-cpu"),
-                ("-cuda-transfer", "transfer-cuda"),
-                ("-cuda", "cuda"),
-            ):
-                step(
-                    w["id"] + suffix,
-                    {
-                        "operation": "cuda",
-                        "backend": backend,
-                        "workload": w,
-                        "reference": reference,
-                    },
-                    optional=True,
+        else:
+            skipped(w["id"] + "-fir-algorithm", "independent NumPy qualification failed")
+        for backend in ("torch-cpu", "transfer-cuda", "cuda"):
+            q = finishing.get(backend, {})
+            if numpy_ok and q.get("status") == "SUCCEEDED" and q.get("passed") is True:
+                # Both sides run under the SAME optional interpreter and use the
+                # same algorithm, original raster, timer and encoding wrapper.
+                pair(
+                    w["id"] + "-" + backend,
+                    {**finish, "backend": "numpy"},
+                    {**finish, "backend": backend},
+                    comparison="matched FIR finishing backend control",
                     python=config["cuda_python"],
                 )
-        else:
-            skipped(
-                w["id"] + "-cuda",
-                config["cuda_error"] or "CUDA opt-in not requested; Torch not installed",
-            )
+            else:
+                skipped(
+                    w["id"] + "-" + backend,
+                    config.get("cuda_error")
+                    or f"{backend} not explicitly qualified (Torch/CUDA opt-in required)",
+                )
     # Production pool check is explicit in the worker and retained, never replaced
     # by short serial renders or a synthetic subprocess benchmark.
     if config["production32"] and not config["smoke"]:
@@ -738,6 +924,37 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                     },
                 },
             )
+    # View generation is separate from every timed render. Identical decoded
+    # RGBA streams share one useful set even across MOV/MKV container variants.
+    views: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for name, result in list(results.items()):
+        valid = result.get("validation", {})
+        if (
+            result.get("status") != "SUCCEEDED"
+            or not result.get("output")
+            or not valid.get("passed")
+        ):
+            continue
+        digest = valid.get("decoded_rgba_sha256")
+        key = (
+            digest,
+            valid.get("frames"),
+            json.dumps(valid.get("stream", {}).get("width")),
+            json.dumps(valid.get("stream", {}).get("height")),
+        )
+        view = step(
+            name + "-views",
+            {
+                "operation": "views",
+                "source": result["output"],
+                "workload": result["workload"],
+                "reuse_views": views.get(key) if digest else None,
+                "comparison_mov": result.get("comparison_mov"),
+            },
+            optional=True,
+        )
+        if digest and view.get("status") == "SUCCEEDED":
+            views.setdefault(key, view)
     return results
 
 
@@ -802,8 +1019,14 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--timeout", type=float, default=900.0, help="per-worker seconds; includes descendants"
     )
+    p.add_argument(
+        "--repeats",
+        type=int,
+        default=2,
+        help="even pair repetitions (2..10), sequential AB/BA; other baselines run once",
+    )
     p.add_argument("--max-growth-gib", type=float, default=8.0)
-    p.add_argument("--reserve-gib", type=float, default=2.0)
+    p.add_argument("--reserve-gib", type=float, default=10.0)
     return p
 
 
@@ -839,6 +1062,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--prepare-ffmpeg cannot be combined with explicit --ffmpeg/--ffprobe")
     if args.cuda_python and args.install_cuda:
         p.error("--install-cuda creates its own environment; do not combine with --cuda-python")
+    if args.repeats not in range(2, 11, 2):
+        p.error("--repeats must be even, between 2 and 10, for balanced AB/BA orders")
     for name in ("timeout", "max_growth_gib", "reserve_gib"):
         if not math.isfinite(getattr(args, name)) or getattr(args, name) <= 0:
             p.error(f"--{name.replace('_', '-')} must be finite and positive")
@@ -858,6 +1083,7 @@ def main(argv: list[str] | None = None) -> int:
             "--full",
             "--reference-only",
             "--no-production32",
+            "--repeats",
             "--timeout",
             "--max-growth-gib",
             "--reserve-gib",
@@ -878,6 +1104,7 @@ def main(argv: list[str] | None = None) -> int:
     results: dict[str, Any] = {}
     status, error, code = "FAILED", None, 1
     fresh_names: set[str] | None = None
+    existing: set[str] | None = None  # None means dispatch was never admitted.
     report_root = run
     namespace_admitted = False
     try:
@@ -909,6 +1136,7 @@ def main(argv: list[str] | None = None) -> int:
             config = freeze(args, run, media, original)
             with lock(run):
                 check_budget(run, media, config["limits"])
+                existing = set()
                 results = execute(config, {})
             optional_failures = bool(config.get("cuda_error")) or any(
                 v.get("status") == "FAILED" for v in results.values()
@@ -939,7 +1167,7 @@ def main(argv: list[str] | None = None) -> int:
                         }
                 except (ValueError, TypeError, KeyError):
                     continue
-            fresh_names = set()
+            fresh_names = set(results) - existing if existing is not None else set()
         if (
             not namespace_admitted
             or not report_root.exists()
@@ -963,6 +1191,35 @@ def main(argv: list[str] | None = None) -> int:
             reused=bool(args.resume),
             fresh_names=fresh_names,
         )
+        if config is not None and code == 0:
+            try:
+                # Resume diagnostics live outside the frozen run. Include their
+                # newly retained bytes without writing into that original run.
+                budget_run, budget_media = Path(config["run"]), Path(config["media"])
+                limits = dict(config["limits"])
+                if not report_root.is_relative_to(budget_run) and not report_root.is_relative_to(
+                    budget_media
+                ):
+                    limits["growth_bytes"] -= tree_bytes(report_root)
+                check_budget(budget_run, budget_media, limits)
+            except ValueError as budget_error:
+                preliminary = path
+                status, code = "REFUSED_RESOURCE_LIMIT", 1
+                error = str(budget_error)
+                path = report(
+                    report_root,
+                    status,
+                    error,
+                    config,
+                    results,
+                    reused=bool(args.resume),
+                    fresh_names=fresh_names,
+                )
+                with path.open("a", encoding="utf-8") as stream:
+                    stream.write(
+                        f"\nSupersedes preliminary pre-budget report: `{preliminary}`. "
+                        "All outputs retained; no completion claim.\n"
+                    )
     except Exception as report_error:
         path = report_root / ("emergency-report-" + uuid.uuid4().hex + ".md")
         path.write_text(

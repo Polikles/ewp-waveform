@@ -190,6 +190,8 @@ def test_optional_vulkan_failure_does_not_block_cpu_or_cuda(
             return {"status": "SUCCEEDED", "workloads": [workload]}
         if name == "backend-qualification":
             return {"status": "FAILED", "backends": {"transfer": {"status": "FAILED"}}}
+        if name.startswith("finish-qualify-"):
+            return {"status": "SUCCEEDED", "passed": True}
         return {"status": "SUCCEEDED", "output": "reference.mov"}
 
     monkeypatch.setattr(app, "invoke", fake_invoke)
@@ -212,7 +214,14 @@ def test_optional_vulkan_failure_does_not_block_cpu_or_cuda(
     }
     app.execute(config, {})
     assert calls.index("backend-qualification") < calls.index("speech-cpu-selected")
-    assert "speech-cuda" in calls
+    assert "speech-cuda-r01-B" in calls
+    assert calls.index("finish-qualify-cuda") < calls.index("speech-cuda-r01-B")
+    assert [name for name in calls if name.startswith("speech-cuda-r")] == [
+        "speech-cuda-r01-A",
+        "speech-cuda-r01-B",
+        "speech-cuda-r02-B",
+        "speech-cuda-r02-A",
+    ]
 
 
 def test_no_render_before_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -224,7 +233,7 @@ def test_no_render_before_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(app, "invoke", fake)
     app.execute({"selected": {"tools": {}}, "smoke": False, "preflight_only": True}, {})
-    assert calls == ["audio-plan", "backend-qualification"]
+    assert calls == ["audio-plan", "backend-qualification", "finish-qualify-numpy"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux ownership oracle")

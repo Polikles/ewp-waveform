@@ -294,8 +294,102 @@ def codec_render(request: dict[str, Any]) -> dict[str, Any]:
         "route": "SHARED_CPU_MOV_DECODE_CONVERSION_FFV1_ENCODING_NOT_SERVICE",
         "timer": "run_captured decode+conversion+encode+container; excludes validation",
         "reference": identity(original),
+        # inspect(lossless=True) has compared every RGBA byte including hidden RGB.
+        "comparison_mov": str(original),
         "visual": "PENDING",
         "studio": "PENDING",
+    }
+
+
+def check_cuda_device(value: dict[str, Any], expected: str) -> None:
+    import re
+
+    names = [row["worker"]["device_name"] for row in value.get("cases", []) if row.get("worker")]
+    if not names or any(re.search(expected, name, re.IGNORECASE) is None for name in names):
+        raise ValueError(
+            f"CUDA selected device mismatch: expected {expected!r}; observed {names!r}"
+        )
+    value["expected_device_regex"] = expected
+    value["selected_device_match"] = True
+
+
+def qualify_finish(request: dict[str, Any]) -> dict[str, Any]:
+    from ewp_waveform.ffmpeg.torch_finish import (
+        FinishSpec,
+        TorchFinisher,
+        correctness_cases,
+        qualify,
+    )
+
+    backend = request["backend"]
+    if backend != "transfer-cuda":
+        value = {"status": "SUCCEEDED", **qualify(backend, device="cuda:0")}
+        if backend == "cuda":
+            check_cuda_device(value, request["expected_device"])
+        return value
+    # A transfer-only gate must not require convolution support. This explicitly
+    # proves byte-preserving synchronized upload/download with no device compute;
+    # it is NOT the CUDA finishing-compute qualification, which has its own gate.
+    rows = []
+    for width, height in ((64, 32), (1400, 280)):
+        spec = FinishSpec(width=width, height=height, overscan=50, supersample=2)
+        worker = TorchFinisher(spec, "cuda:0")
+        for name, mask in correctness_cases(spec).items():
+            result = worker.transfer(mask)
+            if result.tobytes() != mask.tobytes():
+                raise ValueError("compute-free transfer roundtrip mismatch")
+            rows.append({"geometry": [width, height], "case": name, "bytes_equal": True})
+        rows.append({"worker": worker.evidence()})
+    value = {
+        "status": "SUCCEEDED",
+        "passed": True,
+        "backend": backend,
+        "gpu_qualified": False,
+        "transfer_qualified": True,
+        "scope": "COMPUTE_FREE_TRANSFER_ONLY_NOT_GPU_FINISHING",
+        "cases": rows,
+    }
+    check_cuda_device(value, request["expected_device"])
+    return value
+
+
+def make_views(request: dict[str, Any]) -> dict[str, Any]:
+    from ewp_waveform.ffmpeg import experiment_suite_validation as validation
+
+    source = Path(request["source"])
+    reuse = request.get("reuse_views")
+    if reuse:
+        views = reuse["views"]
+        return {
+            "status": "SUCCEEDED",
+            "native": str(source),
+            "views": views,
+            "alias_of": reuse["native"],
+            "deduplication": "exact validated decoded RGBA hash",
+            "artifacts": [identity(Path(v["path"])) for v in views],
+        }
+    output = Path(request["media"])
+    output.mkdir(parents=True, exist_ok=False)
+    # Codec worker sets comparison_mov only after full lossless RGBA validation.
+    comparison = Path(request["comparison_mov"]) if request.get("comparison_mov") else source
+    views = validation.make_views(
+        request["ffmpeg"],
+        request["ffprobe"],
+        comparison,
+        output,
+        width=1400,
+        height=280,
+        frames=request["workload"]["frames"],
+        log=Path(request["evidence"]) / "commands.jsonl",
+    )
+    if comparison != source:
+        views[0]["role"] = "COMPARISON_MOV_EXACT_RGBA_ALIAS_NOT_NATIVE_FFV1"
+    return {
+        "status": "SUCCEEDED",
+        "native": str(source),
+        "views": views,
+        "artifacts": [identity(Path(v["path"])) for v in views],
+        "timer": "separate view generation/validation; excluded from render throughput",
     }
 
 
@@ -316,6 +410,10 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             "status": "SUCCEEDED",
             "acquisition": tools.acquire_windows(Path(request["media"]), allow_download=True),
         }
+    if operation == "views":
+        return make_views(request)
+    if operation == "qualify-finish":
+        return qualify_finish(request)
     if operation == "audio-plan":
         return audio_plan(request)
     if operation == "service":
@@ -355,6 +453,7 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
                 device="cuda:0",
                 ffmpeg=request["ffmpeg"],
                 ffprobe=request["ffprobe"],
+                visual_overrides=request["visual_overrides"],
                 reference=Path(request["reference"]) if request.get("reference") else None,
             ),
         )
