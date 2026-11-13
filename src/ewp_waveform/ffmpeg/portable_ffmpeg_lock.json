@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "platform": "windows-x86_64",
+  "provider": "BtbN / FFmpeg-Builds/FFmpeg-Builds (third-party binary provider linked by ffmpeg.org; not an FFmpeg project binary)",
+  "provider_repository": "https://github.com/FFmpeg-Builds/FFmpeg-Builds",
+  "release_tag": "autobuild-2026-10-31-12-59",
+  "release_published_utc": "2026-10-31T12:59:47Z",
+  "release_asset_id": 695397710,
+  "build_version": "n9.0.2-39-g7adfbe40dc",
+  "build_extra_version": "20261031",
+  "source_revision_prefix": "7adfbe40dc",
+  "archive_name": "ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-shared-9.0.zip",
+  "url": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-shared-9.0.zip",
+  "archive_bytes": 85920857,
+  "sha256": "1d9823c35c7a7e2f54d1438cf61030d6efabe3278de01c191309d1e828bb74df",
+  "max_archive_bytes": 100000000,
+  "max_expanded_bytes": 250000000,
+  "archive_root": "ffmpeg-n9.0.2-39-g7adfbe40dc-win64-gpl-shared-9.0",
+  "bin_sha256": {
+    "swresample-7.dll": "43a5ea4395a47967b57b82e7f28a0c29d4f48f413d0bd6998dcd5c00113d7ec3",
+    "swscale-10.dll": "1a60407f390640666c75eee0cdbfbf7a32a2d5d37aac7a88d51eb3dc22f8048d",
+    "avutil-61.dll": "87fd34e22aab2d2f8abc5b1b819e97f58fd817eb6cf92a2ea55cd25f4e7f7f13",
+    "ffprobe.exe": "18cc6c871af2494a4d917674327ebf31b48d113982b1c772bab13c0a292c2bca",
+    "avfilter-12.dll": "2f815a0430505d8c55f9b4a702c0e8fcc6e01f3348ff4b873963a6e8f680506b",
+    "ffplay.exe": "5d173719818faec099a639a344b4ea51a04fecdd0ab62a94e42e788e408f9a32",
+    "avcodec-63.dll": "d1a06c0e117fd11ec11449aa2ca1c3d3970825b5c5e04da818e291c648237e0e",
+    "ffmpeg.exe": "e808e7afdf013284a8541d798251bf644ccba9da19cbb70dc5d2618dee17a534",
+    "avformat-63.dll": "54d31f2ba5fb53689635f876f188c3f82dd5493d9b5adb54b555ef029f5e3374",
+    "avdevice-63.dll": "4e1a08a8fd03ac3fd1861048485c954dbccea2809b9e8f2416867934acaef7e5"
+  },
+  "required_encoder_names": [
+    "ffv1",
+    "ffv1_vulkan",
+    "prores_ks",
+    "prores_ks_vulkan"
+  ],
+  "required_filter_names": [
+    "hwupload",
+    "hwdownload",
+    "gblur_vulkan"
+  ],
+  "research": {
+    "verified_download": true,
+    "all_bin_files_pe_machine": "0x8664",
+    "avcodec_binary_codec_strings": {
+      "ffv1": true,
+      "ffv1_vulkan": true,
+      "prores_ks": true,
+      "prores_ks_vulkan": true
+    },
+    "avfilter_binary_filter_strings": {
+      "hwupload": true,
+      "hwdownload": true,
+      "gblur_vulkan": true
+    },
+    "binary_build_configuration_enable_vulkan": true,
+    "encoder_inventory": "PENDING_NATIVE_WINDOWS_EXECUTION",
+    "runtime_qualification": "PENDING_NATIVE_WINDOWS",
+    "latest_official_stable_observed": "9.0.2",
+    "latest_official_stable_release_date": "2026-09-18",
+    "official_source_sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+    "official_source_url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "official_source_encoder_implementation_paths": [
+      "libavcodec/ffv1enc_vulkan.c",
+      "libavcodec/proresenc_kostya_vulkan.c"
+    ],
+    "sources": [
+      "https://ffmpeg.org/download.html",
+      "https://api.github.com/repos/FFmpeg-Builds/FFmpeg-Builds/releases/tags/autobuild-2026-10-31-12-59",
+      "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0.2/libavutil/hwcontext_vulkan.c",
+      "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0.2/libavfilter/vf_gblur_vulkan.c",
+      "https://raw.githubusercontent.com/FFmpeg-Builds/FFmpeg-Builds/master/README.md",
+      "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/chapters/formats.adoc",
+      "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/chapters/capabilities.adoc"
+    ]
+  },
+  "retention_policy": "Latest retained monthly build as observed 2026-11-13; provider retains month-end builds for two years. No silent upgrade if URL expires."
+}
