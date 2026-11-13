@@ -1249,3 +1249,246 @@ def test_pidfd_api_supports_standalone_python_via_libc(
     open_fd, send_fd = driver.pidfd_api(Libc())
     assert open_fd(42, 0) == 456
     assert send_fd(456, signal.SIGKILL, None, 0) == 0
+
+
+@pytest.mark.parametrize("operation", ["observe", "invoke"])
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize(
+    "boundary", ["constructor", "registration", "transfer", "return", "wrapper"]
+)
+@pytest.mark.parametrize("fail", [False, True])
+def test_launch_boundary_defers_signals_and_reconciles_bookkeeping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    signum: int,
+    boundary: str,
+    fail: bool,
+) -> None:
+    """Portable state-machine oracle; no /proc, chmod, sleeps or real subprocess.
+
+    Exercise the actual owned_popen return event, including an exception before
+    its caller can receive a handle. Constructor/registry/list failures retain
+    the original error even if an operator interrupt was delivered concurrently.
+    The independent real-process tests exercise this same protocol with workers.
+    """
+    original = RuntimeError(f"original {boundary} failure")
+    processes: list[Any] = []
+    closed: list[int] = []
+    shutdown_signals: list[tuple[int, int]] = []
+    reads = iter([b"READY\n", b"REAPED"])
+    previous = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM)}
+
+    def interrupt() -> None:
+        signal.raise_signal(signum)
+        if fail:
+            raise original
+
+    class SyntheticPopen:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.pid = 48123
+            self.returncode: int | None = None
+            processes.append(self)
+            if boundary == "constructor":
+                interrupt()
+
+        def send_signal(self, sig: int) -> None:
+            shutdown_signals.append((self.pid, sig))
+
+        def wait(self) -> int:
+            self.returncode = 143
+            return self.returncode
+
+    class Receipts(dict[int, int]):
+        def __setitem__(self, pid: int, reader: int) -> None:
+            if boundary == "registration":
+                interrupt()
+            super().__setitem__(pid, reader)
+
+    class Transfer(list[Any]):
+        def __init__(self, target: list[Any]) -> None:
+            super().__init__()
+            self.target = target
+
+        def append(self, proc: Any) -> None:
+            interrupt()
+            self.target.append(proc)
+
+    monkeypatch.setattr(driver.subprocess, "Popen", SyntheticPopen)
+    monkeypatch.setattr(driver.os, "pipe", lambda: (81001, 81002))
+    monkeypatch.setattr(driver.os, "close", closed.append)
+    monkeypatch.setattr(driver.os, "read", lambda fd, count: next(reads))
+    receipts = Receipts()
+    monkeypatch.setattr(driver, "OWNERSHIP_RECEIPTS", receipts)
+    actual = driver.owned_popen
+
+    def wrapped(argv: list[str], **kwargs: Any) -> Any:
+        if boundary == "transfer":
+            kwargs["_owned"] = Transfer(kwargs["_owned"])
+        proc = actual(argv, **kwargs)
+        if boundary == "wrapper":
+            interrupt()
+        return proc
+
+    if boundary in ("transfer", "wrapper"):
+        monkeypatch.setattr(driver, "owned_popen", wrapped)
+
+    def trace(frame: Any, event: str, arg: Any) -> Any:
+        if frame.f_code is actual.__code__ and event == "return" and arg is not None:
+            interrupt()
+        return trace
+
+    if boundary == "return":
+        sys.settrace(trace)
+    try:
+        with pytest.raises(RuntimeError if fail else KeyboardInterrupt) as caught:
+            if operation == "observe":
+                driver.observe([sys.executable, "-c", "pass"])
+            else:
+                driver.invoke(Path(sys.executable), tmp_path, "synthetic", {}, accepted=("OK",))
+    finally:
+        if boundary == "return":
+            sys.settrace(None)
+    if fail:
+        assert caught.value is original
+    assert processes[0].returncode == 143
+    assert shutdown_signals == [(48123, signal.SIGTERM)]
+    assert sorted(closed) == [81001, 81002]
+    assert receipts == {}
+    assert {s: signal.getsignal(s) for s in previous} == previous
+    if operation == "invoke":
+        with pytest.raises(ValueError, match="uncertain STARTED"):
+            driver.completed_steps(tmp_path)
+
+
+@pytest.mark.parametrize("operation", ["observe", "invoke"])
+def test_constructor_failure_without_child_closes_receipt_and_preserves_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    original = RuntimeError("constructor refused before spawn")
+    closed: list[int] = []
+
+    class NoChild:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise original
+
+    monkeypatch.setattr(driver.subprocess, "Popen", NoChild)
+    monkeypatch.setattr(driver.os, "pipe", lambda: (81001, 81002))
+    monkeypatch.setattr(driver.os, "close", closed.append)
+    monkeypatch.setattr(driver, "OWNERSHIP_RECEIPTS", {})
+    with pytest.raises(RuntimeError) as caught:
+        if operation == "observe":
+            driver.observe(["unused"])
+        else:
+            driver.invoke(Path(sys.executable), tmp_path, "synthetic", {}, accepted=("OK",))
+    assert caught.value is original
+    assert sorted(closed) == [81001, 81002]
+    assert not driver.OWNERSHIP_RECEIPTS
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux driver ownership contract")
+def test_launch_deferral_does_not_block_child_interrupt_signals() -> None:
+    source = (
+        "import signal,json; "
+        "mask=signal.pthread_sigmask(signal.SIG_BLOCK, []); "
+        "print(json.dumps([int(s) for s in mask]))"
+    )
+    value = driver.observe([sys.executable, "-c", source])
+    assert value["returncode"] == 0 and value["shutdown_verified"]
+    assert not {signal.SIGINT, signal.SIGTERM}.intersection(json.loads(value["stdout"]))
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux driver ownership contract")
+@pytest.mark.parametrize("operation", ["observe", "invoke"])
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("boundary", ["constructor", "registration", "return"])
+def test_real_launch_boundary_reaps_ready_detached_worker_before_propagating(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    signum: int,
+    boundary: str,
+) -> None:
+    """Actual launcher/supervisor, ready TERM-resistant descendants, no media."""
+    ready = tmp_path / "leaf-ready"
+    pidfile = tmp_path / "pids.json"
+    leaf = (
+        "import os,signal,time; from pathlib import Path; "
+        "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+        f"Path({str(ready)!r}).write_text(str(os.getpid())); time.sleep(60)"
+    )
+    stage = (
+        "import os,sys,signal,subprocess,time,json; from pathlib import Path; "
+        "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+        f"p=subprocess.Popen([sys.executable,'-c',{leaf!r}],start_new_session=True,"
+        "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+        f"Path({str(pidfile)!r}).write_text(json.dumps([os.getpid(),p.pid])); time.sleep(60)"
+    )
+    original = RuntimeError(f"original ready-child {boundary} failure")
+    launched: list[subprocess.Popen[Any]] = []
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    actual_init = subprocess.Popen.__init__
+    actual_launch = driver.owned_popen
+    previous_trace = sys.gettrace()
+
+    def interrupt_ready() -> None:
+        deadline = time.monotonic() + 6
+        while not (ready.exists() and pidfile.exists()) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists() and pidfile.exists(), "synthetic child readiness"
+        os.kill(os.getpid(), signum)
+        if boundary != "return":
+            raise original
+
+    def init(proc: subprocess.Popen[Any], *args: Any, **kwargs: Any) -> None:
+        actual_init(proc, *args, **kwargs)
+        launched.append(proc)
+        if boundary == "constructor":
+            interrupt_ready()
+
+    class Receipts(dict[int, int]):
+        def __setitem__(self, pid: int, reader: int) -> None:
+            if boundary == "registration":
+                interrupt_ready()
+            super().__setitem__(pid, reader)
+
+    def launch(argv: list[str], **kwargs: Any) -> Any:
+        return actual_launch([sys.executable, "-c", stage], **kwargs)
+
+    def trace(frame: Any, event: str, arg: Any) -> Any:
+        if frame.f_code is actual_launch.__code__ and event == "return" and arg is not None:
+            interrupt_ready()
+        return trace
+
+    monkeypatch.setattr(subprocess.Popen, "__init__", init)
+    monkeypatch.setattr(driver, "OWNERSHIP_RECEIPTS", Receipts())
+    monkeypatch.setattr(driver, "owned_popen", launch)
+    if boundary == "return":
+        sys.settrace(trace)
+    try:
+        with pytest.raises(KeyboardInterrupt if boundary == "return" else RuntimeError) as caught:
+            if operation == "observe":
+                driver.observe([sys.executable, "-c", "pass"])
+            else:
+                driver.invoke(Path(sys.executable), tmp_path, "synthetic", {}, accepted=("OK",))
+        if boundary != "return":
+            assert caught.value is original
+        pids = [p.pid for p in launched] + json.loads(pidfile.read_text())
+        observation = {str(pid): Path(f"/proc/{pid}").exists() for pid in pids}
+        (tmp_path / "after-propagation.json").write_text(json.dumps(observation))
+        assert not any(observation.values()), observation
+        assert not driver.OWNERSHIP_RECEIPTS
+        assert unrelated.poll() is None
+        if operation == "invoke":
+            with pytest.raises(ValueError, match="uncertain STARTED"):
+                driver.completed_steps(tmp_path)
+    finally:
+        sys.settrace(previous_trace)
+        for proc in launched:
+            if proc.pid in driver.OWNERSHIP_RECEIPTS:
+                driver.stop_owned(proc)
+            elif proc.poll() is None:
+                proc.terminate()  # Only the test's exact retained supervisor.
+                proc.wait(timeout=10)
+        unrelated.terminate()
+        unrelated.wait(timeout=5)

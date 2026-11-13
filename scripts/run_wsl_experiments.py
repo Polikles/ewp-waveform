@@ -150,6 +150,9 @@ def supervisor(argv: list[str], receipt_fd: int) -> int:
     if probe < 0:
         raise OSError(ctypes.get_errno(), "pidfd support required before launch")
     os.close(probe)
+    # A failed launch/bookkeeping path may need to stop us immediately. Publish
+    # readiness only after TERM/INT cleanup and ownership discovery are installed.
+    os.write(receipt_fd, b"READY\n")
     try:
         proc = subprocess.Popen(argv)
     except OSError:
@@ -203,33 +206,112 @@ def supervisor(argv: list[str], receipt_fd: int) -> int:
         time.sleep(0.02)
 
 
-def owned_popen(argv: list[str], **kwargs: Any) -> subprocess.Popen[str]:
+def owned_popen(
+    argv: list[str], *, _owned: list[subprocess.Popen[str]], **kwargs: Any
+) -> subprocess.Popen[str]:
+    """Launch under owned_process's deferral; retain even a failed constructor."""
+    # __init__ may fail AFTER creating the OS child. Keep the object beforehand,
+    # so that failure cannot erase our only handle to the private supervisor.
+    proc: subprocess.Popen[str] = subprocess.Popen.__new__(subprocess.Popen)
     reader, writer = os.pipe()
+    ready = False
     try:
-        proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-S",
-                str(Path(__file__).resolve()),
-                "--_supervise",
-                str(writer),
-                *argv,
-            ],
-            start_new_session=True,
-            pass_fds=(writer,),
-            **kwargs,
-        )
-    except BaseException:
-        os.close(reader)
+        try:
+            subprocess.Popen.__init__(
+                proc,
+                [
+                    sys.executable,
+                    "-S",
+                    str(Path(__file__).resolve()),
+                    "--_supervise",
+                    str(writer),
+                    *argv,
+                ],
+                start_new_session=True,
+                pass_fds=(writer,),
+                **kwargs,
+            )
+        finally:
+            os.close(writer)
+        if os.read(reader, 6) != b"READY\n":
+            raise RuntimeError("ownership supervisor failed before readiness")
+        ready = True
+        OWNERSHIP_RECEIPTS[proc.pid] = reader
+        _owned.append(proc)  # Transfer before the actual Python return event.
+        return proc
+    except BaseException as exc:
+        try:
+            if getattr(proc, "pid", None) is not None:
+                if not ready:
+                    ready = os.read(reader, 6) == b"READY\n"
+                if ready:
+                    stop_owned(proc, reader=reader)
+                else:
+                    proc.wait()  # No READY means no stage was launched.
+                    os.close(reader)
+            else:
+                os.close(reader)
+        except Exception as cleanup_error:
+            note_error(exc, f"shutdown UNVERIFIED: {cleanup_error}; no replay")
         raise
+
+
+@contextmanager
+def owned_process(argv: list[str], **kwargs: Any) -> Iterator[subprocess.Popen[str]]:
+    """Make spawn, registration and caller cleanup one protected lifetime.
+
+    Defer Python signal exceptions, not kernel delivery: neither the supervisor
+    nor its exec'd stage inherits blocked INT/TERM. The local ownership list is
+    populated inside owned_popen, so a return-event interrupt or a wrapper that
+    raises before caller assignment cannot lose the handle. This scope also
+    protects standalone observe/invoke, without a top-level driver registry.
+    """
+    owned: list[subprocess.Popen[str]] = []
+    pending: list[int] = []
+    launching = True
+
+    def interrupted(signum: int, frame: Any) -> None:
+        if launching:
+            pending.append(signum)
+        else:
+            raise KeyboardInterrupt(signal.Signals(signum).name)
+
+    previous: dict[int, Any] = {}
+    try:
+        for s in (signal.SIGINT, signal.SIGTERM):
+            previous[s] = signal.signal(s, interrupted)
+        try:
+            proc = owned_popen(argv, _owned=owned, **kwargs)
+            launching = False
+            if pending:
+                raise KeyboardInterrupt(signal.Signals(pending[0]).name)
+            yield proc
+        except BaseException as exc:
+            launching = True
+            for proc in owned:
+                if proc.pid in OWNERSHIP_RECEIPTS:
+                    try:
+                        stop_owned(proc)
+                    except Exception as cleanup_error:
+                        note_error(exc, f"shutdown UNVERIFIED: {cleanup_error}; no replay")
+            if pending and not isinstance(exc, KeyboardInterrupt):
+                note_error(exc, f"deferred {signal.Signals(pending[0]).name} during launch")
+            raise
+        else:
+            launching = True
+            for proc in owned:
+                if proc.pid in OWNERSHIP_RECEIPTS:
+                    stop_owned(proc)
     finally:
-        os.close(writer)
-    OWNERSHIP_RECEIPTS[proc.pid] = reader
-    return proc
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
-def verify_shutdown(proc: subprocess.Popen[str]) -> None:
-    reader = OWNERSHIP_RECEIPTS.pop(proc.pid)
+def verify_shutdown(proc: subprocess.Popen[str], *, reader: int | None = None) -> None:
+    if reader is None:
+        reader = OWNERSHIP_RECEIPTS.pop(proc.pid)
+    else:
+        OWNERSHIP_RECEIPTS.pop(proc.pid, None)
     try:
         if os.read(reader, 32) != b"REAPED":
             raise RuntimeError(
@@ -239,7 +321,7 @@ def verify_shutdown(proc: subprocess.Popen[str]) -> None:
         os.close(reader)
 
 
-def stop_owned(proc: subprocess.Popen[str]) -> None:
+def stop_owned(proc: subprocess.Popen[str], *, reader: int | None = None) -> None:
     # The private supervisor escalates independently of leader/pipes. Ignore
     # further operator signals while joining; preserve the original exception.
     previous = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
@@ -247,7 +329,7 @@ def stop_owned(proc: subprocess.Popen[str]) -> None:
         with suppress(ProcessLookupError):
             proc.send_signal(signal.SIGTERM)
         proc.wait()
-        verify_shutdown(proc)
+        verify_shutdown(proc, reader=reader)
     finally:
         for s, handler in previous.items():
             signal.signal(s, handler)
@@ -262,13 +344,16 @@ def observe(
 ) -> dict[str, Any]:
     """Bounded observation; return only after the ownership supervisor joins."""
     try:
-        with interrupt_signals(), contextmanager_logs(log_root) as logs:
-            proc = owned_popen(
+        with (
+            interrupt_signals(),
+            contextmanager_logs(log_root) as logs,
+            owned_process(
                 argv,
                 stdout=logs[0] if logs else subprocess.PIPE,
                 stderr=logs[1] if logs else subprocess.PIPE,
                 text=True,
-            )
+            ) as proc,
+        ):
             error = None
             try:
                 deadline = time.monotonic() + timeout
@@ -1099,14 +1184,14 @@ def invoke(
         interrupt_signals(),
         (folder / "stdout.txt").open("xb") as stdout,
         (folder / "stderr.txt").open("xb") as stderr,
-    ):
-        proc = owned_popen(
+        owned_process(
             [str(python), str(Path(__file__).resolve()), "--_stage", str(folder / "request.json")],
             cwd=ROOT,
             env=child_env(),
             stdout=stdout,
             stderr=stderr,
-        )
+        ) as proc,
+    ):
         try:
             proc.wait()
             verify_shutdown(proc)
