@@ -15,6 +15,8 @@ remain application APIs, called by this script in the selected Python 3.12.
 from __future__ import annotations
 
 import argparse
+import ast
+import ctypes
 import datetime as dt
 import hashlib
 import importlib.metadata
@@ -30,20 +32,31 @@ import signal
 import struct
 import subprocess
 import sys
+import time
 import traceback
 import uuid
 import wave
-from contextlib import suppress
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = Path.home() / ".local/state/ewp-waveform-experiments"
+OWNERSHIP_RECEIPTS: dict[int, int] = {}
 
 
 def digest(path: Path) -> str:
+    checksum = hashlib.sha256()
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(block)
+    return checksum.hexdigest()
+
+
+def note_error(exc: BaseException, note: str) -> None:
+    # Exception.add_note is 3.11+, but bootstrap discovery supports Python 3.10.
+    exc.__dict__.setdefault("__notes__", []).append(note)
 
 
 def identity(path: Path) -> dict[str, Any]:
@@ -75,42 +88,233 @@ def load(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
-def observe(argv: list[str], *, timeout: float = 20) -> dict[str, Any]:
-    """Observation failure is evidence, never a synthesized capability success."""
+@contextmanager
+def interrupt_signals() -> Iterator[None]:
+    """Direct parent TERM and INT follow the same cleanup path, not os._exit."""
+
+    def interrupted(signum: int, frame: Any) -> None:
+        raise KeyboardInterrupt(signal.Signals(signum).name)
+
+    previous = {s: signal.signal(s, interrupted) for s in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        yield
+    finally:
+        for s, handler in previous.items():
+            signal.signal(s, handler)
+
+
+def pidfd_api(libc: Any) -> tuple[Callable[..., int], Callable[..., int]]:
+    """Prefer stdlib kernel wrappers; older libc may lack its own wrappers."""
+    open_fd = getattr(os, "pidfd_open", None)
+    if open_fd is None:
+        open_fd = libc.pidfd_open
+    python_send = getattr(signal, "pidfd_send_signal", None)
+    if python_send is None:
+        send_fd = libc.pidfd_send_signal
+    else:
+
+        def send_fd(fd: int, sig: int, info: Any, flags: int) -> int:
+            python_send(fd, sig, info, flags)
+            return 0
+
+    return open_fd, send_fd
+
+
+def supervisor(argv: list[str], receipt_fd: int) -> int:
+    """Private Linux subreaper. Its ONLY descendants belong to this invocation.
+
+    setsid does not escape this ancestry. Reparented orphans are adopted here;
+    pidfds bind signals to generations, never a reused PID or unrelated group.
+    Do not exit (and permit report/unlock) until every owned child is reaped.
+    """
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("verified descendant supervision requires Linux /proc and pidfds")
+    libc = ctypes.CDLL(None, use_errno=True)
+    # Standalone CPython may omit os.pidfd_open despite a capable libc/kernel.
+    # Resolve both wrappers before launching a child.
+    pidfd_open, pidfd_signal = pidfd_api(libc)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER, process-local only
+        raise OSError(ctypes.get_errno(), "cannot enable private subreaper")
+    stopping = False
+
+    def stop(signum: int, frame: Any) -> None:
+        nonlocal stopping
+        stopping = True
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+    children_path = Path(f"/proc/self/task/{os.getpid()}/children")
+    children_path.read_text()  # Validate the kernel ownership interface before launch.
+    probe = pidfd_open(os.getpid(), 0)
+    if probe < 0:
+        raise OSError(ctypes.get_errno(), "pidfd support required before launch")
+    os.close(probe)
+    try:
+        proc = subprocess.Popen(argv)
+    except OSError:
+        traceback.print_exc()
+        os.write(receipt_fd, b"REAPED")  # No child was created.
+        os.close(receipt_fd)
+        return 127
+    owned: dict[int, int] = {}
+    deadline: float | None = None
+    result: int | None = None
+    failed = False
+    while True:
+        try:
+            # Only unreaped DIRECT children are signalled. Their PIDs cannot be
+            # recycled before this sole reaper waits. Killing an ancestor adopts
+            # its detached workers here, including double forks; repeat to empty.
+            for pid in map(int, children_path.read_text().split()):
+                if pid not in owned:
+                    fd = pidfd_open(pid, 0)
+                    if fd < 0:
+                        raise OSError(ctypes.get_errno(), "pidfd_open owned child")
+                    owned[pid] = fd
+            if stopping or result is not None:
+                if deadline is None:
+                    deadline = time.monotonic() + 2
+                sig = signal.SIGTERM if time.monotonic() < deadline else signal.SIGKILL
+                for fd in owned.values():
+                    if pidfd_signal(fd, sig, None, 0) < 0 and ctypes.get_errno() != 3:
+                        raise OSError(ctypes.get_errno(), "pidfd_send_signal owned child")
+            for pid, fd in list(owned.items()):
+                if pid == proc.pid:
+                    result = proc.poll()
+                    reaped = result is not None
+                else:
+                    reaped = os.waitpid(pid, os.WNOHANG)[0] == pid
+                if reaped:
+                    os.close(fd)
+                    del owned[pid]
+            if result is not None and not owned and not children_path.read_text().strip():
+                os.write(receipt_fd, b"REAPED")
+                os.close(receipt_fd)
+                return 125 if failed else 128 + -result if result < 0 else result
+        except Exception:
+            # Never abandon children on a supervisor observation error. Retain
+            # the first traceback, stop, and reconcile; persistent inability to
+            # observe/reap deliberately holds the owner rather than unlock early.
+            if not failed:
+                traceback.print_exc()
+            failed = stopping = True
+            deadline = 0.0
+        time.sleep(0.02)
+
+
+def owned_popen(argv: list[str], **kwargs: Any) -> subprocess.Popen[str]:
+    reader, writer = os.pipe()
     try:
         proc = subprocess.Popen(
-            argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True
+            [
+                sys.executable,
+                "-S",
+                str(Path(__file__).resolve()),
+                "--_supervise",
+                str(writer),
+                *argv,
+            ],
+            start_new_session=True,
+            pass_fds=(writer,),
+            **kwargs,
         )
-        try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
-            # Also covers the explicitly requested builder/uv, whose subprocesses
-            # must not survive a startup timeout. Never retry in this namespace.
-            with suppress(ProcessLookupError):
-                os.killpg(proc.pid, signal.SIGTERM)
+    except BaseException:
+        os.close(reader)
+        raise
+    finally:
+        os.close(writer)
+    OWNERSHIP_RECEIPTS[proc.pid] = reader
+    return proc
+
+
+def verify_shutdown(proc: subprocess.Popen[str]) -> None:
+    reader = OWNERSHIP_RECEIPTS.pop(proc.pid)
+    try:
+        if os.read(reader, 32) != b"REAPED":
+            raise RuntimeError(
+                "ownership shutdown UNVERIFIED; no replay; external reconciliation required"
+            )
+    finally:
+        os.close(reader)
+
+
+def stop_owned(proc: subprocess.Popen[str]) -> None:
+    # The private supervisor escalates independently of leader/pipes. Ignore
+    # further operator signals while joining; preserve the original exception.
+    previous = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        with suppress(ProcessLookupError):
+            proc.send_signal(signal.SIGTERM)
+        proc.wait()
+        verify_shutdown(proc)
+    finally:
+        for s, handler in previous.items():
+            signal.signal(s, handler)
+
+
+def observe(
+    argv: list[str],
+    *,
+    timeout: float = 20,
+    monitor: Callable[[], None] | None = None,
+    log_root: Path | None = None,
+) -> dict[str, Any]:
+    """Bounded observation; return only after the ownership supervisor joins."""
+    try:
+        with interrupt_signals(), contextmanager_logs(log_root) as logs:
+            proc = owned_popen(
+                argv,
+                stdout=logs[0] if logs else subprocess.PIPE,
+                stderr=logs[1] if logs else subprocess.PIPE,
+                text=True,
+            )
+            error = None
             try:
-                stdout, stderr = proc.communicate(timeout=2)
-            except subprocess.TimeoutExpired:
-                with suppress(ProcessLookupError):
-                    os.killpg(proc.pid, signal.SIGKILL)
+                deadline = time.monotonic() + timeout
+                while True:
+                    if monitor:
+                        monitor()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError(f"timeout after {timeout} seconds")
+                    try:
+                        stdout, stderr = proc.communicate(timeout=min(0.2, remaining))
+                        verify_shutdown(proc)
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+            except BaseException as exc:
+                try:
+                    if proc.pid in OWNERSHIP_RECEIPTS:
+                        stop_owned(proc)
+                except Exception as cleanup_error:
+                    note_error(exc, f"shutdown UNVERIFIED: {cleanup_error}; no replay")
+                    raise exc from cleanup_error
+                if not isinstance(exc, (TimeoutError, ValueError)):
+                    raise
+                error = f"{exc}; owned process group terminated and descendants reaped"
                 stdout, stderr = proc.communicate()
-            if isinstance(exc, KeyboardInterrupt):
-                raise
             return {
                 "argv": argv,
-                "returncode": None,
-                "stdout": stdout,
-                "stderr": stderr,
-                "error": f"timeout after {timeout} seconds; process group terminated",
+                "returncode": None if error else proc.returncode,
+                "stdout": stdout or "",
+                "stderr": stderr or "",
+                **({"error": error} if error else {}),
+                "shutdown_verified": True,
+                "log_root": str(log_root) if log_root else None,
             }
-        return {
-            "argv": argv,
-            "returncode": proc.returncode,
-            "stdout": stdout,
-            "stderr": stderr,
-        }
     except OSError as exc:
         return {"argv": argv, "returncode": None, "error": str(exc)}
+
+
+@contextmanager
+def contextmanager_logs(root: Path | None) -> Iterator[Any]:
+    if root is None:
+        yield None
+    else:
+        with (root / "stdout.txt").open("x") as stdout, (root / "stderr.txt").open("x") as stderr:
+            yield stdout, stderr
 
 
 def read_optional(path: str) -> str | None:
@@ -329,7 +533,7 @@ def initial_inventory() -> dict[str, Any]:
         executable = shutil.which(name)
         devices[name] = observe([executable, *arguments]) if executable else {"status": "NOT_FOUND"}
     return {
-        "captured_utc": dt.datetime.now(dt.UTC).isoformat(),
+        "captured_utc": dt.datetime.now(dt.timezone.utc).isoformat(),  # noqa: UP017 (bootstrap 3.10)
         "original_path": original_path,
         "bootstrap_python": {
             "invocation": sys.executable,
@@ -400,6 +604,112 @@ def child_env() -> dict[str, str]:
     return {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1"}
 
 
+def lock_marker_applies(marker: str) -> bool:
+    """Evaluate the committed lock's marker subset with stdlib, fail closed.
+
+    No eval, installed packaging dependency or guessing unknown marker syntax.
+    Future locks using other PEP 508 syntax require an explicit driver update.
+    """
+    environment = {
+        "sys_platform": sys.platform,
+        "os_name": os.name,
+        "platform_machine": platform.machine(),
+        "platform_system": platform.system(),
+        "platform_release": platform.release(),
+        "platform_version": platform.version(),
+        "platform_python_implementation": platform.python_implementation(),
+        "implementation_name": sys.implementation.name,
+        "implementation_version": platform.python_version(),
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "python_full_version": platform.python_version(),
+        "extra": "",
+    }
+
+    def operand(node: ast.AST) -> str:
+        if isinstance(node, ast.Name) and node.id in environment:
+            return environment[node.id]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        raise ValueError(f"unsupported locked dependency marker: {marker}")
+
+    def evaluate(node: ast.AST) -> bool:
+        if isinstance(node, ast.BoolOp):
+            values = [evaluate(value) for value in node.values]
+            return all(values) if isinstance(node.op, ast.And) else any(values)
+        if isinstance(node, ast.Compare) and len(node.ops) == 1:
+            left, right = operand(node.left), operand(node.comparators[0])
+            op = node.ops[0]
+            if isinstance(op, ast.Eq):
+                return left == right
+            if isinstance(op, ast.NotEq):
+                return left != right
+            if isinstance(op, ast.In):
+                return left in right
+            if isinstance(op, ast.NotIn):
+                return left not in right
+            # Numeric Python version comparisons only, never lexicographic 3.9/3.12.
+            names = [n.id for n in (node.left, node.comparators[0]) if isinstance(n, ast.Name)]
+            if (
+                any(
+                    n in {"python_version", "python_full_version", "implementation_version"}
+                    for n in names
+                )
+                and re.fullmatch(r"\d+(\.\d+)*", left)
+                and re.fullmatch(r"\d+(\.\d+)*", right)
+            ):
+                a, b = tuple(map(int, left.split("."))), tuple(map(int, right.split(".")))
+                if isinstance(op, ast.Lt):
+                    return a < b
+                if isinstance(op, ast.LtE):
+                    return a <= b
+                if isinstance(op, ast.Gt):
+                    return a > b
+                if isinstance(op, ast.GtE):
+                    return a >= b
+        raise ValueError(f"unsupported locked dependency marker: {marker}")
+
+    try:
+        return evaluate(ast.parse(marker, mode="eval").body)
+    except SyntaxError as exc:
+        raise ValueError(f"unsupported locked dependency marker: {marker}") from exc
+
+
+def runtime_lock() -> dict[str, str]:
+    import tomllib
+
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    packages = lock["package"]
+    project = next(p for p in packages if p["name"] == "ewp-waveform")
+    pending = list(project.get("dependencies", []))
+    expected: dict[str, str] = {}
+    while pending:
+        edge = pending.pop()
+        if edge.get("marker") and not lock_marker_applies(edge["marker"]):
+            continue
+        candidates = [
+            p
+            for p in packages
+            if p["name"] == edge["name"]
+            and ("version" not in edge or p["version"] == edge["version"])
+            and ("source" not in edge or p["source"] == edge["source"])
+            and (
+                not p.get("resolution-markers")
+                or any(lock_marker_applies(m) for m in p["resolution-markers"])
+            )
+        ]
+        if len(candidates) != 1 or edge.get("extra"):
+            raise ValueError(f"ambiguous/unsupported locked runtime dependency: {edge}")
+        package = candidates[0]
+        name, version = package["name"], package["version"]
+        if name in expected:
+            if expected[name] != version:
+                raise ValueError(f"conflicting locked dependency: {name}")
+            continue
+        expected[name] = version
+        pending.extend(package.get("dependencies", []))
+    return dict(sorted(expected.items()))
+
+
 def environment_details() -> dict[str, Any]:
     """Collect every dependency problem rather than stopping at the first missing wheel."""
     import tomllib
@@ -409,8 +719,8 @@ def environment_details() -> dict[str, Any]:
         problems.append("selected interpreter must be Python 3.12")
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     versions = {}
-    for requirement in project["project"]["dependencies"]:
-        name, expected = requirement.split("==", 1)
+    closure = runtime_lock()
+    for name, expected in closure.items():
         try:
             actual = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -437,6 +747,7 @@ def environment_details() -> dict[str, Any]:
         "version": sys.version,
         "prefix": sys.prefix,
         "dependencies": versions,
+        "runtime_lock_closure": closure,
         "base_prefix": sys.base_prefix,
         "project_distribution": distribution_version,
         "source_project_version": project["project"]["version"],
@@ -557,7 +868,7 @@ def baseline_skip_reason(observed: dict[str, Any] | None) -> str | None:
     missing = [
         name
         for option, names in (
-            ("-encoders", ("prores_ks", "ffv1", "libx264", "rawvideo")),
+            ("-encoders", ("prores_ks", "ffv1", "rawvideo")),
             (
                 "-filters",
                 ("format", "scale", "split", "gblur", "blend", "crop", "geq", "lut", "alphamerge"),
@@ -632,7 +943,12 @@ def manifest_for(template: dict[str, Any], mode: str) -> dict[str, Any]:
     return value
 
 
-def smoke_manifest(template: dict[str, Any], audio: Path) -> dict[str, Any]:
+def smoke_manifest(
+    template: dict[str, Any],
+    audio: Path,
+    *,
+    include_old: bool = False,
+) -> dict[str, Any]:
     with wave.open(str(audio), "rb") as stream:
         duration = stream.getnframes() / stream.getframerate()
     if duration < 0.1:
@@ -654,6 +970,8 @@ def smoke_manifest(template: dict[str, Any], audio: Path) -> dict[str, Any]:
         growth_bytes=32 * 1024**2,
         memory_floor_bytes=32 * 1024**2,
     )
+    if include_old:
+        value["cells"].insert(0, {"id": "tiny-A", "scenario": "A", "workload": "tiny"})
     for estimate in value["limits"]["estimates"].values():
         estimate.update(growth_bytes=4 * 1024**2, memory_bytes=128 * 1024**2, seconds=30.0)
     return value
@@ -777,15 +1095,28 @@ def invoke(
         append_event(
             run, {"name": name, "event": "STARTED", "request": identity(folder / "request.json")}
         )
-    with (folder / "stdout.txt").open("xb") as stdout, (folder / "stderr.txt").open("xb") as stderr:
-        proc = subprocess.run(
+    with (
+        interrupt_signals(),
+        (folder / "stdout.txt").open("xb") as stdout,
+        (folder / "stderr.txt").open("xb") as stderr,
+    ):
+        proc = owned_popen(
             [str(python), str(Path(__file__).resolve()), "--_stage", str(folder / "request.json")],
             cwd=ROOT,
             env=child_env(),
             stdout=stdout,
             stderr=stderr,
-            check=False,
         )
+        try:
+            proc.wait()
+            verify_shutdown(proc)
+        except BaseException as exc:
+            try:
+                if proc.pid in OWNERSHIP_RECEIPTS:
+                    stop_owned(proc)
+            except Exception as cleanup_error:
+                note_error(exc, f"shutdown UNVERIFIED: {cleanup_error}; no replay")
+            raise
     value = (
         load(output)
         if output.exists()
@@ -819,7 +1150,7 @@ def prepare_request(config: dict[str, Any], name: str) -> dict[str, Any]:
     tools = config["baseline_tools"] if name == "reference" else config["selected_tools"]
     old = (
         config["baseline_tools"]
-        if name == "experiments" and not config.get("baseline_skip_reason")
+        if name in ("experiments", "smoke") and not config.get("baseline_skip_reason")
         else None
     )
     if old and all(old[key]["sha256"] == tools[key]["sha256"] for key in old):
@@ -882,6 +1213,194 @@ def execute_suites(
     return summaries
 
 
+BUILD_LIMITS = {
+    "growth_bytes": 12 * 1024**3,
+    "reserve_bytes": 4 * 1024**3,
+    "memory_bytes": 4 * 1024**3,
+    "memory_floor_bytes": 512 * 1024**2,
+    "seconds": 14400,
+    "jobs": 2,
+}
+
+
+def build_tree_bytes(root: Path) -> int:
+    total = 0
+    for directory, _, files in os.walk(root, followlinks=False):
+        for name in files:
+            try:
+                stat = (Path(directory) / name).lstat()
+                total += max(stat.st_size, stat.st_blocks * 512)
+            except FileNotFoundError:
+                continue
+    return total
+
+
+def build_memory() -> dict[str, Any]:
+    text = read_optional("/proc/meminfo") or ""
+    match = re.search(r"(?m)^MemAvailable:\s+(\d+) kB", text)
+    if not match:
+        raise ValueError("build admission: MemAvailable unavailable")
+    headroom = int(match[1]) * 1024
+    ancestors = cgroup_inventory()
+    for ancestor in ancestors:
+        controls = ancestor["controls"]
+        for limit_key, used_key in (
+            ("memory.max", "memory.current"),
+            ("memory.high", "memory.current"),
+            ("memory.limit_in_bytes", "memory.usage_in_bytes"),
+        ):
+            limit = controls.get(limit_key)
+            if limit is not None and limit.strip() != "max":
+                used = controls.get(used_key)
+                if used is None:
+                    raise ValueError(
+                        f"build admission: unreadable cgroup usage at {ancestor['path']}"
+                    )
+                headroom = min(headroom, int(limit) - int(used))
+    return {"headroom_bytes": headroom, "cgroup_ancestors": ancestors}
+
+
+def owned_rss() -> int:
+    rows: dict[int, tuple[int, int]] = {}
+    for path in Path("/proc").glob("[0-9]*/stat"):
+        try:
+            fields = path.read_text().rsplit(")", 1)[1].split()
+            rows[int(path.parent.name)] = (int(fields[1]), int(fields[21]))
+        except (OSError, ValueError, IndexError):
+            continue
+    owned = set(OWNERSHIP_RECEIPTS)
+    while True:
+        found = {pid for pid, (parent, _) in rows.items() if parent in owned}
+        if found <= owned:
+            break
+        owned |= found
+    return sum(rows[pid][1] for pid in owned if pid in rows) * os.sysconf("SC_PAGE_SIZE")
+
+
+def check_build_budget(parent: Path, limits: dict[str, int], *, admission: bool) -> dict[str, Any]:
+    storage = storage_inventory({"toolchain": parent})["toolchain"]
+    growth = build_tree_bytes(parent)
+    memory = build_memory()
+    rss = owned_rss() if not admission else 0
+    problems = []
+    required_disk = limits["reserve_bytes"] + (limits["growth_bytes"] if admission else 0)
+    if min(storage["available_bytes"], storage["free_bytes"]) < required_disk:
+        problems.append("disk availability/reserve")
+    if growth > limits["growth_bytes"]:
+        problems.append("source/build/prefix/log growth")
+    required_memory = limits["memory_floor_bytes"] + (limits["memory_bytes"] if admission else 0)
+    if memory["headroom_bytes"] < required_memory:
+        problems.append("host/cgroup RAM headroom")
+    if rss > limits["memory_bytes"]:
+        problems.append("owned process RSS")
+    snapshot = {
+        "storage": storage,
+        "growth_bytes": growth,
+        "memory": memory,
+        "owned_rss_bytes": rss,
+        "admission": admission,
+    }
+    if problems:
+        raise ValueError(
+            "separate build budget refused/crossed: "
+            + ", ".join(problems)
+            + "; snapshot="
+            + json.dumps(snapshot, sort_keys=True)
+        )
+    return snapshot
+
+
+def run_builder(python: Path, run: Path, parent: Path) -> dict[str, Any]:
+    parent.mkdir(mode=0o700, exist_ok=False)
+    limits = dict(BUILD_LIMITS)
+    envelope = {
+        "limits": limits,
+        "root": str(parent),
+        "scope": "Separate build-only envelope: all nested source (including .git), build, "
+        "TMPDIR, prefix and logs. Sampling every <=0.2s plus scan cost, not an OS "
+        "hard quota; overshoot possible. Suite budgets admit afresh relative to "
+        "their own baselines. NOT an all-in startup/workflow growth or time cap.",
+    }
+    save(parent / "envelope.json", envelope)
+    try:
+        admitted = check_build_budget(parent, limits, admission=True)
+        save(parent / "admission.json", admitted)
+        started = time.monotonic()
+
+        def monitor() -> None:
+            if time.monotonic() - started >= limits["seconds"]:
+                raise ValueError("separate build elapsed-time budget crossed")
+            sample = check_build_budget(parent, limits, admission=False)
+            with (parent / "resource-samples.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {"elapsed_seconds": time.monotonic() - started, **sample}, sort_keys=True
+                    )
+                    + "\n"
+                )
+
+        result = observe(
+            [
+                str(python),
+                str(ROOT / "scripts/experiments_build.py"),
+                "--source",
+                str(parent / "source"),
+                "--build",
+                str(parent / "build"),
+                "--prefix",
+                str(parent / "prefix"),
+                "--jobs",
+                str(limits["jobs"]),
+                "--execute",
+            ],
+            timeout=limits["seconds"],
+            monitor=monitor,
+            log_root=parent,
+        )
+        save(run / "ffmpeg-builder.json", result)
+        monitor()  # Fence short builds/terminal growth between polling observations.
+        if result.get("returncode") != 0:
+            raise RuntimeError(
+                "isolated FFmpeg builder failed; retained logs, no retry/global install"
+            )
+        save(
+            parent / "terminal.json",
+            {
+                "status": "SUCCEEDED",
+                "result": result,
+                "final": check_build_budget(parent, limits, admission=False),
+            },
+        )
+        return {
+            **envelope,
+            "artifacts": [identity(path) for path in sorted(parent.iterdir()) if path.is_file()],
+        }
+    except BaseException as exc:
+        with suppress(OSError):
+            save(
+                parent / "FAILED.json",
+                {
+                    "status": "FAILED_OR_REFUSED",
+                    "error": str(exc),
+                    "type": type(exc).__name__,
+                    "retry": "FORBIDDEN",
+                },
+            )
+        raise
+
+
+def current_reference(reference: Path) -> dict[str, Any] | None:
+    pointer = load(reference).get("current_VM1_reference")
+    if pointer is None:
+        return None
+    if not isinstance(pointer, str) or Path(pointer).is_absolute():
+        raise ValueError("current_VM1_reference must be a checkout-relative versioned artifact")
+    path = (ROOT / pointer).resolve(strict=True)
+    if not path.is_relative_to(ROOT):
+        raise ValueError("current_VM1_reference escapes checkout")
+    return identity(path)
+
+
 def freeze_new(
     args: argparse.Namespace, run: Path, initial: dict[str, Any], token: str
 ) -> dict[str, Any]:
@@ -915,32 +1434,15 @@ def freeze_new(
         baseline_observed or {"status": "NOT_FOUND", "reason": baseline_skip},
     )
     receipt = None
+    build_envelope = None
     build_roots: list[Path] = []
     if build_needed:
-        build_roots = [
-            run.parent / (name + "-" + token)
-            for name in ("ffmpeg-source", "ffmpeg-build", "ffmpeg-prefix")
-        ]
+        parent = run.parent / ("ffmpeg-toolchain-" + token)
+        build_roots = [parent]
         outside_git([run, *build_roots], audio)
-        result = observe(
-            [
-                str(python),
-                str(ROOT / "scripts/experiments_build.py"),
-                "--source",
-                str(build_roots[0]),
-                "--build",
-                str(build_roots[1]),
-                "--prefix",
-                str(build_roots[2]),
-                "--execute",
-            ],
-            timeout=14400,
-        )
-        save(run / "ffmpeg-builder.json", result)
-        if result.get("returncode") != 0:
-            raise RuntimeError("isolated FFmpeg builder failed; retained logs, no global install")
-        receipt = identity(build_roots[1] / "build-receipt.json")
-        pair = tool_pair(build_roots[2] / "bin")
+        build_envelope = run_builder(python, run, parent)
+        receipt = identity(parent / "build/build-receipt.json")
+        pair = tool_pair(parent / "prefix/bin")
         if pair is None:
             raise ValueError("builder did not produce a valid isolated tool pair")
         selected = inventory_pair(pair)
@@ -965,7 +1467,16 @@ def freeze_new(
             "throughput_fresh": False,
         }
     for name in names:
-        value = smoke_manifest(template, audio) if name == "smoke" else manifest_for(template, name)
+        include_old = bool(
+            baseline
+            and not baseline_skip
+            and any(baseline[key]["sha256"] != selected["tools"][key]["sha256"] for key in baseline)
+        )
+        value = (
+            smoke_manifest(template, audio, include_old=include_old)
+            if name == "smoke"
+            else manifest_for(template, name)
+        )
         path = run / (name + "-manifest.json")
         save(path, value)
         suites[name] = {
@@ -995,6 +1506,7 @@ def freeze_new(
         "baseline_inventory": identity(run / "baseline-tools.json"),
         "selected_inventory": identity(run / "selected-tools.json"),
         "reference": identity(ROOT / "examples/experiments/vm-reference.json"),
+        "current_reference": current_reference(ROOT / "examples/experiments/vm-reference.json"),
         "template": identity(template_path),
         "build_receipt": receipt,
         "suites": suites,
@@ -1010,6 +1522,7 @@ def freeze_new(
         else None,
         "build_requested": args.build_ffmpeg,
         "build_performed": build_needed,
+        "build_envelope": build_envelope,
         "roots": [str(p) for p in roots],
         "mode": "cpu-smoke"
         if args.cpu_smoke
@@ -1053,12 +1566,62 @@ def verify_config(run: Path) -> dict[str, Any]:
         verify(suite["manifest"])
     if config["build_receipt"]:
         verify(config["build_receipt"])
+    if config.get("current_reference"):
+        verify(config["current_reference"])
+    if config.get("build_envelope"):
+        for artifact in config["build_envelope"]["artifacts"]:
+            verify(artifact)
     if probe_python(Path(config["python"])) != config["environment"]:
         raise ValueError("selected interpreter/dependency identity drift")
     return config
 
 
+def evidence_json(path: Path) -> dict[str, Any]:
+    try:
+        return load(path)
+    except Exception as exc:
+        return {
+            "evidence_status": "UNAVAILABLE_UNVERIFIED",
+            "path": str(path),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def evidence_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return f"Evidence UNAVAILABLE / UNVERIFIED: {path}: {type(exc).__name__}: {exc}"
+
+
 def report(
+    run: Path,
+    status: str,
+    error: str | None,
+    config: dict[str, Any] | None,
+    summaries: dict[str, Any],
+) -> Path:
+    try:
+        return detailed_report(run, status, error, config, summaries)
+    except Exception as report_error:
+        # Minimal Markdown depends on no secondary evidence/JSON serialization.
+        folder = run / "reports"
+        folder.mkdir(mode=0o700, exist_ok=True)
+        path = folder / ("emergency-" + uuid.uuid4().hex + ".md")
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(
+                f"# WSL experiment driver\n\nStatus: **HOLD**\n\nRun: `{run}`\n\n"
+                f"Original status: {status}\n\nOriginal error: {error}\n\n"
+                f"Detailed report unavailable/unverified: {type(report_error).__name__}: "
+                f"{report_error}\n\nVisual / Studio PENDING; promotion NOT_APPROVED.\n"
+            )
+        print(
+            f"Detailed reporting failed; minimal Markdown: {path}: {report_error}", file=sys.stderr
+        )
+        return path
+
+
+def detailed_report(
     run: Path,
     status: str,
     error: str | None,
@@ -1105,8 +1668,8 @@ def report(
     ]
     if error:
         lines += ["## Failure / HOLD", "", "```text", error.replace("```", "'''"), "```", ""]
-    if (run / "initial-inventory.json").is_file():
-        initial = load(run / "initial-inventory.json")
+    initial = evidence_json(run / "initial-inventory.json")
+    if initial:
         host = initial.get("host", {})
         initial_summary = {
             k: initial.get(k)
@@ -1120,6 +1683,8 @@ def report(
                 "storage",
                 "build_prerequisites",
                 "devices",
+                "evidence_status",
+                "error",
             )
         }
         initial_summary["host"] = {
@@ -1143,12 +1708,13 @@ def report(
             "```",
             "",
         ]
-    if (run / "startup-prerequisites.json").is_file():
+    prerequisites = evidence_json(run / "startup-prerequisites.json")
+    if prerequisites:
         lines += [
             "## Startup prerequisites and conditional build decision",
             "",
             "```json",
-            json.dumps(load(run / "startup-prerequisites.json"), indent=2).replace("```", "'''"),
+            json.dumps(prerequisites, indent=2).replace("```", "'''"),
             "```",
             "",
         ]
@@ -1188,6 +1754,7 @@ def report(
                         "build_performed",
                         "build_receipt",
                         "fixture_baseline",
+                        "build_envelope",
                         "roots",
                     )
                 },
@@ -1209,7 +1776,23 @@ def report(
                 "### Historical VM reference",
                 "",
                 "```json",
-                json.dumps(load(Path(reference["path"])), indent=2).replace("```", "'''"),
+                json.dumps(evidence_json(Path(reference["path"])), indent=2).replace("```", "'''"),
+                "```",
+                "",
+            ]
+        current = config.get("current_reference")
+        if current:
+            lines += [
+                "## Versioned current VM.1 reference — actual measured source",
+                "",
+                "Separate measurement at its recorded source, NOT a measurement "
+                "of this driver correction or this run. Best-effort embedding; frozen "
+                "identity verified on resume.",
+                "",
+                f"[Current reference metadata]({current['path']})",
+                "",
+                "```json",
+                json.dumps(evidence_json(Path(current["path"])), indent=2).replace("```", "'''"),
                 "```",
                 "",
             ]
@@ -1218,9 +1801,9 @@ def report(
         if summary.get("report"):
             lines += [f"[Suite human-readable report]({summary['report']})", ""]
             suite_report = Path(summary["report"])
-            if suite_report.is_file():
+            contents = evidence_text(suite_report)
+            if contents:
                 # Preserve navigation when embedding relative suite artifact links.
-                contents = suite_report.read_text(encoding="utf-8")
 
                 def absolute_link(match: re.Match[str], parent: Path = suite_report.parent) -> str:
                     target = match.group(1)
@@ -1273,7 +1856,9 @@ def parser() -> argparse.ArgumentParser:
         "--reference-only", action="store_true", help="installed-tool stock FULL only"
     )
     modes.add_argument(
-        "--cpu-smoke", action="store_true", help="tiny B/F0 CPU workflow, no FULL or GPU claims"
+        "--cpu-smoke",
+        action="store_true",
+        help="tiny B/F0 (plus original A when tools differ) CPU workflow, no FULL/GPU claims",
     )
     p.add_argument(
         "--build-ffmpeg",
@@ -1306,7 +1891,8 @@ def main(argv: list[str] | None = None) -> int:
         or args.media_parent
     ):
         p.error("--resume uses only the frozen known run; no setup or execution overrides")
-    token = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
+    now = dt.datetime.now(dt.timezone.utc)  # noqa: UP017 (bootstrap 3.10)
+    token = now.strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
     run = (
         args.resume.expanduser().resolve()
         if args.resume
@@ -1353,12 +1939,7 @@ def main(argv: list[str] | None = None) -> int:
                     name + "-media-" + token
                 )
             if args.build_ffmpeg:
-                planned.update(
-                    {
-                        name: run.parent / (name + "-" + token)
-                        for name in ("ffmpeg-source", "ffmpeg-build", "ffmpeg-prefix")
-                    }
-                )
+                planned["ffmpeg-toolchain"] = run.parent / ("ffmpeg-toolchain-" + token)
             if args.cpu_smoke and not args.audio:
                 planned["immutable_fixture"] = run.parent / ("smoke-fixture-" + token)
         initial["storage"] = storage_inventory(planned)
@@ -1425,6 +2006,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (Exception, KeyboardInterrupt) as exc:
         error = f"{type(exc).__name__}: {exc}"
+        if getattr(exc, "__notes__", None):
+            error += "\n" + "\n".join(exc.__notes__)
         # Always retain the top-level report, including startup/prepare/preflight failures.
         # Read-only export is allowed after a failure; it never dispatches or retries media.
         if config:
@@ -1472,6 +2055,24 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     try:
         report_path = report(run, status, error, config, summaries)
+        if report_path.name.startswith("emergency-"):
+            status = "HOLD"
+            error = (
+                error + "; " if error else ""
+            ) + "detailed report unavailable; minimal Markdown retained"
+    except Exception as report_error:
+        print(
+            json.dumps(
+                {
+                    "status": "HOLD",
+                    "error": error,
+                    "report_error": str(report_error),
+                    "report": None,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return 2
     finally:
         if locked:
             locked.close()
@@ -1485,6 +2086,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def internal_main() -> int:
+    if sys.argv[1:2] == ["--_supervise"]:
+        return supervisor(sys.argv[3:], int(sys.argv[2]))
     if sys.argv[1:2] == ["--_environment"]:
         try:
             print(json.dumps(environment_details(), sort_keys=True))
@@ -1501,7 +2104,8 @@ def internal_main() -> int:
             value = {"status": "FAILED", "error": f"{type(exc).__name__}: {exc}"}
         save(Path(request["result_path"]), value)
         return 0
-    return main()
+    with interrupt_signals():
+        return main()
 
 
 if __name__ == "__main__":

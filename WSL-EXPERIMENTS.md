@@ -31,8 +31,11 @@ Do not start another instance on the same run directory or delete partial files.
 
 ## Prerequisites and automatic environment selection
 
-Use Linux under WSL2 for GPU qualification. A normal `python3` must run the
-standard-library startup; production execution requires Python 3.12 and the exact
+Use Linux under WSL2 for GPU qualification. The standard-library bootstrap is
+written for Python 3.10+; this VM actually exercised Python 3.12.3. Linux `/proc`,
+subreaper and pidfd support are required for verified child cleanup. The driver
+uses available stdlib pidfd wrappers or libc equivalents, without installing either.
+Production execution requires Python 3.12 and the exact
 runtime dependencies in `uv.lock`. The driver first captures the original
 host/Python/PATH/tool inventory, before environment selection or tool building.
 
@@ -95,7 +98,7 @@ successes or silent CPU fallbacks. Known missing optional capabilities are skips
 ## Optional flags — still one driver command
 
 - `--reference-only`: one complete installed-tool stock CPU reference, no short
-  matrix. Used for the fresh VM.1 environment reference through this same entry.
+  matrix. The fresh VM.1 measurement used the default workflow's same reference stage.
 - `--cpu-smoke`: tiny synthetic six-frame CPU service/FFV1/oracle/views/report
   workflow. Omit `--audio` to generate its fixture automatically. This is not an
   authenticated full reference, production32 result or GPU qualification.
@@ -109,6 +112,12 @@ successes or silent CPU fallbacks. Known missing optional capabilities are skips
   files, Vulkan headers and glslc supporting the required Vulkan1.4/SPIR-V target.
   Vulkan header/build-target success does not establish the runtime ICD/device.
   Build failure is retained and never automatically retried in that namespace.
+  The separate build-only admission needs 12 GiB growth plus 4 GiB destination
+  reserve, 4 GiB RAM headroom plus a 512 MiB floor, and limits compilation to two
+  jobs / four hours. Source (including nested `.git`), build, prefix, temporary
+  files and build logs are sampled together. This is not an OS hard quota or an
+  all-in startup/campaign cap; sampling can overshoot. Rendering is not limited
+  to those compiler jobs. Each suite admits afresh against its own baseline.
 - `--device 'RTX 3090' --expect-device-regex 'RTX\s*3090'`: explicit expected device;
   a requested selector is not proof of the GPU actually used. Software Vulkan is
   rejected. Actual GPU experiments are target-only, not executed on VM.1.
@@ -128,7 +137,11 @@ python3 scripts/run_wsl_experiments.py --audio "/absolute/path/s0e00-Damian.wav"
 
 The driver prints absolute run, suite, media and any build locations. It always
 prints the exact main Markdown report path on completion or partial/preflight
-failure. Its numbered report identifies original host/tool observations, selected
+failure when the output filesystem is writable. Corrupt secondary evidence is
+labelled unavailable/unverified; unexpected detailed-report failures retain a
+minimal Markdown. If even that cannot be written, stderr preserves both errors
+and explicitly reports no report rather than claiming success.
+Its numbered report identifies original host/tool observations, selected
 project environment/tool provenance, VM.1 reference, suite status, comparable
 paired results, limitations, validation and hash-deduplicated native MOV/MKV,
 comparison-proxy and dark/light/checker MP4 navigation. JSON/CSV and immutable
@@ -184,7 +197,9 @@ authentication. Its complete 2,848,387,115-byte MOV SHA-256 is
 `00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78`.
 It matches the accepted master; prior complete-media validation was reused,
 not decoded again. A later driver/documentation/metadata commit is not relabelled
-as the measured source. The process envelope includes costs outside service wall;
+as the measured source. Subsequent startup/ownership and derivative-tool corrections
+are exercised with bounded CPU tests; the sole full render is not repeated merely
+to manufacture freshness. The process envelope includes costs outside service wall;
 do not add overlapping measurements or call this an isolated GPU speedup.
 
 The entry point is tested through real CPU execution from a fresh clean checkout

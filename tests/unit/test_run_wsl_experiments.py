@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -564,7 +568,7 @@ def test_environment_collects_all_missing_dependencies(monkeypatch: pytest.Monke
 
     deps = tomllib.loads((driver.ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
     assert all(dep.split("==")[0] in str(exc.value) for dep in deps)
-    assert len(called) == len(deps) + 1
+    assert set(called) == {*driver.runtime_lock(), "ewp-waveform"}
 
 
 def test_startup_aggregates_tool_python_and_build_problems_before_setup(
@@ -741,3 +745,507 @@ def test_driver_markdown_embeds_suite_pairs_validation_and_media(tmp_path: Path)
             "/python",
         )
     )
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux driver ownership contract")
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_direct_parent_signal_reaps_uncooperative_detached_worker(
+    tmp_path: Path,
+    signum: int,
+) -> None:
+    """Independent D1 topology, strengthened: both descendants ignore TERM."""
+    pidfile = tmp_path / "pids.json"
+    fake = tmp_path / "synthetic-python"
+    fake.write_text(
+        "#!"
+        + sys.executable
+        + "\n"
+        + """
+import json, os, signal, subprocess, sys, time
+from pathlib import Path
+req = json.loads(Path(sys.argv[-1]).read_text())
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+worker = subprocess.Popen([sys.executable, '-c',
+    'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)'],
+    start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path(req['pidfile']).write_text(json.dumps([os.getpid(), worker.pid]))
+time.sleep(60)
+"""
+    )
+    fake.chmod(0o700)
+    run = tmp_path / "run"
+    run.mkdir()
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    ready = threading.Event()
+
+    def interrupt() -> None:
+        deadline = time.monotonic() + 5
+        while not pidfile.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if pidfile.exists():
+            ready.set()
+            os.kill(os.getpid(), signum)
+
+    thread = threading.Thread(target=interrupt, daemon=True)
+    thread.start()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            driver.invoke(
+                fake,
+                run,
+                "batch",
+                {"operation": "unit", "pidfile": str(pidfile)},
+                accepted=("SUCCEEDED",),
+            )
+        thread.join(timeout=6)
+        assert ready.is_set()
+        assert all(not Path(f"/proc/{pid}").exists() for pid in json.loads(pidfile.read_text()))
+        assert unrelated.poll() is None
+        with pytest.raises(ValueError, match="uncertain STARTED"):
+            driver.completed_steps(run)
+    finally:
+        unrelated.terminate()
+        unrelated.wait(timeout=5)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux driver ownership contract")
+@pytest.mark.parametrize("leader_exits", [False, True])
+def test_timeout_or_exited_leader_reaps_closed_pipe_term_resistant_child(
+    tmp_path: Path,
+    leader_exits: bool,
+) -> None:
+    """Actual D2 reproducer: pipe completion must never control escalation."""
+    pidfile = tmp_path / "child.pid"
+    child_source = (
+        "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)"
+    )
+    leader = (
+        "import subprocess,sys,time; from pathlib import Path; "
+        f"p=subprocess.Popen([sys.executable,'-c',{child_source!r}],"
+        "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True); "
+        f"Path({str(pidfile)!r}).write_text(str(p.pid)); "
+        + ("time.sleep(.1)" if leader_exits else "time.sleep(60)")
+    )
+    result = driver.observe([sys.executable, "-c", leader], timeout=0.5)
+    assert result["shutdown_verified"] is True
+    assert not Path(f"/proc/{pidfile.read_text()}").exists()
+
+
+def test_no_mp4_encoder_required_for_stock_full(tmp_path: Path) -> None:
+    value = complete_observations(tools(tmp_path, "tools"))
+    value["observations"]["-encoders"]["stdout"] = value["observations"]["-encoders"][
+        "stdout"
+    ].replace("libx264", "no_mp4")
+    assert driver.baseline_skip_reason(value) is None
+
+
+@pytest.mark.parametrize("failure", ["missing", "corrupt", "unreadable"])
+def test_all_secondary_report_evidence_best_effort(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    reference = tmp_path / "reference.json"
+    current = tmp_path / "current.json"
+    suite = tmp_path / "suite.md"
+    paths = [
+        reference,
+        current,
+        suite,
+        tmp_path / "initial-inventory.json",
+        tmp_path / "startup-prerequisites.json",
+    ]
+    for path in paths:
+        if failure != "missing":
+            path.write_bytes(b"\xff" if failure == "corrupt" else b"{}")
+    original = Path.read_text
+
+    def read(path: Path, *args: Any, **kwargs: Any) -> str:
+        if failure == "unreadable" and path in paths:
+            raise PermissionError("synthetic permission failure")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read)
+    config = {
+        "mode": "reference-only",
+        "source": {"commit": "a" * 40},
+        "python": sys.executable,
+        "environment": {},
+        "baseline_tools": {},
+        "selected_tools": {},
+        "reference": {"path": str(reference)},
+        "current_reference": {"path": str(current)},
+    }
+    report = driver.report(
+        tmp_path,
+        "HOLD",
+        "original prepare error",
+        config,
+        {"reference": {"status": "HOLD", "report": str(suite)}},
+    )
+    text = report.read_text()
+    assert "original prepare error" in text
+    assert "UNAVAILABLE" in text and "UNVERIFIED" in text
+    assert str(current) in text and str(suite) in text
+
+
+def test_main_prints_exact_minimal_markdown_if_detailed_report_breaks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        driver,
+        "initial_inventory",
+        lambda: (_ for _ in ()).throw(ValueError("original inventory failure")),
+    )
+    monkeypatch.setattr(
+        driver,
+        "detailed_report",
+        lambda *a: (_ for _ in ()).throw(ValueError("secondary reporting failure")),
+    )
+    assert driver.main(["--cpu-smoke", "--output-root", str(tmp_path)]) == 2
+    output = json.loads(capsys.readouterr().out)
+    path = Path(output["report"])
+    assert path.suffix == ".md" and path.is_file()
+    assert "original inventory failure" in path.read_text()
+    assert "secondary reporting failure" in path.read_text()
+
+
+def test_transitive_runtime_closure_checked_without_editable_version_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closure = driver.runtime_lock()
+    assert {"pydantic-core", "annotated-types", "typing-extensions", "mdurl"} <= closure.keys()
+    assert "pytest" not in closure
+    assert ("colorama" in closure) == (sys.platform == "win32")
+    monkeypatch.setattr(
+        driver.importlib.metadata,
+        "version",
+        lambda name: (
+            "editable-label-not-source-version" if name == "ewp-waveform" else closure[name]
+        ),
+    )
+    details = driver.environment_details()
+    assert details["project_distribution"] == "editable-label-not-source-version"
+    assert details["dependencies"] == details["runtime_lock_closure"] == closure
+    monkeypatch.setattr(
+        driver.importlib.metadata,
+        "version",
+        lambda name: (
+            "wrong-transitive"
+            if name in {"pydantic-core", "mdurl"}
+            else "editable"
+            if name == "ewp-waveform"
+            else closure[name]
+        ),
+    )
+    with pytest.raises(ValueError) as exc:
+        driver.environment_details()
+    assert "pydantic-core" in str(exc.value) and "mdurl" in str(exc.value)
+
+
+def test_lock_markers_are_applicable_or_fail_closed() -> None:
+    assert driver.lock_marker_applies("python_version >= '3.9' and python_version < '3.13'")
+    assert not driver.lock_marker_applies("python_version < '3.9'")
+    with pytest.raises(ValueError, match="unsupported"):
+        driver.lock_marker_applies("unknown_marker == 'anything'")
+
+
+def test_build_parent_with_nested_git_is_only_account_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    pair = tools(tmp_path, "installed")
+    initial = {
+        "installed_pairs": [complete_observations(pair)],
+        "first_path_tools": {k: v["path"] for k, v in pair.items()},
+    }
+    driver.save(run / "initial-inventory.json", initial)
+    monkeypatch.setattr(driver, "source_identity", lambda: {"commit": "a" * 40})
+    monkeypatch.setattr(driver, "probe_python", lambda *a: {})
+    monkeypatch.setattr(driver, "select_python", lambda *a: (Path(sys.executable), {}))
+    monkeypatch.setattr(driver, "build_prerequisites", lambda *a, **k: {"problems": []})
+    monkeypatch.setattr(driver, "inventory_pair", lambda p: complete_observations(p))
+    monkeypatch.setattr(driver, "build_memory", lambda: {"headroom_bytes": 20 * 1024**3})
+    monkeypatch.setattr(
+        driver,
+        "storage_inventory",
+        lambda roots: {"toolchain": {"available_bytes": 30 * 1024**3, "free_bytes": 30 * 1024**3}},
+    )
+
+    def synthetic_builder(argv: list[str], **kwargs: Any) -> dict[str, Any]:
+        source, build, prefix = [
+            Path(argv[argv.index("--" + n) + 1]) for n in ("source", "build", "prefix")
+        ]
+        (source / ".git").mkdir(parents=True)
+        (source / ".git/object").write_bytes(b"nested git bytes")
+        build.mkdir()
+        driver.save(build / "build-receipt.json", {"synthetic": True})
+        prefix.mkdir()
+        tools(prefix, "bin")
+        kwargs["monitor"]()
+        return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    monkeypatch.setattr(driver, "observe", synthetic_builder)
+    args = driver.parser().parse_args(["--cpu-smoke", "--build-ffmpeg"])
+    config = driver.freeze_new(args, run, initial, "synthetic")
+    parent = run.parent / "ffmpeg-toolchain-synthetic"
+    from ewp_waveform.application.experiment_suite_state import tree_bytes, validate_roots
+
+    assert validate_roots([Path(p) for p in config["roots"]])
+    assert str(parent) in config["roots"]
+    assert not any(str(parent / n) in config["roots"] for n in ("source", "build", "prefix"))
+    assert tree_bytes(parent) >= len(b"nested git bytes")
+    assert str(parent) in driver.prepare_request(config, "smoke")["args"]["account_root"]
+    assert driver.verify_config(run) == config
+
+
+@pytest.mark.parametrize("fault", ["disk", "growth", "ram", "rss"])
+@pytest.mark.parametrize("admission", [True, False])
+def test_build_envelope_admission_and_inflight_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+    admission: bool,
+) -> None:
+    limits = dict(driver.BUILD_LIMITS)
+    monkeypatch.setattr(
+        driver,
+        "storage_inventory",
+        lambda roots: {
+            "toolchain": {
+                "available_bytes": 0 if fault == "disk" else 30 * 1024**3,
+                "free_bytes": 0 if fault == "disk" else 30 * 1024**3,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        driver, "build_tree_bytes", lambda p: limits["growth_bytes"] + 1 if fault == "growth" else 0
+    )
+    monkeypatch.setattr(
+        driver, "build_memory", lambda: {"headroom_bytes": 0 if fault == "ram" else 30 * 1024**3}
+    )
+    monkeypatch.setattr(
+        driver, "owned_rss", lambda: limits["memory_bytes"] + 1 if fault == "rss" else 0
+    )
+    if fault == "rss" and admission:
+        driver.check_build_budget(tmp_path, limits, admission=admission)
+    else:
+        with pytest.raises(ValueError, match="refused/crossed"):
+            driver.check_build_budget(tmp_path, limits, admission=admission)
+
+
+def test_build_refusal_no_launch_retains_failure_no_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "toolchain"
+    monkeypatch.setattr(
+        driver,
+        "check_build_budget",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("synthetic admission refusal")),
+    )
+    monkeypatch.setattr(driver, "observe", lambda *a, **k: pytest.fail("must not launch"))
+    with pytest.raises(ValueError, match="admission refusal"):
+        driver.run_builder(Path(sys.executable), tmp_path, parent)
+    assert driver.load(parent / "FAILED.json")["retry"] == "FORBIDDEN"
+    with pytest.raises(FileExistsError):
+        driver.run_builder(Path(sys.executable), tmp_path, parent)
+
+
+def test_cgroup_memory_headroom_and_unknown_usage_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(driver, "read_optional", lambda p: "MemAvailable: 9999999 kB\n")
+    controls: dict[str, Any] = {"memory.max": "1024", "memory.current": "1000"}
+    monkeypatch.setattr(
+        driver, "cgroup_inventory", lambda: [{"path": "/group", "controls": controls}]
+    )
+    assert driver.build_memory()["headroom_bytes"] == 24
+    controls["memory.current"] = None
+    with pytest.raises(ValueError, match="unreadable cgroup usage"):
+        driver.build_memory()
+
+
+def test_current_reference_frozen_verified_embedded_and_uses_actual_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run, config = frozen_smoke(tmp_path, monkeypatch)
+    current = config["current_reference"]
+    assert current and Path(current["path"]).name == "vm1-current-reference.json"
+    text = driver.report(run, "HOLD", "synthetic", config, {}).read_text()
+    measured = driver.load(Path(current["path"]))["source"]["commit"]
+    assert measured in text and "NOT a measurement" in text
+    actual = driver.verify
+
+    def changed(item: dict[str, Any]) -> None:
+        if item == current:
+            raise ValueError("current reference drift")
+        actual(item)
+
+    monkeypatch.setattr(driver, "verify", changed)
+    with pytest.raises(ValueError, match="current reference drift"):
+        driver.verify_config(run)
+
+
+def test_two_tool_smoke_includes_tiny_a_and_but_views_use_selected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _run, config = frozen_smoke(tmp_path, monkeypatch)
+    old = tools(tmp_path, "old")
+    config["baseline_tools"] = old
+    config["baseline_skip_reason"] = None
+    old["ffmpeg"]["sha256"] = "different"
+    request = driver.prepare_request(config, "smoke")["args"]
+    assert request["old_ffmpeg"] == old["ffmpeg"]["path"]
+    assert request["ffmpeg"] == config["selected_tools"]["ffmpeg"]["path"]
+    manifest = driver.smoke_manifest(template(), Path(config["audio"]["path"]), include_old=True)
+    assert [cell["scenario"] for cell in manifest["cells"]] == ["A", "B", "F0"]
+    assert manifest["workloads"][0]["frames"] == 6
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux driver ownership contract")
+@pytest.mark.parametrize("crossing", ["growth", "time", "ram", "disk"])
+def test_real_build_supervision_crossing_drains_descendants_and_retains_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crossing: str,
+) -> None:
+    """Exercise actual observe/monitor/TERM/KILL, never the real compiler/builder."""
+    parent = tmp_path / "toolchain"
+    pidfile = tmp_path / "worker.pid"
+    worker = "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)"
+    source = (
+        "import subprocess,sys,time; from pathlib import Path; "
+        f"p=subprocess.Popen([sys.executable,'-c',{worker!r}],start_new_session=True,"
+        "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+        f"Path({str(pidfile)!r}).write_text(str(p.pid)); "
+        "time.sleep(.3); print('x'*100000,flush=True); time.sleep(60)"
+    )
+    limits = dict(driver.BUILD_LIMITS)
+    if crossing == "time":
+        limits["seconds"] = 1
+    if crossing == "growth":
+        limits["growth_bytes"] = 50000
+    monkeypatch.setattr(driver, "BUILD_LIMITS", limits)
+    monkeypatch.setattr(
+        driver,
+        "build_memory",
+        lambda: {"headroom_bytes": 0 if crossing == "ram" and pidfile.exists() else 20 * 1024**3},
+    )
+    monkeypatch.setattr(
+        driver,
+        "storage_inventory",
+        lambda roots: {
+            "toolchain": {
+                "available_bytes": 0 if crossing == "disk" and pidfile.exists() else 30 * 1024**3,
+                "free_bytes": 30 * 1024**3,
+            }
+        },
+    )
+    actual = driver.observe
+
+    def synthetic(argv: list[str], **kwargs: Any) -> dict[str, Any]:
+        assert Path(argv[1]).name == "experiments_build.py"
+        return cast(dict[str, Any], actual([sys.executable, "-c", source], **kwargs))
+
+    monkeypatch.setattr(driver, "observe", synthetic)
+    with pytest.raises((RuntimeError, ValueError)):
+        driver.run_builder(Path(sys.executable), tmp_path, parent)
+    assert pidfile.exists()
+    assert not Path(f"/proc/{pidfile.read_text()}").exists()
+    assert driver.load(parent / "FAILED.json")["retry"] == "FORBIDDEN"
+    assert (parent / "stdout.txt").is_file() and (parent / "stderr.txt").is_file()
+    assert (parent / "resource-samples.jsonl").is_file()
+    result = driver.load(tmp_path / "ffmpeg-builder.json")
+    assert result["shutdown_verified"] is True
+    assert "process group terminated" in result["error"]
+    assert result["returncode"] is None
+
+
+def test_report_write_failure_explained_on_stderr_without_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        driver, "initial_inventory", lambda: (_ for _ in ()).throw(ValueError("original failure"))
+    )
+    monkeypatch.setattr(
+        driver,
+        "report",
+        lambda *a: (_ for _ in ()).throw(OSError("disk full for both report formats")),
+    )
+    assert driver.main(["--cpu-smoke", "--output-root", str(tmp_path)]) == 2
+    captured = capsys.readouterr()
+    assert not captured.out
+    value = json.loads(captured.err)
+    assert value["report"] is None and value["status"] == "HOLD"
+    assert "original failure" in value["error"] and "disk full" in value["report_error"]
+
+
+def test_bootstrap_avoids_python311_only_apis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Syntax/API compatibility checks under the test Python, NOT an actual 3.10 qualification.
+    ast.parse(SCRIPT.read_text(), feature_version=(3, 10))
+    monkeypatch.delattr(driver.hashlib, "file_digest")
+    monkeypatch.delattr(driver.dt, "UTC")
+    payload = tmp_path / "payload"
+    payload.write_bytes(b"x" * (1024**2 + 17))
+    assert driver.digest(payload) == driver.hashlib.sha256(payload.read_bytes()).hexdigest()
+    problem = ValueError("original")
+    driver.note_error(problem, "retained cleanup error")
+    assert problem.__notes__ == ["retained cleanup error"]
+    monkeypatch.setattr(
+        driver,
+        "initial_inventory",
+        lambda: (_ for _ in ()).throw(ValueError("discovery diagnostic")),
+    )
+    assert driver.main(["--cpu-smoke", "--output-root", str(tmp_path)]) == 2
+    result = json.loads(capsys.readouterr().out)
+    assert "discovery diagnostic" in Path(result["report"]).read_text()
+
+
+def test_pidfd_api_prefers_stdlib_without_requiring_libc_wrappers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(driver.os, "pidfd_open", lambda pid, flags: 123, raising=False)
+    monkeypatch.setattr(
+        driver.signal,
+        "pidfd_send_signal",
+        lambda *args: calls.append(args),
+        raising=False,
+    )
+    open_fd, send_fd = driver.pidfd_api(object())
+    assert open_fd(42, 0) == 123
+    assert send_fd(123, signal.SIGTERM, None, 0) == 0
+    assert calls == [(123, signal.SIGTERM, None, 0)]
+
+
+def test_pidfd_api_supports_standalone_python_via_libc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delattr(driver.os, "pidfd_open", raising=False)
+    monkeypatch.delattr(driver.signal, "pidfd_send_signal", raising=False)
+
+    class Libc:
+        @staticmethod
+        def pidfd_open(pid: int, flags: int) -> int:
+            return 456
+
+        @staticmethod
+        def pidfd_send_signal(fd: int, sig: int, info: Any, flags: int) -> int:
+            return 0
+
+    open_fd, send_fd = driver.pidfd_api(Libc())
+    assert open_fd(42, 0) == 456
+    assert send_fd(456, signal.SIGKILL, None, 0) == 0
