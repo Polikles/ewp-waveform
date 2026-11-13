@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "provenance": "Operator-reported observations supplied 2026-11-13; not locally remeasured by VM.1",
+  "original_campaign": {
+    "operator_machine_path": "/home/linuch/.local/state/ewp-waveform-experiments/run-20261113T155324Z-6296beff",
+    "platform": "WSL Ubuntu 24.04",
+    "ffmpeg_and_ffprobe": "6.1.1-3ubuntu5",
+    "cpu_reference": {
+      "status": "SUCCEEDED_OPERATOR_REPORTED",
+      "service_wall_seconds": 377.193828,
+      "external_verification_seconds": 168.174019,
+      "frames": 23741,
+      "width": 1400,
+      "height": 280,
+      "fps": 60,
+      "mov_sha256": "cd7cb383df63e7f4f933d620c2abf92db387de2276c15313ac68baac2d30bafb"
+    },
+    "gpu_preflight": {
+      "status": "FAILED_OPERATOR_REPORTED",
+      "explanation": "Only software llvmpipe exposed; requested RTX 3090 unavailable. Completed CPU reference remains successful; do not replay or reclassify attempts."
+    }
+  },
+  "upgraded_environment": {
+    "ubuntu_release": null,
+    "operator_release_label": "26",
+    "required_discovery": "Capture /etc/os-release VERSION_ID and PRETTY_NAME before environment selection; do not infer 26.04 or 26.10",
+    "ffmpeg": "8.0.1",
+    "encoders_observed": ["ffv1", "ffv1_vulkan", "prores", "prores_aw", "prores_ks"],
+    "encoder_not_observed": "prores_ks_vulkan",
+    "vulkan_devices": ["Microsoft Direct3D12 (NVIDIA GeForce RTX 3090)", "Microsoft Direct3D12 (Intel UHD Graphics 770)", "software llvmpipe"],
+    "selected_device": "Microsoft Direct3D12 (NVIDIA GeForce RTX 3090)",
+    "bounded_failures": [
+      {"format":"gray","width":64,"height":32,"graph":"hwupload,hwdownload,format=gray","frames_produced":0},
+      {"format":"rgba","width":1400,"height":280,"graph":"hwupload,hwdownload,format=rgba","frames_produced":0}
+    ],
+    "stderr_excerpt": "Device 0 selected: Microsoft Direct3D12 (NVIDIA GeForce RTX 3090)\nauto-inserting filter 'auto_scale_0' ... before Parsed_hwupload_0\nImpossible to convert between the formats supported by the filter 'graph -1 input from stream 0:0' and the filter 'auto_scale_0'\nTask finished with error code: -38 (Function not implemented)\nframe=0\nWARNING: dzn is not a conformant Vulkan implementation, testing use only.",
+    "assessment": "Device selection succeeds but transfer execution does not qualify. FFmpeg/Vulkan-format capability mismatch with Mesa Dozen/dzn is a working hypothesis, NOT an established root cause. Compare actual device API version/extensions/format and image-usage properties with exact FFmpeg requirements; distinguish command/graph bugs. Newer FFmpeg alone is not a demonstrated fix."
+  },
+  "input": {
+    "wsl_path": "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav",
+    "windows_path": "D:\\test-waveform\\s0e00\\s0e00-Damian.wav",
+    "sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+    "bytes": 37985180,
+    "duration_seconds": 395.6785
+  },
+  "host_reported": {"cpu":"i7-14700K","gpu":"RTX 3090","vram_gib":24,"physical_ram_gib":96},
+  "earlier_wsl_exposure_reported": {"logical_cpus":28,"approximate_ram_gib":47},
+  "comparison_limits": "VM.1/old WSL use different platforms and FFmpeg builds; service and external verification are separate. Host physical RAM is not guest available memory. No isolated GPU or platform speedup may be inferred."
+}

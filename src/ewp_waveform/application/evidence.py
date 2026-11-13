@@ -5,10 +5,14 @@ from __future__ import annotations
 import math
 import os
 import platform
-import resource
 import sys
 from dataclasses import asdict, dataclass
 from typing import Any
+
+try:
+    import resource
+except ImportError:  # Native Windows has no Unix resource module.
+    resource = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -197,7 +201,7 @@ def render_measurements(
 
 def parent_resource_observation() -> dict[str, Any]:
     """RUSAGE_SELF is lifetime parent high-water, never a per-cell delta."""
-    raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss if resource is not None else None
     unit = (
         "bytes"
         if sys.platform == "darwin"
@@ -205,8 +209,12 @@ def parent_resource_observation() -> dict[str, Any]:
     )
     return {
         "parent_lifetime_ru_maxrss": raw,
-        "parent_lifetime_ru_maxrss_unit": unit,
-        "scope": "RUSAGE_SELF parent process-lifetime high-water sampled after cell",
+        "parent_lifetime_ru_maxrss_unit": unit if resource is not None else None,
+        "scope": (
+            "RUSAGE_SELF parent process-lifetime high-water sampled after cell"
+            if resource is not None
+            else "unavailable: this platform has no Unix resource module"
+        ),
         "per_cell_peak_rss_bytes": None,
         "process_tree_peak_rss_bytes": None,
         "parent_cpu_seconds": None,
