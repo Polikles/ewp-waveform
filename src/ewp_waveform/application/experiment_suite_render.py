@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import json
 import os
+import resource
 import time
 from pathlib import Path
 from typing import Any, cast
 
 from ewp_waveform.application.experiment_suite_state import artifact
-from ewp_waveform.application.experiments import frozen_configuration, sha
+from ewp_waveform.application.experiments import digest_value, frozen_configuration, sha
 from ewp_waveform.ffmpeg import experiment_suite as ff
 from ewp_waveform.ffmpeg import experiment_suite_validation as validation
 from ewp_waveform.ffmpeg.experiments import run_captured
 from ewp_waveform.ffmpeg.process import command_evidence
+
+# Reauthenticated exact O receipts, all-frame metadata and plane evidence are
+# pinned by this portable reference contract, not merely frozen at preparation.
+TRUSTED_FULL_CONTRACT_SHA256 = "e4ec8533fe83911b57d69aad8b01178220a3a5d520a3e4997f80a69896160bcf"
 
 
 def performance_file(root: Path) -> Path:
@@ -98,6 +103,9 @@ def service_cell(
             expected_preset=expected["preset"],
         )
     # FULL/PRODUCTION32 use the unchanged stock service; short pairs match verbose logging.
+    cpu_before = [
+        resource.getrusage(who) for who in (resource.RUSAGE_SELF, resource.RUSAGE_CHILDREN)
+    ]
     start = time.perf_counter()
     with command_evidence(log):
         payloads = render(
@@ -113,6 +121,9 @@ def service_cell(
             **kwargs,
         )
     wall = time.perf_counter() - start
+    cpu_after = [
+        resource.getrusage(who) for who in (resource.RUSAGE_SELF, resource.RUSAGE_CHILDREN)
+    ]
     if len(payloads) != 1:
         raise ValueError("one service result required")
     result = cast(dict[str, Any], payloads[0])
@@ -142,6 +153,15 @@ def service_cell(
     return {
         "output": str(output),
         "wall_seconds": wall,
+        "cpu_seconds": {
+            "user": sum(
+                b.ru_utime - a.ru_utime for a, b in zip(cpu_before, cpu_after, strict=True)
+            ),
+            "system": sum(
+                b.ru_stime - a.ru_stime for a, b in zip(cpu_before, cpu_after, strict=True)
+            ),
+            "scope": "service interval; self plus waited children/descendants; Linux getrusage",
+        },
         "scope": "ACTUAL_APPLICATION_SERVICE_RENDER_VALIDATION_PUBLICATION",
         "timer": (
             "perf_counter immediately around service.render; "
@@ -299,18 +319,22 @@ def run_cell(
         output = Path(result["output"])
         reference = Path(reference_result["output"]) if reference_result is not None else None
         codec, lossless = "prores", False
-    valid = validation.inspect(
-        ffmpeg,
-        ffprobe,
-        output,
-        width=1400,
-        height=280,
-        frames=w["frames"],
-        log=log,
-        codec=codec,
-        reference=reference,
-        lossless=lossless,
-    )
+    verification_started = time.perf_counter()
+    valid = reuse_full_validation(session, w, output) if cell["scenario"] == "FULL" else None
+    if valid is None:
+        valid = validation.inspect(
+            ffmpeg,
+            ffprobe,
+            output,
+            width=1400,
+            height=280,
+            frames=w["frames"],
+            log=log,
+            codec=codec,
+            reference=reference,
+            lossless=lossless,
+        )
+    result["external_verification_seconds"] = time.perf_counter() - verification_started
     if (
         cell["scenario"] == "C"
         and reference_result is not None
@@ -327,3 +351,49 @@ def run_cell(
     )
     result["artifacts"].append(artifact(output, "TESTED_NATIVE_MASTER"))
     return result
+
+
+def reuse_full_validation(
+    session: dict[str, Any], workload: dict[str, Any], output: Path
+) -> dict[str, Any] | None:
+    """Authenticate identical bytes, not new decode observations or historical timing."""
+    reference = session["vm_reference"]
+    trusted = {
+        key: reference.get(key)
+        for key in ("source_input", "historical_full_reference", "provenance", "prior_validation")
+    }
+    if digest_value(trusted) != TRUSTED_FULL_CONTRACT_SHA256:
+        return None
+    prior = reference.get("historical_full_reference", {})
+    contract = reference.get("source_input", {})
+    if (
+        workload["kind"] != "full"
+        or (contract.get("width"), contract.get("height"), contract.get("fps"))
+        != (1400, 280, "60/1")
+        or workload["frames"] != contract.get("frames")
+        or prior.get("frames") != contract.get("frames")
+        or prior.get("native_plane_equality") != "PASS_ALL23741FRAMES_YUVA444P12LE_INCLUDING_ALPHA"
+        or set(prior.get("native_plane_sha256", {})) != {"Y", "U", "V", "A"}
+        or output.stat().st_size != prior.get("file_bytes")
+        or sha(output) != prior.get("file_sha256")
+    ):
+        return None
+    return {
+        "passed": True,
+        "verification_route": "AUTHENTICATED_BYTE_IDENTICAL_PRIOR_FULL_MEDIA_VALIDATION",
+        "new_full_decode": False,
+        "file_sha256": prior["file_sha256"],
+        "frames": contract["frames"],
+        "width": contract["width"],
+        "height": contract["height"],
+        "fps": contract["fps"],
+        "native_plane_sha256": prior["native_plane_sha256"],
+        "prior_validation_receipts": reference["prior_validation"],
+        "trusted_contract_sha256": TRUSTED_FULL_CONTRACT_SHA256,
+        "prior_validation": prior["native_plane_equality"],
+        "provenance": reference["provenance"],
+        "note": (
+            "Current stock service validation remains fresh; historical full-media evidence "
+            "reused by complete MOV SHA-256, not rerendered or retimed."
+        ),
+    }

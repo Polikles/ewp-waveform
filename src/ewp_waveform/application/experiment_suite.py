@@ -70,8 +70,19 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     if source["git_head_and_tree"][0] != args.source_commit or source["git_status"]:
         raise ValueError("clean exact final source commit required; do not use a historical pin")
     build = build_receipt(args.build_receipt, tools["new"]) if args.build_receipt else None
-    if any(c.scenario in GPU for c in manifest.cells) and build is None:
-        raise ValueError("GPU matrix requires pinned clean-source FFmpeg build receipt")
+    provenance_path = getattr(args, "installed_provenance", None)
+    installed = None
+    if provenance_path is not None:
+        installed = {
+            "inventory": artifact(provenance_path.resolve(), "INSTALLED_TOOL_OBSERVATIONS")
+        }
+        observations = load(provenance_path)
+        if observations.get("tools") != tools["new"]:
+            raise ValueError("installed observations/tool identity mismatch")
+    if any(c.scenario in GPU for c in manifest.cells) and build is None and installed is None:
+        raise ValueError(
+            "GPU matrix requires actual build receipt or explicit installed observations"
+        )
     session = {
         "schema_version": 1,
         "manifest": manifest.model_dump(mode="json"),
@@ -80,9 +91,16 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         "audio": audio,
         "tools": tools,
         "build": build,
+        "installed_provenance": installed,
         "vm_reference": reference,
         "reference_artifact": artifact(args.reference.resolve()),
-        "build_qualification": "PINNED" if build else "CPU_SUPPLEMENTAL_UNPINNED",
+        "build_qualification": (
+            "PINNED"
+            if build
+            else "OBSERVED_INSTALLED_TOOLS"
+            if installed
+            else "CPU_SUPPLEMENTAL_UNPINNED"
+        ),
         "device": args.device,
         "expect_device_regex": args.expect_device_regex,
         "media_root": str(args.media_root.resolve()),
@@ -486,6 +504,9 @@ def export_results(run: Path) -> dict[str, Any]:
         "environment": {"initial_resources": session.get("initial_resources")},
         "tool_identity": session["tools"],
         "build": session["build"],
+        "installed_provenance": session.get("installed_provenance"),
+        "build_qualification": session.get("build_qualification"),
+        "vm_reference": session.get("vm_reference"),
         "settings": session["manifest"],
         "device": session["device"],
         "cells": rows,
@@ -587,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     prepare_parser.add_argument("--source-commit", required=True)
     prepare_parser.add_argument("--build-receipt", type=Path)
+    prepare_parser.add_argument("--installed-provenance", type=Path)
     prepare_parser.add_argument("--old-ffmpeg", type=Path)
     prepare_parser.add_argument("--old-ffprobe", type=Path)
     prepare_parser.add_argument("--device", default="RTX 3090")

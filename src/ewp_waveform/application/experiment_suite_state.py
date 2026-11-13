@@ -303,6 +303,8 @@ def verify_session(session: dict[str, Any]) -> None:
         raise ValueError("source/interpreter/dependency/environment/host identity drift")
     verify_artifact(session["audio"])
     verify_artifact(session["reference_artifact"])
+    if session.get("installed_provenance"):
+        verify_artifact(session["installed_provenance"]["inventory"])
     for value in session["tools"].values():
         if value is not None:
             for item in value.values():
@@ -330,20 +332,50 @@ def stop_group(proc: subprocess.Popen[bytes]) -> None:
     proc.wait()
 
 
-def observe_group(pgid: int, seen: set[int], log: Path, tools: dict[str, Any]) -> None:
+def observe_group(
+    pgid: int,
+    seen: set[tuple[int, int]],
+    log: Path,
+    tools: dict[str, Any],
+    samples: dict[tuple[int, int], dict[str, Any]] | None = None,
+) -> None:
     """Best-effort sampled Linux process-group argv, including spawned pool FFmpeg."""
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
         pid = int(entry.name)
         try:
-            if pid in seen or os.getpgid(pid) != pgid:
+            if os.getpgid(pid) != pgid:
+                continue
+            fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+            generation = (pid, int(fields[19]))
+            if samples is not None:
+                previous = samples.get(generation, {})
+                samples[generation] = {
+                    "pid": pid,
+                    "start_ticks": int(fields[19]),
+                    "max_observed_threads": max(
+                        previous.get("max_observed_threads", 0), int(fields[17])
+                    ),
+                    "max_observed_rss_bytes": max(
+                        previous.get("max_observed_rss_bytes", 0),
+                        int(fields[21]) * os.sysconf("SC_PAGE_SIZE"),
+                    ),
+                    "observed_cpu_seconds": (int(fields[11]) + int(fields[12]))
+                    / os.sysconf("SC_CLK_TCK"),
+                    "scope": (
+                        "sampled process; transient processes/peaks may be missed; "
+                        "RSS is not tree peak"
+                    ),
+                }
+            if generation in seen:
                 continue
             raw = (entry / "cmdline").read_bytes()
             exe = (entry / "exe").resolve(strict=True)
             argv = [v.decode(errors="replace") for v in raw.split(b"\0") if v]
             record = {
                 "pid": pid,
+                "start_ticks": generation[1],
                 "exe": str(exe),
                 "argv": argv,
                 "scope": "sampled process-group member; transient children may be missed",
@@ -354,7 +386,7 @@ def observe_group(pgid: int, seen: set[int], log: Path, tools: dict[str, Any]) -
                 raise RuntimeError("spawned media tool does not match frozen executable")
             with log.open("a") as stream:
                 stream.write(json.dumps(record) + "\n")
-            seen.add(pid)
+            seen.add(generation)
         except OSError:
             continue
 
@@ -415,15 +447,18 @@ def execute(
     started = time.monotonic()
     proc = None
     reason = None
+    samples: dict[tuple[int, int], dict[str, Any]] = {}
     try:
         with (root / "stdout.txt").open("wb") as out, (root / "stderr.txt").open("wb") as err:
             proc = subprocess.Popen(argv, stdout=out, stderr=err, env=env, start_new_session=True)
-            seen: set[int] = set()
+            seen: set[tuple[int, int]] = set()
             selected_tools = session["tools"][
                 "old" if request.get("cell", {}).get("scenario") == "A" else "new"
             ]
             while proc.poll() is None:
-                observe_group(proc.pid, seen, root / "observed-processes.jsonl", selected_tools)
+                observe_group(
+                    proc.pid, seen, root / "observed-processes.jsonl", selected_tools, samples
+                )
                 time.sleep(0.2)
                 # During execution do not reserve estimated growth/RAM a second time.
                 check_envelope(
@@ -434,11 +469,32 @@ def execute(
                 )
             if proc.returncode:
                 reason = "worker exit " + str(proc.returncode)
+
     except Exception as exc:
         reason = str(exc)
     finally:
         if proc is not None:
-            stop_group(proc)
+            try:
+                stop_group(proc)
+            except Exception as exc:
+                reason = f"{reason + '; ' if reason else ''}group shutdown: {exc}"
+        try:
+            save_new(
+                root / "process-samples.json",
+                {
+                    "polling_seconds": 0.2,
+                    "processes": list(samples.values()),
+                    "termination_reason": reason,
+                    "incomplete": reason is not None,
+                    "final_sample_guaranteed": False,
+                    "scope": (
+                        "best-effort process-group sampling; "
+                        "not a complete process-tree CPU or RSS measurement"
+                    ),
+                },
+            )
+        except Exception as exc:
+            reason = f"{reason + '; ' if reason else ''}sample evidence write: {exc}"
     wall = time.monotonic() - started
     worker_result = root / "worker-result.json"
     result: dict[str, Any] = load(worker_result) if worker_result.exists() else {"status": "FAILED"}

@@ -1,336 +1,138 @@
 # 25 — Opt-in WSL CPU/GPU experiment suite
 
-This suite is experimental tooling, not a production GPU renderer or new output
-profile. Normal APIs/presets/defaults and the old `scripts/experiments.py` remain
-unchanged. Source implementation is not a claim of target runtime success.
-Operator visual assessment and actual Resolve Studio import/alpha/playback remain
-**PENDING** until recorded outside this technical suite. Studio is not a gate on
-generating technically valid short assessment artifacts, including native FFV1.
+The sole operator startup, continuation and troubleshooting guide is
+[WSL-EXPERIMENTS.md](../WSL-EXPERIMENTS.md). Start with
+`python3 scripts/run_wsl_experiments.py --audio "/absolute/path/s0e00-Damian.wav"`.
+Do not assemble a session with the lower-level builder/suite commands or edit a
+manifest/source pin. Those interfaces are implementation and diagnostic helpers,
+not a second operator workflow.
 
-## Workloads and the authenticated reference
+This suite is experimental tooling, not a production GPU renderer/profile.
+Production APIs, presets and defaults remain unchanged. VM tests do not establish
+WSL/RTX3090 runtime qualification. Operator appearance assessment and actual
+Resolve Studio native import/alpha/playback are independent promotion gates;
+numerical metrics cannot approve output-changing profiles.
 
-`examples/experiments/vm-reference.json` is the portable authenticated historical
-contract, including the entire resolved appearance, requested processing and actual
-pool ranges, VM FFmpeg8.0.1 identities and historical result provenance. Its full
-0.2.1 measurement is **318.452082 process / 318.095615 service seconds**, 23,741
-frames and a 2,848,387,115-byte MOV. This is not a new full render of0.3.1 or of
-the suite source. The mapping-only descendant has a measured32-second result;
-its full MOV qualification remains capacity-pending in that historical record.
+## Authenticated workload contract
 
-`prepare --source-commit` requires the exact clean **final suite checkout**, not
-the historical commit in that reference. It freezes Git HEAD/tree/status, loaded
-source/config bytes, interpreter/dependencies, selected tools, input, explicit
-manifest order, device and resource envelope. Preflight checks the complete
-preset/recipe against the reference; service cells also compare the entire
-resolved visual configuration (excluding their explicit experiment identity).
+`examples/experiments/vm-reference.json` preserves the complete resolved mapping7
+appearance and historical full-media evidence. Explicit visual_noise 0.35 and
+noise_seed 1729 are required, not reconstructed from defaults. Stock full renders
+use 1400×280, 60 fps, transparent ProRes4444, balanced jobs2/threads0/chunk60 and
+23,741 frames on the authenticated full source. The historically measured 0.2.1
+full render remains historical: 318.452082 process / 318.095615 service seconds,
+2,848,387,115-byte MOV. A separately versioned current VM reference names its real
+source, timing and output hash; metadata added later does not relabel that source.
 
-| Scenario | Execution and comparison |
+The driver discovers the clean current Git commit/tree and freezes interpreter,
+dependencies, input hash, observed installed tools, selected tools, versioned
+scenario order, settings and resource admission. Initial environment inventory is
+captured before project environment selection or optional building and never
+replaced by selected-tool observations.
+
+## Distinct measurements
+
+1. Installed-tool environment baseline: one stock full CPU render with the exact
+   original default FFmpeg/ffprobe pair when production capabilities are available.
+2. Selected-toolchain CPU controls: short CPU service and codec controls with the
+   same build and WSL host used by GPU candidates.
+3. GPU experiments: matched same-host/same-build pairs only.
+
+VM.1 versus WSL is an environment reference, not isolated GPU acceleration.
+Installed versus selected build is a toolchain contrast, not isolated acceleration.
+Only known, fresh, successful, validated PROCESS records with matching workloads
+and timer scope qualify for paired percentages; skips/failures/reuse have null
+throughput. Sequential ABBA observations are descriptive, not significance claims.
+
+| Scenario | Route and comparison |
 |---|---|
-| FULL | Actual stock service, whole source; no four-second hook. Reference recipe, balanced jobs2/threads0/chunk60. |
-| PRODUCTION32 | Actual stock service[25,57),1920frames, real production pool2 above1800-frame threshold. |
-| A / B | Optional old-build versus selected-new-build short CPU service. Build contrast only. |
-| B / C | Same-build short CPU service versus gray upload/download before unchanged CPU blur. Exact transfer and decoded finishing equality required. |
-| C / D | Same transfer topology; CPU gblur replaced by mono Vulkan Gaussian sigma16,size97,planes1. Deliberate approximation. |
-| E0 / E1 | Same CPU finishing, explicit common yuva444p10le conversion, ProRes4444 alpha_bits16. CPU prores_ks versus Vulkan upload/prores_ks_vulkan, hardware pix_fmt=vulkan,async_depth1. |
-| F0 / F1 | Codec-buffer only, not service publication: one production-finished lossless compressed RGBA oracle; decode/BGRA/conversion/container plus CPU FFV1 versus Vulkan FFV1. Same level3,g1,coder1,context0,slices4; GPU async_depth1. |
+| FULL | Actual unbounded stock service; reference recipe; real production pool2. |
+| PRODUCTION32 | Stock service [25,57), 1,920 frames; actual pool2 above 1,800 threshold. |
+| A / B | Original installed versus selected-build short CPU service; build contrast. |
+| B / C | Same-build CPU versus gray upload/download before unchanged CPU finishing. |
+| C / D | Same transfers; CPU blur versus mono Vulkan Gaussian sigma16,size97,planes1. |
+| E0 / E1 | Common CPU finishing, yuva444p10le and alpha_bits16; CPU versus Vulkan ProRes. |
+| F0 / F1 | Common compressed production-finished RGBA oracle; CPU versus GPU FFV1 codec package. |
 
-Full and32-second calls do not bypass the pool through experiment hooks. Short
-A/B CPU controls explicitly select the CPU-CONTROL experiment, changing logging
-only to the same verbose level as their GPU service peers; their graph/encoder
-remain CPU defaults. Matched codec CPU/GPU cells also use common verbose logging. Four
-seconds remain serial, even though jobs2 is requested. The32-second and short
-analysis, auto-span/normalization, EMA and causal history are interval-local;
-procedural noise time origin is the actual source start. They are not
-full-source-context excerpts. No global WSL eight-CPU or RAM allocation is imposed;
-actual affinity/cgroup/memory/storage are discovered. Jobs2 is the frozen workload
-factor, not a whole-process CPU cap; encoder thread arguments do not establish
-observed process/filter thread counts.
+Short analysis/normalization/EMA/causal history is interval-local, not a
+full-context excerpt. Noise time origin is actual source start. Four-second cells
+remain serial; jobs2 is a frozen workload factor, not a global CPU limit. No
+VM eight-CPU cap is imposed on WSL. Hardware-dependent automatic threading and
+actual sampled process observations are recorded separately from requested options.
 
-The supplied matrix is sequential and finite, with explicit ABBA order for two
-paired observations per factor. Full/32 cells are separate service blocks. Never
-divide historical VM time by WSL GPU time or divide ProRes time by FFV1 time and
-call that isolated GPU acceleration. E and F include their mandatory backend
-conversion/upload package. No Q4, crop, combined-wins or altered appearance is
-hidden in these routes.
+## Tool provenance and capabilities
 
-## Separate pinned FFmpeg build
+Suitable installed tools are not rebuilt. Observed installation provenance is
+explicitly labelled OBSERVED_INSTALLED_TOOLS, never a fabricated pinned build
+receipt. The optional internally managed separate-prefix builder uses FFmpeg
+n9.0.2, commit `946fcce07b6dcd0331c8cc609192aeff5e1924f8`. It installs no prerequisites,
+replaces no system tool, and installs no driver. Missing compiler/header/shader
+prerequisites are collected before configure/build. Source, build and prefix
+remain isolated outside the product checkout. A real build records source,
+compiler, SPIR-V compiler, configure evidence and actual binary/library identities.
 
-Use a prepared Python3.12 environment from this checkout and its documented locked
-dependencies. This document does not authorize dependency, driver or host-config
-changes. `scripts/experiments_build.py` performs **no dependency installation**.
-It defaults to a source-only plan. The operator supplies a C compiler, make, git,
-nasm, pkg-config, x264 development files, Vulkan headers and a working glslc.
-The pinned source checks headers>=1.3.277 and separately1.4.317 capabilities;
-its shader compiler must support the Vulkan1.4/SPIR-V1.6 compile target. Those
-build targets are not a guarantee about the runtime ICD. Do not use a guessed
-`--enable-libshaderc` recipe. No Linux NVIDIA display-driver installation in WSL.
+CUDA/WhisperX/NVENC success does not establish Vulkan. On WSL, real two-frame probes
+at 64×32 and 1400×280 verify transfers, controlled blur, codec decoding/alpha/PTS
+and the selected hardware device; software Vulkan devices are rejected. GPU media
+probes are not run on a non-WSL VM. Missing advertised optional capabilities may
+produce explicit skips; unknown options, malformed graphs, wrong devices,
+timeouts, incomplete output and alpha/lossless violations are failures/HOLD.
+No CPU fallback is silently labelled GPU success.
 
-The source is n9.0.2 commit
-`946fcce07b6dcd0331c8cc609192aeff5e1924f8`, fetched from the official FFmpeg
-mirror. All three roots below must be new, disjoint and outside Git. The script
-uses an isolated TMPDIR under BUILD and never replaces system FFmpeg:
+FFV1 requires every RGBA byte, including hidden RGB, to match its lossless oracle.
+ProRes compares decoded alpha against the common 10-bit input, permitting at most
+one input code step and preserving transparent/active extrema. Nonexact valid
+quantization is assessment-pending, not alpha-exact. Blur/color changes remain
+visual/Studio pending even when technically valid.
 
-```bash
-python scripts/experiments_build.py --source "$FFSOURCE" --build "$FFBUILD" \
-  --prefix "$FFPREFIX" --cc cc --glslc glslc
-# After independently admitting target build disk/RAM/time and prerequisites:
-python scripts/experiments_build.py --source "$FFSOURCE" --build "$FFBUILD" \
-  --prefix "$FFPREFIX" --cc cc --glslc glslc --execute
-```
+## Validation, costs and retention
 
-The builder retains command argv/stdout/stderr, actual compiler/SPIR-V compiler,
-configure flags/log/config.h/config.mak, exact source commit/clean status, tool
-hashes, ldd observations and actual linked-library hashes in
-`$FFBUILD/build-receipt.json`. Retain the referenced evidence at those locations.
-No binaries or source media go into Git. Configure enables Vulkan and x264, with
-autodetection disabled; no vendor codec/driver binaries are distributed.
+Stock service timers include production validation/publication and exclude setup,
+external strict checks and views. Codec timers include common fixture decode,
+conversion/upload, encode and container. Fixture preparation, external verification
+and derivative generation have separate costs. Inclusive phase spans overlap and
+are not additive. Service CPU uses Linux self plus waited-child getrusage deltas;
+sampled thread/RSS/process observations may miss transient peaks and are not a
+complete process-tree peak measurement.
 
-CUDA WhisperX/NVENC success does not establish Vulkan. Preflight inventories
-advertised filters/encoders, observes WSL/kernel/CPU/affinity/cgroups/RAM/storage,
-retains available nvidia-smi/vulkaninfo metadata, then performs actual two-frame
-64x32 **and1400x280** transfer/blur/codec probes. Verbose FFmpeg must identify the
-selected RTX3090; llvmpipe/lavapipe/software devices are rejected. GPU media probes
-are not run on a non-WSL VM. `/dev/dri` alone is neither positive nor negative
-proof. Every service GPU encode also checks selected-device evidence.
+A byte-identical full MOV may reuse authenticated prior complete native-plane,
+alpha and cadence validation after complete file SHA-256 authentication. Its
+current service render/production validation and timing remain fresh; no new full
+decode or historical retiming is claimed. Unexpected bytes retain their outputs
+and get strict validation; do not tune/retry to force agreement. Other masters
+receive strict complete software decode, exact dimensions/count and rational CFR
+PTS checks. Streaming oracles avoid retaining full decoded raw clips.
 
-Probes require byte-exact gray/RGBA/BGRA/planar10 roundtrip and production-topology
-CPU/transfer pre-encode equality; they verify software decode/count/rational PTS.
-FFV1 must preserve every RGBA byte, including hidden RGB. ProRes records decoded
-alpha-plane hashes, equality and maximum error against the common10-bit input.
-The declared alpha precision allowance is at most **one10-bit input code step**;
-transparent/active extrema must survive. Nonexact-but-valid quantization is
-explicitly labeled assessment-pending, never alpha-exact. Opaque, truncated or
-larger alpha loss is HOLD. ProRes color and Vulkan blur are not required to be
-pixel-identical. No automatic visual or Studio acceptance follows from metrics.
+Views retain native transparent masters and dark/light/checker MP4s. A MOV master
+is its own comparison MOV; MKV may receive a labelled comparison proxy, which does
+not establish native FFV1 Studio compatibility. Full views default off. Artifact
+navigation groups equal SHA-256 values while retaining aliases. No global deletion
+is performed; byte-identical media deduplication requires authenticated canonical
+identity and the established scoped retention policy.
 
-Missing advertised optional encoder/filter support may produce a retained
-CAPABILITY_UNAVAILABLE skip. A build without the Vulkan API records
-API_UNAVAILABLE with GPU cells NOT_RUN. Unknown options, graph errors, wrong
-selected device, timeout or failed alpha/lossless oracles are **FAILED/HOLD**, not
-unsupported. BGRA failure does not prove all FFV1 alpha layouts unsupported;
-no such alpha-unsupported conclusion is synthesized. Missing old tools leaves A
-NOT_RUN while B establishes its own new-build baseline.
+Immutable numbered JSON/CSV/Markdown exports include every planned cell, skips,
+partial/failure evidence, paired eligibility, tools/device/settings, separate
+costs, native/proxy/view roles and outstanding acceptance gates. The common driver
+always prints its exact main report path, including preflight failures.
 
-## Prepare, execute, resume, view and export
+Safe resume is bound to one known directory and frozen source/input/tools/settings.
+Exclusive locks prevent multiple owners. Only unattempted work is continued;
+FAILED or uncertain STARTED attempts are retained and fence dispatch. Completed
+readback is never another observation. Resource admission uses actual current
+storage/RAM/cgroups, conservative per-kind peak estimates, finite attempts/time,
+growth limits and reserve. Polling is not a kernel quota and may overshoot.
 
-CLI scenario `FULL` is operator scenario A (full environment reference). The
-short CLI label `A` is only the optional old-build contrast from the research
-design; it must not be confused with that full reference.
+## Maintainer verification
 
-From a normal GitHub checkout (the parent supplies the final literal commit):
+`tests/unit/test_run_wsl_experiments.py` covers stdlib startup, discovery and common
+workflow guards. Existing suite/probe/reporting tests cover frozen scenario and
+oracle contracts. The opt-in `tests/integration/test_wsl_suite_cpu_flow.py` exercises
+real CPU service/FFV1/preflight/views/resume and mutation refusal on a tiny synthetic
+source; it is not full/production32/WSL/GPU qualification. Use the common driver
+for actual original-input CPU smoke/reference execution. All test media/workdirs
+must remain in admitted private locations outside Git.
 
-```bash
-git clone https://github.com/Polikles/ewp-waveform.git
-cd ewp-waveform
-git checkout --detach "$FINAL_SOURCE_COMMIT"
-uv sync --frozen --python 3.12
-source .venv/bin/activate
-```
-
-This is operator-run setup using the project's existing lockfile, not an agent
-installation performed on VM.1. Supply uv/Python using the maintained install
-runbook if they are absent; do not change the locked dependency versions.
-
-For correspondence with the historical VM service recipe, the full call is:
-
-```python
-from pathlib import Path
-from ewp_waveform.application.experiments import VISUAL
-from ewp_waveform.application.service import render
-
-# AUDIO and OUTPUT are local paths, with selected VM tools on PATH and a fresh
-# external work/TMPDIR. This is a reproduction recipe, not fresh historical output.
-results = render(
-    Path(AUDIO),
-    preset_name="iuris-ribbon-refined",
-    performance_name="balanced",
-    formats=["prores4444"],
-    output_dir=Path(OUTPUT),
-    start=None,
-    duration=None,
-    force=True,
-    **VISUAL,
-)
-```
-
-Balanced means the authenticated jobs2/chunk60/threads0 request. The portable
-reference records actual pool ranges and encoder thread argument separately.
-The suite's FULL cell uses this same stock service with explicit per-attempt
-work/output roots and verifies the complete resolved recipe.
-
-
-Checkout the parent-published **final source pin** before use; the integrator
-supplies it in delivery notes. Do not use the mapping-only historical pin as the
-suite pin. The only local substitutions are checkout/source pin, audio path,
-selected tool/build locations, optional old tools and new output/accounting roots.
-The distributed appearance/intervals/input hash do not require reconstruction.
-
-```bash
-python scripts/experiment_suite.py --help
-python scripts/experiment_suite.py prepare --run "$RUN" --media-root "$MEDIA" \
-  --manifest examples/experiments/wsl-suite.json --audio "$AUDIO" \
-  --source-commit "$FINAL_SOURCE_COMMIT" \
-  --ffmpeg "$FFPREFIX/bin/ffmpeg" --ffprobe "$FFPREFIX/bin/ffprobe" \
-  --build-receipt "$FFBUILD/build-receipt.json" --device 'RTX 3090'
-# Append --old-ffmpeg /old/bin/ffmpeg --old-ffprobe /old/bin/ffprobe for A.
-# Append --account-root /another/disjoint/task-created/root for shared growth scope.
-python scripts/experiment_suite.py preflight --run "$RUN"
-python scripts/experiment_suite.py one --run "$RUN" --cell full-reference
-python scripts/experiment_suite.py batch --run "$RUN"
-python scripts/experiment_suite.py resume --run "$RUN"
-python scripts/experiment_suite.py views --run "$RUN"
-python scripts/experiment_suite.py results --run "$RUN"
-python scripts/experiment_suite.py export --run "$RUN"
-```
-
-Prepare does no media execution. Preflight and later commands execute media and
-require an admitted target envelope. `one` selects an exact already-frozen ID;
-it does not create a new trial. `batch` and `resume` dispatch only unattempted
-cells. Readback never counts as another throughput observation. A failed attempt
-is immutable and blocks further timed dispatch; a partial STARTED attempt is an
-uncertainty HOLD requiring external reconciliation. Never delete it or blindly
-rerun it. Correct code/manifest in a new namespace, retaining failed ancestry.
-All request/result/log/media hashes are verified on resume. Exclusive suite locks
-prevent concurrent owners. Defaults never choose GPU via environment variables
-or monkeypatching; the service uses an explicit typed opt-in specification.
-
-The manifest provides explicit finite total attempts/time/growth, filesystem
-reserve, available-memory floor, per-attempt time and conservative per-kind
-estimates. The example admits a full reference's substantial pool+concat storage;
-it is **not** admitted on a small VM merely because the script exists. Monitoring
-counts declared disjoint growth roots relative to frozen baselines and checks
-free space per filesystem, available RAM/cgroup headroom, cumulative worker time
-and process-group deadlines. No media or retained failures are deleted to fit.
-Polling is0.2s and can overshoot between observations/termination; it is not a
-kernel quota or process-tree RSS guarantee. Other task-created storage must be
-included explicitly; run-root accounting is not a total-task resource certificate.
-
-All selected FFmpeg children, including spawned production workers, resolve the
-frozen same-directory ffmpeg/ffprobe pair through an explicit worker PATH; command
-records retain executable paths. Renamed tool fallback is refused. With **CPU-only
-cells and no build receipt**, the suite permits an explicitly recorded local
-build for the parent VM smoke and labels it CPU_SUPPLEMENTAL_UNPINNED. This is not
-n9.0.2/WSL GPU qualification and is not accepted for a GPU matrix.
-
-## Outputs and verification
-
-Every successful master gets a strict complete software decode, dimensions,
-codec/profile/alpha-layout check, exact count and rational nearest-timebase CFR
-PTS check. Streaming validation retains frame/alpha hashes and edge/halo/temporal
-and correctly composited difference metrics, never a whole decoded raw clip.
-FFV1's source is the real production gray-mask finishing path compressed losslessly
-before encode, not lossy ProRes or a376MB four-second RGBA file. F timers explicitly
-include fixture decode+conversion+encode/container; fixture preparation, strict
-validation and views have separate timings. Service timers wrap the actual
-service call including production validation/publication, with external strict
-validation excluded. Inclusive production phase spans are not additive partitions.
-
-`views` runs after the timed matrix is terminal. It retains the actual transparent
-native master, reuses a MOV as its comparison MOV, or creates a clearly labeled
-comparison **PROXY** MOV for an MKV; that proxy does not prove native FFV1 Studio
-compatibility. Separately validated opaque dark/light/checker MP4s use straight
-alpha before dropping alpha. Full views default off to avoid redundant multi-GB
-artifacts; changing that choice requires a fresh frozen manifest/envelope.
-
-Numbered immutable JSON/CSV/Markdown exports and an artifact-role/hash index include every
-planned cell, retained failed/partial artifacts, selected tools/device/settings,
-measurement route and timer boundaries, skips, pairs, validation and outstanding
-visual/Studio status. Skipped/failed/unvalidated/reused/unknown measurements have
-null throughput; no fresh observations are added by export. TECHNICAL_COMPLETE
-means the technical matrix succeeded, not operator promotion. COMPLETE_WITH_SKIPS
-and INCOMPLETE/HOLD cannot be reported as a fully exercised target matrix.
-
-### Human-readable report (0.4.1 reporting correction)
-
-The existing `results`/`export` path also writes `exports/results-NNNN.md` and
-returns its path as `report` beside the unchanged `json` handle. It lists all
-planned cells, explicit failure/skip/pending reasons, workload interval, timer
-scope, recorded attempted/eligible wall, recorded native output size and strict
-validation; source/interpreter/dependency/environment and selected tool/build
-identities accompany the requested device selector. A requested device is not an
-observation: preflight and hashed command evidence retain the selected-device
-proof. New JSON snapshots add the frozen initial host/resource observations;
-older exports show these as unavailable, never substitute the reporting host.
-
-The front **At a glance** table includes every planned cell's status, scope,
-recorded attempted wall, native output bytes and validation-passed field. A compact
-recorded source/interpreter/host/tool identity summary and the explicit paired
-results precede long detail JSON; full provenance remains in the appendix. Cost
-table rows are contiguous, with reasons and artifact/comparison details below the
-table. Inline recorded diagnostics are literal text, not Markdown links or claims.
-Candidate-before-control order can record comparison validation in the candidate's
-views attempt: the report retains its status, passed flag and complete descriptive
-metrics alongside the pair association and recorded equality, without inferring
-approval. Unavailable comparison evidence stays unavailable.
-
-Only explicitly declared supported pairs with the same workload and known timer
-scope, two fresh successful validated positive-time PROCESS records, and required
-B/C or F decoded equality receive percentage changes. F also requires the same
-decoded fixture identity. Both times remain visible when a comparison is withheld.
-`100 * (candidate/control - 1)` is a wall-time change, not pure GPU/encoder speedup.
-Counts are planned/eligible paired observations per workload/factor/scope, not the
-number of exports or resumed reads. Sequential small samples are descriptive;
-no unlike-codec, unlike-service or historical VM-versus-WSL GPU ranking is produced.
-
-Service wall (including service validation/publication), codec package wall
-(including fixture decode/conversion/encode/container), fixture preparation,
-external verification, view/proxy generation and worker/accounted envelopes have
-separate labels. Missing costs are unavailable, not zero; inclusive phase spans
-and worker envelopes overlap and are not additive partitions. Visual navigation
-uses only actual recorded artifact paths/roles/SHA-256, grouping equal hashes
-while retaining all aliases. A comparison MOV can be the same master; an MKV
-comparison proxy does not prove native FFV1 Resolve acceptance. Technical validity,
-file-byte identity, decoded equality, operator visual review and Resolve acceptance
-remain independent axes, with no metric-based approval or promotion.
-
-Admission uses the actual UTF-8 serialized JSON + CSV + artifact index + Markdown
-bytes, including quoting and final newlines, before creating export files. All
-snapshots remain numbered/exclusive; reporting never changes source/session/ledger
-identity guards or invokes media tools. The CSV's ten columns remain unchanged.
-
-### Historical JSON-only diagnostics (not a session export/resume bypass)
-
-Live `results`/`export` still calls `session_at` and refuses exact-source or other
-identity drift. To present an already retained immutable JSON snapshot under a
-new checkout, use the public **read-only** helper instead:
-
-```python
-from pathlib import Path
-from ewp_waveform.application.experiment_suite_reporting import render_retained_export
-
-text = render_retained_export(
-    Path(RETAINED_RESULTS_JSON), expected_sha256=SEPARATELY_RETAINED_SHA256
-)
-# After admitting len(text.encode("utf-8")) under the caller's own envelope,
-# write only to a NEW report path (never rewrite the historical run):
-with Path(NEW_REPORT_MD).open("x", encoding="utf-8", newline="") as stream:
-    stream.write(text)
-```
-
-This helper checks pinned JSON bytes and snapshot consistency only, returns text,
-requires each pair to contain exactly its referenced control and candidate,
-and never opens linked media, checks current source/session authority, resumes a
-run or creates observations. Its heading is **HISTORICAL / UNVERIFIED-MEDIA
-DIAGNOSTIC**. A supplied checksum does not prove trusted ledger ancestry or current
-artifact validity. In particular, end-of-test CPU-flow exports can still describe
-success after their fixture media was intentionally corrupted: presenting those
-records does **not** authenticate or approve the fixture/session. Keep that
-qualification with the derived report, preserve the original JSON, and perform
-any separately authorized evidence verification independently.
-
-## Tests and current qualification boundary
-
-```bash
-python -m pytest -q tests/unit/test_wsl_experiment_suite.py \
-  tests/unit/test_wsl_experiment_reporting.py
-# Parent only, after media/capacity authorization, outside-Git pytest basetemp:
-EWP_SUITE_MEDIA_TESTS=1 python -m pytest -q \
-  --basetemp "$PRIVATE_TEST_ROOT" tests/integration/test_wsl_suite_cpu_flow.py
-```
-
-The integration test uses a synthetic0.1s6-frame source, CPU B/F0, real preflight,
-compressed fixture, lossless oracle, views/proxy, resume/readback and artifact
-mutation refusal. Its explicit32MiB growth envelope and10GiB reserve use real
-production admission, not a mocked disk guard. It requires a clean committed
-checkout. It does not exercise WSL/Vulkan, full/32 performance or Studio. Unit and
-static checks alone never establish those runtime claims.
+The read-only `render_retained_export` helper can present an authenticated old JSON
+snapshot without bypassing live session source guards. Such a report is explicitly
+HISTORICAL / UNVERIFIED-MEDIA DIAGNOSTIC: JSON checksums alone prove neither trusted
+ledger ancestry nor current media validity, and never authorize resume.

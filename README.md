@@ -6,7 +6,7 @@
 
 - Specification baseline: accepted.
 - Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
-- Development version: **0.4.1**; opt-in experiment tooling adds reproducible bounded
+- Development version: **0.5.0**; opt-in experiment tooling adds reproducible bounded
   CPU screening without changing normal renderer defaults, appearance or output
   identities. Approximation experiments remain operator-assessed; see
   [the experiment contract](docs/24-experiments.md).
@@ -37,6 +37,18 @@ DaVinci Resolve / external compositor
 Audio editing/mastering, transcription, subtitles, source separation, final scene composition, and publishing are outside scope.
 
 ## Install and run
+
+For the complete opt-in WSL CPU/GPU experiment workflow, use the canonical
+[WSL experiment operator guide](WSL-EXPERIMENTS.md):
+
+```bash
+python3 scripts/run_wsl_experiments.py --audio "/absolute/path/s0e00-Damian.wav"
+```
+
+The driver inventories the original environment, selects/prepares the locked
+project environment, verifies input and clean source, runs baselines and matched
+experiments, validates outputs, generates views and prints the final report path.
+No manual exports, source-pin reconstruction or multi-script startup is required.
 
 Operator path (Ubuntu 24.04 / WSL2): [`Instructions/install.md`](./Instructions/install.md) then [`Instructions/runbook.md`](./Instructions/runbook.md).
 
@@ -73,5 +85,6 @@ See `docs/README.md` for the documentation index and normative precedence.
 See [`LICENSE`](./LICENSE) and [`LICENSING.md`](./LICENSING.md).
 
 For the opt-in runnable CPU/GPU experiment suite, use
-[chapter 25](docs/25-wsl-experiment-suite.md).
+[WSL-EXPERIMENTS.md](WSL-EXPERIMENTS.md); [chapter 25](docs/25-wsl-experiment-suite.md)
+documents technical measurement and validation contracts only.
 Its adapters do not select GPU in production or establish target/Studio acceptance.

@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import os
 import subprocess
+import sys
 import time
 from contextlib import nullcontext
 from pathlib import Path
@@ -368,3 +370,50 @@ def test_final_resource_traversal_is_inside_complete_elapsed_budget(
     assert json.loads((run / "attempts/fast/result.json").read_text())["status"] == "SUCCEEDED"
     with pytest.raises(RuntimeError, match="resource refusal"):
         state.Ledger(run)
+
+
+@pytest.mark.parametrize("failure", ["resource monitor refusal", "tool identity mismatch"])
+def test_failed_monitor_retains_samples(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+) -> None:
+    run, session = fast_session(monkeypatch, tmp_path)
+    monkeypatch.setattr(subprocess.Popen, "poll", lambda _: None)
+
+    def observe(pgid: int, seen: Any, log: Path, tools: Any, samples: Any) -> None:
+        samples[(123, 456)] = {"pid": 123, "start_ticks": 456, "observed_cpu_seconds": 0.125}
+        raise RuntimeError(failure)
+
+    monkeypatch.setattr(state, "observe_group", observe)
+    result = state.execute(run, session, "fast", {}, "short")
+    assert result["status"] == "FAILED" and failure in result["error"]
+    snapshot = json.loads((run / "attempts/fast/process-samples.json").read_text())
+    assert snapshot["processes"][0]["observed_cpu_seconds"] == 0.125
+    assert snapshot["incomplete"] is True and snapshot["termination_reason"] == failure
+    assert any(Path(a["path"]).name == "process-samples.json" for a in result["artifacts"])
+
+
+def test_pid_generation_does_not_merge_peaks_or_skip_identity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    procroot = tmp_path / "proc"
+    entry = procroot / "123"
+    entry.mkdir(parents=True)
+    fields = ["0"] * 22
+    fields[0] = "R"
+    fields[11], fields[12], fields[17], fields[19], fields[21] = "10", "2", "1", "200", "1"
+    (entry / "stat").write_text("123 (new process) " + " ".join(fields))
+    (entry / "cmdline").write_bytes(b"python\0fixture\0")
+    (entry / "exe").symlink_to(sys.executable)
+    original_path = Path
+    monkeypatch.setattr(
+        state, "Path", lambda value: procroot if value == "/proc" else original_path(value)
+    )
+    monkeypatch.setattr(os, "getpgid", lambda _: 123)
+    samples = {(123, 100): {"start_ticks": 100, "max_observed_threads": 99}}
+    seen = {(123, 100)}
+    log = tmp_path / "observed.jsonl"
+    state.observe_group(123, seen, log, {}, samples)
+    assert samples[(123, 100)]["max_observed_threads"] == 99
+    assert samples[(123, 200)]["max_observed_threads"] == 1
+    assert seen == {(123, 100), (123, 200)}
+    assert json.loads(log.read_text())["start_ticks"] == 200

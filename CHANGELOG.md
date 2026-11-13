@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0] - 2026-11-13
+
+- Add one complete standard-library-first WSL experiment entry point and one
+  canonical operator guide. Capture the original host/tool inventory before
+  selecting the project environment; freeze installed-tool baselines separately
+  from same-build CPU/GPU controls and manage optional isolated builds internally.
+- Retain failures and safe source/input/tool-bound continuation, automatic external
+  directories, validation/views and an exact main report path on partial failures.
+- Permit explicit observed installed-tool provenance without pretending a system
+  installation has a pinned-source build receipt. Reuse authenticated full-media
+  validation only for byte-identical full MOVs; keep fresh rendering measurements
+  and verification costs separate. Record service CPU and sampled process behavior.
+- No production rendering/default/appearance change, release/tag, driver/global
+  installation or WSL/RTX3090/Resolve qualification is implied.
+
 ## [0.4.1] - 2026-11-12
 
 - Correct opt-in WSL experiment export usability with immutable human-readable

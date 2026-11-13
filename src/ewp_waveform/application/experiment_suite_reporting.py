@@ -231,6 +231,15 @@ def render_report(payload: dict[str, Any], *, snapshot: str = "in-memory snapsho
         ("Initial host/resources (unavailable in older exports)", payload.get("environment")),
         ("Selected tool identities", payload.get("tool_identity")),
         ("Build provenance", payload.get("build")),
+        (
+            "Installed provenance (observations, not a source-build receipt)",
+            payload.get("installed_provenance"),
+        ),
+        ("Tool qualification", payload.get("build_qualification")),
+        (
+            "VM.1 environment reference (not an isolated GPU comparison)",
+            payload.get("vm_reference"),
+        ),
         ("Recorded preflight runtime", attempts.get("preflight", {}).get("runtime")),
     ):
         appendix.extend(
@@ -257,6 +266,9 @@ def render_report(payload: dict[str, Any], *, snapshot: str = "in-memory snapsho
         result = cell["result"]
         w = workloads[cell["workload"]]
         validation = result.get("validation", {})
+        verification_seconds = result.get(
+            "external_verification_seconds", validation.get("validation_seconds")
+        )
         output = result.get("output")
         size = _native_bytes(result)
         eligible_wall = result.get("wall_seconds") if _fresh(result) else None
@@ -283,11 +295,12 @@ def render_report(payload: dict[str, Any], *, snapshot: str = "in-memory snapsho
                 f"- Timer boundaries: {_text(result.get('timer'))}.",
                 f"- Recorded attempted wall: {_seconds(result.get('wall_seconds'))} s; "
                 f"eligible wall: {_seconds(eligible_wall)} s.",
+                f"- Service CPU accounting: {_text(result.get('cpu_seconds'))}.",
                 f"- Output: {_text(output)}; recorded native bytes={_text(size)}.",
                 f"- Technical validation passed: {_text(validation.get('passed'))}; "
                 f"decoded RGBA SHA-256: {_text(validation.get('decoded_rgba_sha256'))}.",
                 "- External strict verification: "
-                f"{_seconds(validation.get('validation_seconds'))} s; "
+                f"{_seconds(verification_seconds)} s; "
                 f"views attempt: {_text(views_status)}.",
                 "- Validation detail (metrics are descriptive, not acceptance):",
                 "",
@@ -365,12 +378,15 @@ def render_report(payload: dict[str, Any], *, snapshot: str = "in-memory snapsho
         ]
     )
     for ident, result in attempts.items():
+        verification_seconds = result.get(
+            "external_verification_seconds", result.get("validation", {}).get("validation_seconds")
+        )
         lines.append(
             f"| {_text(ident)} | {_text(result.get('status'))} | "
             f"{_seconds(result.get('worker_wall_seconds'))} | "
             f"{_seconds(result.get('accounted_wall_seconds'))} | "
             f"{_seconds(result.get('preparation_seconds'))} | "
-            f"{_seconds(result.get('validation', {}).get('validation_seconds'))} |"
+            f"{_seconds(verification_seconds)} |"
         )
     lines.extend(["", "### Attempt details — separate from the costs table", ""])
     for ident, result in attempts.items():
