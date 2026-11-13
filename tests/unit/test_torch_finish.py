@@ -178,7 +178,8 @@ def test_real_torch_cpu_equivalence() -> None:
 )
 def test_real_cuda_equivalence_and_transfer() -> None:
     assert qualify("cuda")["gpu_qualified"]
-    assert qualify("transfer-cuda")["gpu_qualified"]
+    transfer = qualify("transfer-cuda")
+    assert transfer["transfer_qualified"] and not transfer["gpu_qualified"]
 
 
 def test_device_selector_is_explicit() -> None:

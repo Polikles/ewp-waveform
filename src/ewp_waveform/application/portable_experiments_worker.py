@@ -123,7 +123,7 @@ def audio_plan(request: dict[str, Any]) -> dict[str, Any]:
             "kind": "short",
             "start": quiet_start,
             "duration": quiet_duration,
-            "frames": math.ceil(quiet_duration * 60),
+            "frames": max(1, round(quiet_duration * 60)),
             "selection": selection,
         },
         {
@@ -314,42 +314,14 @@ def check_cuda_device(value: dict[str, Any], expected: str) -> None:
 
 
 def qualify_finish(request: dict[str, Any]) -> dict[str, Any]:
-    from ewp_waveform.ffmpeg.torch_finish import (
-        FinishSpec,
-        TorchFinisher,
-        correctness_cases,
-        qualify,
-    )
+    from ewp_waveform.ffmpeg.torch_finish import qualify
 
     backend = request["backend"]
-    if backend != "transfer-cuda":
-        value = {"status": "SUCCEEDED", **qualify(backend, device="cuda:0")}
-        if backend == "cuda":
-            check_cuda_device(value, request["expected_device"])
-        return value
-    # A transfer-only gate must not require convolution support. This explicitly
-    # proves byte-preserving synchronized upload/download with no device compute;
-    # it is NOT the CUDA finishing-compute qualification, which has its own gate.
-    rows = []
-    for width, height in ((64, 32), (1400, 280)):
-        spec = FinishSpec(width=width, height=height, overscan=50, supersample=2)
-        worker = TorchFinisher(spec, "cuda:0")
-        for name, mask in correctness_cases(spec).items():
-            result = worker.transfer(mask)
-            if result.tobytes() != mask.tobytes():
-                raise ValueError("compute-free transfer roundtrip mismatch")
-            rows.append({"geometry": [width, height], "case": name, "bytes_equal": True})
-        rows.append({"worker": worker.evidence()})
-    value = {
-        "status": "SUCCEEDED",
-        "passed": True,
-        "backend": backend,
-        "gpu_qualified": False,
-        "transfer_qualified": True,
-        "scope": "COMPUTE_FREE_TRANSFER_ONLY_NOT_GPU_FINISHING",
-        "cases": rows,
-    }
-    check_cuda_device(value, request["expected_device"])
+    value = {"status": "SUCCEEDED", **qualify(backend, device="cuda:0")}
+    if backend in ("cuda", "transfer-cuda"):
+        check_cuda_device(value, request["expected_device"])
+    if backend == "transfer-cuda":
+        value["scope"] = "COMPUTE_FREE_TRANSFER_ONLY_NOT_GPU_FINISHING"
     return value
 
 

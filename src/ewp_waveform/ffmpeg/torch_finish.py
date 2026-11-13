@@ -368,15 +368,22 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
                 raise ValueError("CUDA qualification requires an actual CUDA worker")
             gpu_workers.append(worker.cuda)
         for name, mask in correctness_cases(spec).items():
+            if backend == "transfer-cuda":
+                assert worker is not None
+                actual_mask = worker.transfer(mask)
+                if not np.array_equal(actual_mask, mask):
+                    raise ValueError(f"CUDA transfer changed mask bytes: {width}x{height} {name}")
+                rows.append(
+                    {
+                        "geometry": [width, height],
+                        "case": name,
+                        "bytes_equal": True,
+                        "scope": "UINT8_MASK_TRANSFER_ONLY_NO_FINISHING_COMPUTE",
+                    }
+                )
+                continue
             expected = numpy_alpha(mask, spec)
-            if worker is None:
-                actual = numpy_alpha(mask, spec)
-            elif backend == "transfer-cuda":
-                # Transfer control admission still requires a real GPU finishing
-                # computation, not only allocation or byte transfer capability.
-                actual = worker.finish_alpha(worker.transfer(mask))
-            else:
-                actual = worker.finish_alpha(mask)
+            actual = numpy_alpha(mask, spec) if worker is None else worker.finish_alpha(mask)
             if actual.shape != expected.shape or not np.isfinite(actual).all():
                 raise ValueError(f"{backend} nonfinite or malformed alpha: {name}")
             rgba, reference = rgba_from_alpha(actual, spec), rgba_from_alpha(expected, spec)
@@ -423,7 +430,14 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
         "passed": True,
         "backend": backend,
         "algorithm": ALGORITHM,
-        "gpu_qualified": len(gpu_workers) == 2 and all(gpu_workers),
+        "gpu_qualified": backend == "cuda" and len(gpu_workers) == 2 and all(gpu_workers),
+        "transfer_qualified": backend == "transfer-cuda"
+        and len(gpu_workers) == 2
+        and all(gpu_workers),
         "cases": rows,
-        "claim": "same FIR algorithm backend equivalence; not FFmpeg appearance acceptance",
+        "claim": (
+            "compute-free CUDA mask transfers only; finishing compute is independently qualified"
+            if backend == "transfer-cuda"
+            else "same FIR algorithm backend equivalence; not FFmpeg appearance acceptance"
+        ),
     }

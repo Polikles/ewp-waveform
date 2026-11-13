@@ -43,7 +43,7 @@ def test_repeat_defaults_and_invalid_or_resume_overrides() -> None:
 
 def test_numpy_independent_and_only_shortlist_is_repeated(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
-    workloads = [
+    workloads: list[dict[str, Any]] = [
         {"id": name, "kind": "short", "start": 0.0, "duration": 0.1, "frames": 6}
         for name in ("speech", "onset", "quiet", "tail")
     ]
@@ -67,8 +67,15 @@ def test_numpy_independent_and_only_shortlist_is_repeated(monkeypatch: pytest.Mo
         "speech-fir-algorithm-r01-B",
         "speech-fir-algorithm-r02-B",
         "speech-fir-algorithm-r02-A",
+        "onset-fir-screen-r01-A",
+        "onset-fir-screen-r01-B",
+        "quiet-fir-screen-r01-A",
+        "quiet-fir-screen-r01-B",
+        "tail-fir-screen-r01-A",
+        "tail-fir-screen-r01-B",
     ]
-    assert [r["backend"] for _, r in pair_calls] == ["ffmpeg", "numpy", "numpy", "ffmpeg"]
+    assert [r["backend"] for _, r in pair_calls[:4]] == ["ffmpeg", "numpy", "numpy", "ffmpeg"]
+    assert all(request["pair"]["repeat"] == 1 for _, request in pair_calls[4:])
     assert all(
         sum(name == w["id"] + "-cpu-selected" for name, _, _ in calls) == 1 for w in workloads
     )
@@ -113,6 +120,8 @@ def test_compute_free_transfer_gate_never_calls_finishing(monkeypatch: pytest.Mo
     from ewp_waveform.ffmpeg import torch_finish
 
     class Transfer:
+        cuda = True  # Explicit admission-control stand-in, not hardware execution.
+
         def __init__(self, spec: Any, device: str):
             self.calls = 0
 

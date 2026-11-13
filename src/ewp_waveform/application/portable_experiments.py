@@ -761,10 +761,12 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
         *,
         comparison: str,
         python: str | None = None,
+        repetitions: int | None = None,
     ) -> None:
         # New namespace for every observation. Never share a baseline between
         # pairs or report a reused output as an independently repeated sample.
-        for ordinal in range(1, config.get("repeats", 2) + 1):
+        count = config.get("repeats", 2) if repetitions is None else repetitions
+        for ordinal in range(1, count + 1):
             order = "AB" if ordinal % 2 else "BA"
             for side in order:
                 request = a if side == "A" else b
@@ -812,9 +814,30 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
             )
         if config.get("reference_only"):
             continue
-        # Repeat only the speech shortlist, not all four baseline intervals.
-        # Smoke exercises the identical graph with six real frames, no GPU claim.
+        # Counterbalance the speech shortlist; also screen each remaining real
+        # onset/quiet/tail workload once so appearance/edge cases are not inferred
+        # from stock-CPU controls alone. Single observations are labelled n=1.
         if w["id"] != "speech" and not config["smoke"]:
+            finish_request = {"operation": "cuda", "workload": w}
+            if finishing["numpy"].get("status") == "SUCCEEDED" and finishing["numpy"].get("passed"):
+                pair(
+                    w["id"] + "-fir-screen",
+                    {**finish_request, "backend": "ffmpeg"},
+                    {**finish_request, "backend": "numpy"},
+                    comparison="n=1 edge-case algorithm screen; matched original raster",
+                    repetitions=1,
+                )
+                for backend in ("torch-cpu", "transfer-cuda", "cuda"):
+                    gate = finishing.get(backend, {})
+                    if gate.get("status") == "SUCCEEDED" and gate.get("passed"):
+                        pair(
+                            w["id"] + "-" + backend + "-screen",
+                            {**finish_request, "backend": "numpy"},
+                            {**finish_request, "backend": backend},
+                            comparison="n=1 edge-case FIR backend screen",
+                            python=config["cuda_python"],
+                            repetitions=1,
+                        )
             continue
         if not config["smoke"]:
             for backend, variant in (

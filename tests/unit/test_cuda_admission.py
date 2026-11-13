@@ -36,6 +36,29 @@ def test_cuda_rejects_non_cuda_selector_before_import_or_allocation(
     assert not output.parent.exists()
 
 
+def test_transfer_qualification_is_compute_free(monkeypatch: Any) -> None:
+    class TransferOnly:
+        cuda = True
+
+        def __init__(self, *args: Any) -> None:
+            pass
+
+        def transfer(self, mask: Any) -> Any:
+            return mask.copy()
+
+        def finish_alpha(self, mask: Any) -> Any:
+            pytest.fail("transfer-only qualification must not require finishing compute")
+
+        def evidence(self) -> dict[str, Any]:
+            return {"device": "cuda:0", "device_name": "unit stand-in, not hardware evidence"}
+
+    monkeypatch.setattr(finish, "TorchFinisher", TransferOnly)
+    result = finish.qualify("transfer-cuda", device="cuda:0")
+    assert result["passed"] and result["transfer_qualified"]
+    assert not result["gpu_qualified"]
+    assert len([r for r in result["cases"] if r.get("bytes_equal")]) == 10
+
+
 @pytest.mark.parametrize("backend", ["cuda", "transfer-cuda"])
 def test_cuda_claim_requires_actual_cuda_worker(backend: str, monkeypatch: Any) -> None:
     # Admission-control stand-in only, not hardware execution evidence.
