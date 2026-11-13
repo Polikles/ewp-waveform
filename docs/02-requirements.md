@@ -1,5 +1,22 @@
 # 02 — Requirements
 
+## Experiment/platform amendment — 2026-11-13
+
+End-to-end speed and convenient regeneration govern execution-platform selection.
+Ubuntu/WSL was the initial reference, not a permanent platform requirement.
+Native Windows development, testing and execution are explicitly in scope.
+For this opt-in campaign, FR-BENCH-017's older “before GPU” ordering does not block
+bounded CUDA finishing or native Windows Vulkan experiments: compare the existing
+production FFmpeg path, an equivalent new-algorithm CPU oracle and GPU backend,
+with matched-build CPU controls and transfer-only attribution. No production
+profile is promoted by this amendment. Capture actual guest resources, not host
+specifications; execution/correctness probes gate individual GPU scenarios.
+Cold setup/startup, transfers/conversions, steady work, service rendering,
+external verification and preview cost must be distinguishable. Optional backend
+failure does not block independent controls. GUI and extra styles remain roadmap
+work; existing operator graphic references are retained, no GUI is implemented.
+The maintained operator workflow is [EXPERIMENTS.md](../EXPERIMENTS.md).
+
 ## FR-LOOK-CONTROLS-001 — selectable appearance
 
 Rendering styles must expose useful user-selectable appearance parameters through

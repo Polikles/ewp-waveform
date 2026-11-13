@@ -2,7 +2,7 @@
 
 Use this after `Instructions/install.md`. Technical architecture stays in `docs/`. This file is how to run the tool on real audio without changing code.
 
-**Status:** accepted internal MVP baseline extended by development version 0.5.0,
+**Status:** accepted internal MVP baseline extended by development version 0.6.0,
 checkout-based delivery only. The opt-in refined ribbon now uses mapping7 with
 selectable appearance, reflection/horizon and dark/light-background foreground
 controls; Moving mouth remains a separate revision4 style. Legacy CLI defaults
@@ -158,8 +158,8 @@ jobs raise the reserve to at least twice the projected largest active chunk plus
 not test quotas. Reassess when the VM or workload changes. Private ops records hold
 current measured capacity, estimates and free-before/after receipts.
 
-The complete opt-in WSL workflow has one canonical startup guide:
-[WSL-EXPERIMENTS.md](../WSL-EXPERIMENTS.md). Its common driver captures the original
+The opt-in WSL and native Windows workflow has one canonical startup guide:
+[EXPERIMENTS.md](../EXPERIMENTS.md). Its common driver captures the original
 environment before project setup and runs installed/selected-toolchain baselines,
 bounded experiments, validation/views and safe continuation internally.
 
@@ -175,9 +175,11 @@ or unreviewed historical evidence; cleanup needs explicit selection and authorit
 ### Development versions and repository maintenance
 
 `pyproject.toml`, package `__version__`, the editable package in `uv.lock`, CLI and
-new results/examples must agree. Current development version is 0.5.0: a complete
-single-command WSL driver adds initial discovery, environment/tool selection and
-safe orchestration without changing production rendering or appearance. The prior
+new results/examples must agree. Current development version is 0.6.0: a portable
+single-command WSL/native Windows experiment driver, independent backend execution
+qualification and an explicit opt-in CPU-oracle/CUDA finishing prototype. No
+production rendering/default/appearance promotion follows. The earlier0.5.0
+WSL driver and historical successful-session recovery retain their original evidence. The prior
 0.4.1 reporting correction adds readable immutable exports and explicitly
 historical/unverified-media JSON diagnostics; see
 [document 25](../docs/25-wsl-experiment-suite.md). The opt-in experiment tooling is described in

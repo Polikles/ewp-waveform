@@ -17,7 +17,13 @@ Permanent non-goals:
 - final podcast-video composition;
 - publishing/upload.
 
-Deferred features include GUI, public plugin loading, GPU rendering, Docker deployment, Apple Silicon validation, project manifests, and extra output formats.
+Deferred features include GUI, public plugin loading, production-default GPU rendering,
+Docker deployment, Apple Silicon validation, project manifests, and extra output formats.
+Opt-in bounded CUDA/Vulkan experiments and native Windows development/testing/execution
+are in scope under `EXPERIMENTS.md`; qualification and operator acceptance remain distinct.
+Ubuntu is a reference environment, not a permanent deployment restriction. GUI remains
+future roadmap work; the operator already has graphic references. Do not implement it
+as part of performance experiments.
 
 Do not introduce speculative infrastructure.
 

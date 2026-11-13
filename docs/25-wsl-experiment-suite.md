@@ -1,11 +1,29 @@
-# 25 — Opt-in WSL CPU/GPU experiment suite
+# 25 — Opt-in experiment technical contracts
 
-The sole operator startup, continuation and troubleshooting guide is
-[WSL-EXPERIMENTS.md](../WSL-EXPERIMENTS.md). Start with
-`python3 scripts/run_wsl_experiments.py --audio "/absolute/path/s0e00-Damian.wav"`.
-Do not assemble a session with the lower-level builder/suite commands or edit a
-manifest/source pin. Those interfaces are implementation and diagnostic helpers,
-not a second operator workflow.
+The sole operator startup, continuation and troubleshooting guide for WSL and
+native Windows is [EXPERIMENTS.md](../EXPERIMENTS.md). Ordinary startup uses
+`scripts/run_experiments.py`; the WSL command is a compatibility entry.
+Do not assemble a session with lower-level builder/suite commands or edit a
+manifest/source pin. Those interfaces are implementation/diagnostic helpers.
+
+## Current portable workflow amendment — 0.6.0
+
+Individual backend qualification precedes the timed matrix and optional failures
+are isolated. Preserve the installed-tool CPU control and selected-build CPU
+controls. New finite-Gaussian CPU-oracle/CUDA finishing is deliberately a different
+algorithm from production FFmpeg recursive blur; transfer and algorithm controls
+separate those variables. CPU ProRes remains an explicit encoding cost.
+Native Windows uses platform-appropriate process-tree ownership, paths and
+resource discovery rather than Linux `/proc`/pidfd assumptions.
+
+Default short screening does not automatically rerender a complete reference.
+Retain the real production32 multiprocessing route; full confirmation is a later
+screen-qualified choice. Original and changed environments use different campaign
+identities. Historical failed attempts, reported WSL reference and VM.1 actual
+source/timer identities stay immutable. The older WSL implementation's contracts
+below remain applicable to historical session recovery; its former all-GPU-preflight
+failure fence is not the portable workflow's independent-backend policy.
+
 
 This suite is experimental tooling, not a production GPU renderer/profile.
 Production APIs, presets and defaults remain unchanged. VM tests do not establish

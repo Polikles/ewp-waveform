@@ -6,12 +6,13 @@
 
 - Specification baseline: accepted.
 - Implementation status: FFmpeg MVP roadmap complete (code + operator runbook). Internal beta; visual QA of speech and long jobs are operator evidence, not missing commands.
-- Development version: **0.5.0**; opt-in experiment tooling adds reproducible bounded
+- Development version: **0.6.0**; opt-in experiment tooling adds reproducible bounded
   CPU screening without changing normal renderer defaults, appearance or output
   identities. Approximation experiments remain operator-assessed; see
   [the experiment contract](docs/24-experiments.md).
 - Release status: internal beta; no release candidate; no public release.
-- Reference environment: Ubuntu 24.04 under WSL2 and bare-metal Ubuntu.
+- Initial reference: Ubuntu/WSL2; native Windows development/testing/execution is also in scope.
+  Select eventual deployment from measured end-to-end cost, compatibility and maintenance.
 - Python baseline: Python 3.12.
 - MVP reference renderer: FFmpeg.
 - Planned MVP2 renderer: custom multi-pass renderer.
@@ -38,11 +39,17 @@ Audio editing/mastering, transcription, subtitles, source separation, final scen
 
 ## Install and run
 
-For the complete opt-in WSL CPU/GPU experiment workflow, use the canonical
-[WSL experiment operator guide](WSL-EXPERIMENTS.md):
+For the opt-in WSL/CUDA/native Windows CPU/Vulkan experiments, use the single
+[canonical operator guide](EXPERIMENTS.md). From a clean checkout:
 
 ```bash
-python3 scripts/run_wsl_experiments.py --audio "/absolute/path/s0e00-Damian.wav"
+# WSL
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav"
+```
+
+```powershell
+# Native Windows
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
 ```
 
 The driver inventories the original environment, selects/prepares the locked
@@ -85,6 +92,6 @@ See `docs/README.md` for the documentation index and normative precedence.
 See [`LICENSE`](./LICENSE) and [`LICENSING.md`](./LICENSING.md).
 
 For the opt-in runnable CPU/GPU experiment suite, use
-[WSL-EXPERIMENTS.md](WSL-EXPERIMENTS.md); [chapter 25](docs/25-wsl-experiment-suite.md)
+[EXPERIMENTS.md](EXPERIMENTS.md); [chapter 25](docs/25-wsl-experiment-suite.md)
 documents technical measurement and validation contracts only.
 Its adapters do not select GPU in production or establish target/Studio acceptance.

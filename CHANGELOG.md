@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0] - 2026-11-13
+
+- Add a platform-neutral opt-in experiment workflow for WSL and native Windows,
+  with original-environment capture, independent backend qualification,
+  same-build CPU controls and retained partial-failure diagnostics. Keep the WSL
+  command as a compatibility entry and maintain one canonical `EXPERIMENTS.md`.
+- Add an explicitly output-changing finite-Gaussian CPU oracle/CUDA finishing
+  prototype, transfer attribution and visible CPU ProRes encoding. It remains
+  experimental; no numerical metric promotes appearance or production defaults.
+- Preserve the operator's actual successful WSL CPU reference and failed GPU
+  campaigns, including the unresolved Dozen upload/format-negotiation failure.
+  Exact upgraded WSL release/device capabilities require target inventory.
+- Permit native Windows development/testing/execution; Ubuntu remains a reference,
+  not a platform mandate. Missing Unix resource telemetry is explicitly unavailable
+  on Windows rather than preventing application imports.
+- GUI/additional styles remain future work. No release/tag, global tool/driver
+  replacement, hardware execution success or Resolve qualification is implied.
+
 ## [0.5.0] - 2026-11-13
 
 - Add one complete standard-library-first WSL experiment entry point and one

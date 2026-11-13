@@ -2,6 +2,20 @@
 
 No dates are assigned until evidence supports them.
 
+## Current experiment direction — 0.6.0
+
+The opt-in [portable experiment workflow](../EXPERIMENTS.md) compares installed
+and selected-build CPU controls, a separate new finishing algorithm CPU oracle,
+CUDA finishing and native Windows Vulkan where each actually qualifies. Ubuntu
+is not mandatory; choose eventual execution from measured cold end-to-end cost,
+compatibility and maintenance burden. Hardware/runtime and visual/Resolve
+acceptance remain independent pending gates, not completed by implementation.
+
+GUI remains future roadmap work. The operator already has graphical references;
+retain them for a later task. No GUI or additional render style is implemented
+by this package. Earlier MVP2-before-GPU ordering below is historical for this
+bounded experiment scope; the current platform amendment is in chapter 02.
+
 ## Current navigation — 0.2.1 exact ribbon finishing
 
 The internal MVP has been accepted; delivery is checkout + uv / Python
