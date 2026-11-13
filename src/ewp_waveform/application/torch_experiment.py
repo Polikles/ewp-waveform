@@ -35,6 +35,7 @@ from ewp_waveform.ffmpeg.torch_finish import (
     TorchFinisher,
     numpy_finish,
     qualify,
+    validate_backend_device,
 )
 
 BACKENDS = ("numpy", "torch-cpu", "cuda", "transfer-cuda", "ffmpeg")
@@ -78,6 +79,7 @@ def render_experiment(
     entered = time.perf_counter()
     if backend not in BACKENDS:
         raise ValueError("unknown finishing backend")
+    validate_backend_device(backend, device)
     if not all(math.isfinite(v) for v in (start, duration)) or start < 0 or not 0 < duration <= 32:
         raise ValueError("explicit finite start>=0 and 0<duration<=32 seconds required")
     source, output = source.resolve(), output.resolve()
@@ -307,7 +309,7 @@ def render_experiment(
             preview_seconds = time.perf_counter() - view_start
             if not preview.is_file() or not preview.stat().st_size:
                 raise ValueError("preview missing")
-        return {
+        result_payload = {
             "status": "SUCCEEDED",
             "backend": backend,
             "batch_size": 1,
@@ -371,6 +373,10 @@ def render_experiment(
             "visual_acceptance": "PENDING",
             "nle_acceptance": "PENDING",
         }
+        # Fingerprinting belongs in the API envelope. External launch-through-exit
+        # still additionally includes package imports and result serialization.
+        result_payload["api_wall_seconds"] = time.perf_counter() - entered
+        return result_payload
     finally:
         os.environ["PATH"] = old_path
 

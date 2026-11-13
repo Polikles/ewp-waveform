@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import math
+import re
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -22,6 +23,12 @@ from numpy.typing import NDArray
 type U8 = NDArray[np.uint8]
 type F32 = NDArray[np.float32]
 ALGORITHM = "ribbon-fir-gaussian-v1-not-ffmpeg-recursive-gblur"
+
+
+def validate_backend_device(backend: str, device: str) -> None:
+    """Never let a CUDA label select CPU, even before optional Torch imports."""
+    if backend in ("cuda", "transfer-cuda") and re.fullmatch(r"cuda:[0-9]+", device) is None:
+        raise ValueError("CUDA backends require an explicit cuda:N device, never CPU fallback")
 
 
 @dataclass(frozen=True)
@@ -255,6 +262,8 @@ class TorchFinisher:
             uploaded = self._phase("upload", lambda: host.to(self.device), row)
             values = self._phase("device_conversion", lambda: uploaded.float(), row)
             alpha = self._phase("compute", lambda: self._alpha(values), row)
+            if self.cuda and not (uploaded.is_cuda and values.is_cuda and alpha.is_cuda):
+                raise ValueError("CUDA finishing unexpectedly produced host tensors; no fallback")
             result = self._phase("download", lambda: alpha.cpu().numpy(), row)
         self.timings.append(row)
         return np.asarray(result, dtype=np.float32)
@@ -284,6 +293,8 @@ class TorchFinisher:
         row["host_input_conversion_wall_seconds"] = time.perf_counter() - started
         row["host_input_conversion_process_cpu_seconds"] = time.process_time() - cpu
         uploaded = self._phase("upload", lambda: host.to(self.device), row)
+        if self.cuda and not uploaded.is_cuda:
+            raise ValueError("CUDA transfer unexpectedly remained on host; no fallback")
         result = self._phase("download", lambda: uploaded.cpu().numpy(), row)
         if not np.array_equal(result, mask):
             raise ValueError("transfer roundtrip changed original mask bytes")
@@ -339,7 +350,9 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
     """
     if backend not in ("numpy", "torch-cpu", "cuda", "transfer-cuda"):
         raise ValueError("qualification backend must be numpy/torch-cpu/cuda/transfer-cuda")
+    validate_backend_device(backend, device)
     rows: list[dict[str, Any]] = []
+    gpu_workers: list[bool] = []
     for width, height in ((64, 32), (1400, 280)):
         spec = FinishSpec(width=width, height=height, overscan=50, supersample=2)
         worker = (
@@ -347,6 +360,10 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
             if backend == "numpy"
             else TorchFinisher(spec, "cpu" if backend == "torch-cpu" else device)
         )
+        if backend in ("cuda", "transfer-cuda"):
+            if worker is None or not worker.cuda:
+                raise ValueError("CUDA qualification requires an actual CUDA worker")
+            gpu_workers.append(worker.cuda)
         for name, mask in correctness_cases(spec).items():
             expected = numpy_alpha(mask, spec)
             if worker is None:
@@ -403,7 +420,7 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
         "passed": True,
         "backend": backend,
         "algorithm": ALGORITHM,
-        "gpu_qualified": backend in ("cuda", "transfer-cuda"),
+        "gpu_qualified": len(gpu_workers) == 2 and all(gpu_workers),
         "cases": rows,
         "claim": "same FIR algorithm backend equivalence; not FFmpeg appearance acceptance",
     }
