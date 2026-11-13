@@ -7,9 +7,12 @@ experiment-suite modules, production service, NumPy, or optional Torch.
 from __future__ import annotations
 
 import ast
+import base64
+import csv
 import ctypes
 import hashlib
 import importlib.metadata
+import io
 import json
 import os
 import platform
@@ -297,6 +300,69 @@ def marker_applies(marker: str) -> bool:
     return walk(ast.parse(marker, mode="eval").body)
 
 
+def distribution_payload(dist: importlib.metadata.Distribution) -> dict[str, Any]:
+    """Stream-authenticate installed bytes, not just the RECORD describing them.
+
+    RECORD hashes/sizes are checked when provided; unhashed entries (including
+    RECORD itself) still enter the actual SHA-256 manifest. Cache bytecode is
+    deliberately excluded. Enumeration is the installed distribution's file
+    inventory; application/editable source is authenticated by source_identity.
+    This preflight work is outside all rendering timers. Its command envelope is
+    retained separately; elapsed timings must not enter a reusable fingerprint.
+    """
+    # Distribution.files filters missing paths on Python 3.12. Parse the raw
+    # RECORD so a deleted payload cannot disappear silently from admission.
+    record = dist.read_text("RECORD")
+    name = dist.metadata["Name"]
+    if not record:
+        raise ValueError(f"installed distribution RECORD inventory unavailable: {name}")
+    manifest = hashlib.sha256()
+    count, size = 0, 0
+    for row in sorted(csv.reader(io.StringIO(record))):
+        if len(row) != 3 or not row[0]:
+            raise ValueError(f"malformed installed distribution RECORD: {name}")
+        entry, recorded_hash, recorded_size = row
+        relative = Path(entry)
+        if relative.suffix.lower() in (".pyc", ".pyo") or "__pycache__" in relative.parts:
+            continue
+        path = Path(str(dist.locate_file(entry)))
+        if not path.is_file():
+            raise ValueError(f"installed distribution payload missing: {name}: {entry}")
+        item = identity(path)
+        if recorded_size and int(recorded_size) != item["bytes"]:
+            raise ValueError(
+                f"installed distribution payload changed (RECORD size): {name}: {entry}"
+            )
+        if recorded_hash:
+            mode, expected_hash = recorded_hash.split("=", 1)
+            if mode == "sha256":
+                digest = bytes.fromhex(item["sha256"])
+            else:
+                value = hashlib.new(mode)
+                with path.open("rb") as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b""):
+                        value.update(block)
+                digest = value.digest()
+            observed_hash = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+            if observed_hash != expected_hash:
+                raise ValueError(
+                    f"installed distribution payload changed (RECORD hash): {name}: {entry}"
+                )
+        manifest.update(json.dumps({"entry": entry, **item}, sort_keys=True).encode("utf-8"))
+        manifest.update(b"\n")
+        count += 1
+        size += item["bytes"]
+    return {
+        "name": name,
+        "version": dist.version,
+        "root": str(Path(str(dist.locate_file(""))).resolve()),
+        "sha256": manifest.hexdigest(),
+        "files": count,
+        "bytes": size,
+        "scope": "installed RECORD payload bytes/paths; hashes validated; excludes pyc/pyo caches",
+    }
+
+
 def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]:
     import tomllib
 
@@ -334,9 +400,11 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
             problems.append(f"{name}={actual[name]} (locked {version})")
     if problems:
         raise ValueError("locked runtime dependency mismatch: " + "; ".join(problems))
-    distributions = sorted(
-        (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
+    installed = sorted(
+        importlib.metadata.distributions(),
+        key=lambda d: (d.metadata["Name"], d.version, str(d.locate_file(""))),
     )
+    distributions = [(d.metadata["Name"], d.version) for d in installed]
     if optional:
         torch_version = next((v for name, v in distributions if name.lower() == "torch"), None)
         if torch_version != "2.9.1+cu128":
@@ -345,8 +413,10 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
                 f"observed {torch_version}; use --cuda --install-cuda for isolated setup"
             )
     metadata_files = []
-    for dist in importlib.metadata.distributions():
-        for entry in dist.files or []:
+    payloads = []
+    for dist in installed:
+        payloads.append(distribution_payload(dist))
+        for entry in sorted(dist.files or [], key=str):
             if str(entry).endswith(("/METADATA", "/RECORD", "/direct_url.json")):
                 path = Path(str(dist.locate_file(entry)))
                 if path.is_file():
@@ -361,6 +431,10 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
         "runtime_versions": actual,
         "distributions": distributions,
         "distribution_metadata": metadata_files,
+        "distribution_payloads": payloads,
+        "interpreter_scope": (
+            "selected executable hash/version; stdlib/external system libraries not inventoried"
+        ),
         "optional_worker": optional,
         "package_selection": "explicit existing environment; no install"
         if optional

@@ -10,7 +10,9 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import json
+import math
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -123,7 +125,7 @@ class WindowsJob:
             self.handle = None
 
 
-def supervise(argv: list[str], receipt_fd: int, parent_pid: int) -> int:
+def supervise(argv: list[str], receipt_fd: int, parent_pid: int, gate_fd: int) -> int:
     """Linux-only sole reaper, private to one bounded command."""
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(1, signal.SIGTERM, 0, 0, 0):  # PR_SET_PDEATHSIG
@@ -143,6 +145,16 @@ def supervise(argv: list[str], receipt_fd: int, parent_pid: int) -> int:
     if os.getppid() != parent_pid:
         return 125  # Parent died before the private handshake; launch no work.
     os.write(receipt_fd, b"READY\n")
+    try:
+        # Ownership is established before READY, but work stays gated until the
+        # parent has checked its launch deadline and budget. Parent death/abort
+        # closes the private pipe; stdin of the actual command is unchanged.
+        permitted = os.read(gate_fd, 3) == b"GO\n"
+    finally:
+        os.close(gate_fd)
+    if not permitted or stopping or os.getppid() != parent_pid:
+        os.write(receipt_fd, b"REAPED")
+        return 125
     try:
         proc = subprocess.Popen(argv)
     except OSError:
@@ -190,9 +202,17 @@ def run_command(
     cwd: Path | None = None,
     monitor: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
-    """Retain exact argv/stdout/stderr; return after verified tree shutdown."""
+    """Retain exact argv/logs and bound launch-through-exit, including READY.
+
+    Shutdown has a separate bounded grace for the sole reaper. Missing ownership
+    receipts always fail closed, even when the direct supervisor was killed.
+    """
     if not argv or not all(isinstance(a, str) for a in argv):
         raise ValueError("nonempty list[str] argv required")
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("finite positive command timeout required")
+    started = time.perf_counter()
+    deadline = time.monotonic() + timeout
     root.mkdir(parents=True, exist_ok=False)
     (root / "command.json").write_text(
         json.dumps(
@@ -203,12 +223,33 @@ def run_command(
     job: WindowsJob | None = None
     reader: int | None = None
     writer: int | None = None
+    gate_reader: int | None = None
+    gate_writer: int | None = None
+    ready = False
     error: str | None = None
     verified = False
-    started = time.perf_counter()
     interrupted: BaseException | None = None
+
+    def record_error(exc: BaseException) -> None:
+        nonlocal error, interrupted
+        detail = f"{type(exc).__name__}: {exc}"
+        if error is None:
+            error = detail
+        elif detail not in error:
+            error += "; " + detail
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            interrupted = exc
+
+    def check() -> None:
+        if monitor:
+            monitor()
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"timeout after {timeout:g}s (launch-through-exit)")
+
     with (root / "stdout.txt").open("xb") as stdout, (root / "stderr.txt").open("xb") as stderr:
         try:
+            # Admission is before *any* process creation, including private setup.
+            check()
             kwargs: dict[str, Any] = {
                 "stdout": stdout,
                 "stderr": stderr,
@@ -224,11 +265,14 @@ def run_command(
                     **kwargs,
                 )
                 job.assign(proc)
+                check()
                 assert proc.stdin is not None
                 proc.stdin.write(b"GO\n")
                 proc.stdin.close()
             elif sys.platform.startswith("linux"):
                 reader, writer = os.pipe()
+                gate_reader, gate_writer = os.pipe()
+                os.set_blocking(reader, False)
                 proc = subprocess.Popen(
                     [
                         sys.executable,
@@ -236,49 +280,114 @@ def run_command(
                         "--supervise",
                         str(writer),
                         str(os.getpid()),
+                        str(gate_reader),
                         *argv,
                     ],
-                    pass_fds=(writer,),
+                    pass_fds=(writer, gate_reader),
                     start_new_session=True,
                     **kwargs,
                 )
                 os.close(writer)
                 writer = None
-                if os.read(reader, 6) != b"READY\n":
-                    raise RuntimeError("private supervisor did not become ready; no work launched")
+                os.close(gate_reader)
+                gate_reader = None
+                receipt = b""
+                while receipt != b"READY\n":
+                    check()
+                    if proc.poll() is not None:
+                        raise RuntimeError(
+                            "private supervisor exited before READY; no work launched"
+                        )
+                    readable, _, _ = select.select(
+                        [reader], [], [], min(0.05, max(0, deadline - time.monotonic()))
+                    )
+                    if not readable:
+                        continue
+                    part = os.read(reader, 6 - len(receipt))
+                    receipt += part
+                    if not part or not b"READY\n".startswith(receipt):
+                        raise RuntimeError(
+                            "private supervisor did not become ready; no work launched"
+                        )
+                ready = True
+                check()
+                os.write(gate_writer, b"GO\n")
+                os.close(gate_writer)
+                gate_writer = None
             else:
                 raise RuntimeError("only Linux/WSL and native Windows supervision are supported")
-            deadline = time.monotonic() + timeout
-            while proc.poll() is None:
-                if monitor:
-                    monitor()
-                if time.monotonic() > deadline:
-                    raise TimeoutError(f"timeout after {timeout:g}s")
-                time.sleep(0.1)
+            while True:
+                # Check before terminal polling as well: a fast successful writer
+                # must not skip budget/deadline admission between samples.
+                check()
+                if proc.poll() is not None:
+                    break
+                time.sleep(min(0.1, max(0, deadline - time.monotonic())))
         except BaseException as exc:
-            error = f"{type(exc).__name__}: {exc}"
-            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-                interrupted = exc
+            record_error(exc)
         finally:
-            if writer is not None:
-                os.close(writer)
+            for descriptor in (writer, gate_reader, gate_writer):
+                if descriptor is not None:
+                    os.close(descriptor)
             if job is not None:
-                job.close()
-                verified = True
+                try:
+                    job.close()
+                    verified = True
+                except BaseException as exc:
+                    record_error(exc)
             if proc is not None:
-                if proc.poll() is None:
-                    if os.name == "nt":
-                        proc.kill()  # Suspended/gated failed assignment, or already empty job.
-                    else:
-                        proc.terminate()  # Private subreaper cleans all descendants before exiting.
-                proc.wait(timeout=20)
-                if reader is not None:
-                    verified = os.read(reader, 32) == b"REAPED"
-                    os.close(reader)
-                    if not verified:
-                        error = (error or "") + "; ownership shutdown UNVERIFIED; no replay"
+                try:
+                    if proc.poll() is None:
+                        if os.name == "nt":
+                            proc.kill()  # Gated assignment failure, or already empty job.
+                        elif not ready:
+                            # Startup has not established ownership. GO was never
+                            # sent, so no command can have launched; don't wait on
+                            # a stalled/TERM-ignoring interpreter startup hook.
+                            with contextlib.suppress(ProcessLookupError):
+                                os.killpg(proc.pid, signal.SIGKILL)
+                        else:
+                            proc.terminate()  # Sole reaper owns detached descendants.
+                    try:
+                        proc.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        # A broken supervisor cannot hold the caller indefinitely.
+                        # Killing its session is NOT an ownership receipt.
+                        if os.name == "nt":
+                            proc.kill()
+                        else:
+                            with contextlib.suppress(ProcessLookupError):
+                                os.killpg(proc.pid, signal.SIGKILL)
+                        proc.wait(timeout=1)
+                except BaseException as exc:
+                    record_error(exc)
+                    verified = False
+                finally:
+                    if proc.stdin is not None:
+                        try:
+                            proc.stdin.close()
+                        except OSError as exc:
+                            record_error(exc)
+                    if reader is not None:
+                        # Never wait for EOF: an inherited writer could remain open.
+                        try:
+                            receipt = os.read(reader, 32)
+                        except BlockingIOError:
+                            receipt = b""
+                        finally:
+                            os.close(reader)
+                        verified = ready and proc.returncode is not None and receipt == b"REAPED"
+                if not verified:
+                    error = (error or "") + "; ownership shutdown UNVERIFIED; no replay"
             else:
+                if reader is not None:
+                    os.close(reader)
                 verified = True  # No process was created.
+    try:
+        # Tree shutdown can itself retain output beyond the last live sample.
+        check()
+    except BaseException as exc:
+        record_error(exc)
     value = {
         "argv": argv,
         "returncode": proc.returncode if proc else None,
@@ -293,6 +402,13 @@ def run_command(
         else "LINUX_PRIVATE_SUBREAPER",
     }
     (root / "result.json").write_text(json.dumps(value, indent=2))
+    try:
+        if monitor:
+            monitor()  # Include the retained command/result logs, not just payload.
+    except BaseException as exc:
+        record_error(exc)
+        value["error"] = error
+        (root / "result.json").write_text(json.dumps(value, indent=2))
     if interrupted:
         raise interrupted
     return value
@@ -304,5 +420,7 @@ if __name__ == "__main__":
             raise SystemExit(125)
         raise SystemExit(subprocess.call(sys.argv[2:], shell=False))
     if sys.argv[1] == "--supervise":
-        raise SystemExit(supervise(sys.argv[4:], int(sys.argv[2]), int(sys.argv[3])))
+        raise SystemExit(
+            supervise(sys.argv[5:], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+        )
     raise SystemExit(2)
