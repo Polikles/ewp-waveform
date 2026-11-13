@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -35,7 +36,7 @@ def test_tool_selection_reads_complete_captures_not_diagnostic_tails(tmp_path: P
 def test_automatic_python_setup_admitted_and_monitored(tmp_path: Path, monkeypatch: Any) -> None:
     order: list[str] = []
     monkeypatch.setattr(app, "python_candidates", lambda: [])
-    monkeypatch.setattr(app.shutil, "which", lambda *a: "uv-not-executed")
+    monkeypatch.setattr(shutil, "which", lambda *a: "uv-not-executed")
     monkeypatch.setattr(app, "outside_git", lambda *a: None)
     monkeypatch.setattr(app, "check_budget", lambda *a: order.append("budget"))
     monkeypatch.setattr(app, "probe_python", lambda *a: {"locked": True})
@@ -104,7 +105,7 @@ def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    monkeypatch.setattr(app.shutil, "which", lambda *a: None)
+    monkeypatch.setattr(shutil, "which", lambda *a: None)
     monkeypatch.setattr(app, "discover_tools", lambda *a: {})
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "3")
     original = app.original_inventory(tmp_path, tmp_path)

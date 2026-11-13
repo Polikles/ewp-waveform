@@ -108,9 +108,11 @@ def test_portable_real_cpu_service_and_read_only_resume(tmp_path: Path) -> None:
     import numpy as np
 
     def first_rgba(path: str) -> Any:
+        executable = shutil.which("ffmpeg")
+        assert executable is not None
         observed = subprocess.run(
             [
-                shutil.which("ffmpeg"),
+                executable,
                 "-v",
                 "error",
                 "-i",

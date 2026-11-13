@@ -9,6 +9,7 @@ import importlib.metadata
 import io
 import json
 import os
+import subprocess
 import sys
 import time
 import types
@@ -55,7 +56,7 @@ def test_budget_admission_precedes_process_launch(
     def refuse() -> None:
         raise ValueError("budget already exceeded")
 
-    monkeypatch.setattr(process.subprocess, "Popen", lambda *a, **k: pytest.fail("launched"))
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("launched"))
     observed = process.run_command(
         [sys.executable, "-c", "pass"], tmp_path / "logs", monitor=refuse
     )
@@ -105,7 +106,7 @@ def test_result_log_growth_is_checked_before_success(tmp_path: Path) -> None:
 def test_failed_process_creation_closes_all_private_pipes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    descriptors = []
+    descriptors: list[int] = []
     real_pipe = os.pipe
 
     def pipe() -> tuple[int, int]:
@@ -116,8 +117,8 @@ def test_failed_process_creation_closes_all_private_pipes(
     def refuse(*args: Any, **kwargs: Any) -> None:
         raise OSError("private launch refused")
 
-    monkeypatch.setattr(process.os, "pipe", pipe)
-    monkeypatch.setattr(process.subprocess, "Popen", refuse)
+    monkeypatch.setattr(os, "pipe", pipe)
+    monkeypatch.setattr(subprocess, "Popen", refuse)
     observed = process.run_command([sys.executable, "-c", "pass"], tmp_path / "logs")
     assert observed["shutdown_verified"] and observed["returncode"] is None
     assert "private launch refused" in observed["error"]
@@ -132,7 +133,7 @@ def test_terminal_poll_cannot_skip_elapsed_deadline(
     # Advance a private clock exactly when poll first observes exit; the command
     # never needs to remain alive for a watchdog sample to establish the crossing.
     clock = [time.monotonic()]
-    real_popen = process.subprocess.Popen
+    real_popen = subprocess.Popen
 
     def popen(*args: Any, **kwargs: Any) -> Any:
         proc = real_popen(*args, **kwargs)
@@ -144,11 +145,11 @@ def test_terminal_poll_cannot_skip_elapsed_deadline(
                 clock[0] += 20
             return status
 
-        proc.poll = poll
+        monkeypatch.setattr(proc, "poll", poll)
         return proc
 
-    monkeypatch.setattr(process.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(process.subprocess, "Popen", popen)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(subprocess, "Popen", popen)
     observed = process.run_command([sys.executable, "-c", "pass"], tmp_path / "logs", timeout=10)
     assert observed["error"].startswith("TimeoutError")
     assert observed["shutdown_verified"]
@@ -163,7 +164,7 @@ def test_partial_ready_reads_preserve_shutdown_receipt(
     def read(descriptor: int, maximum: int) -> bytes:
         return real_read(descriptor, min(2, maximum) if maximum <= 6 else maximum)
 
-    monkeypatch.setattr(process.os, "read", read)
+    monkeypatch.setattr(os, "read", read)
     observed = process.run_command([sys.executable, "-c", "pass"], tmp_path / "logs")
     assert observed["error"] is None
     assert observed["shutdown_verified"]
@@ -188,7 +189,7 @@ def test_budget_refusal_after_ready_never_releases_work(
         if ready:
             raise ValueError("budget crossed during startup")
 
-    monkeypatch.setattr(process.os, "read", read)
+    monkeypatch.setattr(os, "read", read)
     observed = process.run_command(
         [sys.executable, "-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"],
         tmp_path / "logs",
@@ -215,7 +216,7 @@ def test_exited_supervisor_with_still_open_receipt_does_not_block(
             held.append(os.dup(writer))
         return reader, writer
 
-    real_popen = process.subprocess.Popen
+    real_popen = subprocess.Popen
 
     def popen(argv: list[str], **kwargs: Any) -> Any:
         if "--supervise" in argv:
@@ -231,8 +232,8 @@ def test_exited_supervisor_with_still_open_receipt_does_not_block(
             )
         return real_popen(argv, **kwargs)
 
-    monkeypatch.setattr(process.os, "pipe", pipe)
-    monkeypatch.setattr(process.subprocess, "Popen", popen)
+    monkeypatch.setattr(os, "pipe", pipe)
+    monkeypatch.setattr(subprocess, "Popen", popen)
     try:
         started = time.monotonic()
         observed = process.run_command(
@@ -259,12 +260,12 @@ def test_stalled_ready_supervisor_has_bounded_shutdown(
         "os.write(int(sys.argv[1]), b'READY\\n')\n"
         "time.sleep(60)\n"
     )
-    real_popen = process.subprocess.Popen
+    real_popen = subprocess.Popen
 
     def popen(argv: list[str], **kwargs: Any) -> Any:
         return real_popen([sys.executable, str(supervisor), argv[3]], **kwargs)
 
-    monkeypatch.setattr(process.subprocess, "Popen", popen)
+    monkeypatch.setattr(subprocess, "Popen", popen)
     started = time.monotonic()
     observed = process.run_command([sys.executable, "-c", "pass"], tmp_path / "logs", timeout=0.2)
     assert time.monotonic() - started < 4.5
@@ -330,7 +331,7 @@ def test_windows_job_assignment_still_precedes_gate_release(
 
     monkeypatch.setattr(process, "os", types.SimpleNamespace(name="nt"))
     monkeypatch.setattr(process, "WindowsJob", Job)
-    monkeypatch.setattr(process.subprocess, "Popen", lambda *a, **k: Proc())
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Proc())
     observed = process.run_command([sys.executable, "-c", "pass"], tmp_path / "logs")
     assert observed["shutdown_verified"]
     if refused:
@@ -372,7 +373,7 @@ def private_distribution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tup
     csv.writer(stream).writerows(rows)
     (metadata / "RECORD").write_text(stream.getvalue())
     dist = importlib.metadata.PathDistribution(metadata)
-    monkeypatch.setattr(state.importlib.metadata, "distributions", lambda: iter([dist]))
+    monkeypatch.setattr(importlib.metadata, "distributions", lambda: iter([dist]))
     root = tmp_path / "project"
     root.mkdir()
     (root / "uv.lock").write_text('[[package]]\nname = "ewp-waveform"\nversion = "0.0.0"\n')
