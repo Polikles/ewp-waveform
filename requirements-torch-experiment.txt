@@ -1,0 +1,10 @@
+# OPTIONAL ONLY: never installed by the application or default dependency sync.
+# Use a separately selected Python 3.12 environment, only with operator opt-in.
+# Select the CPU/CUDA wheel index from the official target-specific installer:
+# https://pytorch.org/get-started/locally/
+# Stable version verified from official release notes on 2026-11-13:
+# https://pytorch.org/blog/pytorch-2-15-release-blog/ (released 2026-10-28).
+# A version pin does not qualify the selected CUDA wheel, driver or architecture.
+# No torchvision, torchaudio, compiler or GPU encoder is required.
+# Existing application dependencies must also be installed in that environment.
+torch==2.15.0
