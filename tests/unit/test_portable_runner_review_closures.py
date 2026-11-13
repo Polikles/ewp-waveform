@@ -251,6 +251,30 @@ def test_failure_salvage_preserves_freshness_separate_from_authentication(
     assert value["fresh_measurements_this_invocation"] is True
 
 
+def test_main_report_explains_optional_setup_failure_without_private_path_chasing(
+    tmp_path: Path,
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    config: dict[str, Any] = {
+        "python": "not-executed",
+        "source": {"sha256": "test-only"},
+        "media": str(tmp_path / "media"),
+        "smoke": True,
+        "preflight_only": True,
+        "cuda_error": (
+            "ValueError: explicit CUDA worker requires pinned torch2.9.1+cu128; observed None"
+        ),
+    }
+    path = reporting.report(run, "COMPLETE_WITH_OPTIONAL_FAILURES", None, config, {})
+    text = path.read_text()
+    assert "Optional CUDA environment/setup failed" in text
+    assert config["cuda_error"] in text
+    assert "no waveform rendering or throughput measurements" in text
+    assert "Fresh rendered measurements" in text
+    assert "requires a new campaign" in text
+
+
 def test_bundle_prioritizes_complete_device_caps_and_records_omissions(tmp_path: Path) -> None:
     run, media = tmp_path / "run", tmp_path / "media"
     run.mkdir()

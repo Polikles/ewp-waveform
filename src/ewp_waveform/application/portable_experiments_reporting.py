@@ -273,12 +273,25 @@ def report(
         "",
         "## Summary",
         "",
-        f"Fresh this invocation: **{value['fresh_measurements_this_invocation']}**. "
+        "Fresh rendered measurements this invocation: "
+        f"**{value['fresh_measurements_this_invocation']}**. "
         "Reused records are retained observations, not new measurements.",
         "",
     ]
     if error:
         lines += [f"Failure / refusal: {clean(error, 1000)}", ""]
+    if config and config.get("cuda_error"):
+        lines += [
+            "Optional CUDA environment/setup failed; "
+            "independent CPU/Vulkan controls remain admitted:",
+            "",
+            "```text",
+            str(config["cuda_error"])[-1200:].replace("```", "'''"),
+            "```",
+            "",
+            "This failed attempt is retained; a fixed/changed environment requires a new campaign.",
+            "",
+        ]
     first_diagnostic = None
     for result in results.values():
         records = [
@@ -320,7 +333,9 @@ def report(
             "",
             "Mode: "
             + (
-                "CPU six-frame usability validation; no full/pool2/GPU claims."
+                "preflight only; no waveform rendering or throughput measurements."
+                if config.get("preflight_only")
+                else "CPU six-frame usability validation; no full/pool2/GPU claims."
                 if config["smoke"]
                 else "short-first production recipe."
             ),
