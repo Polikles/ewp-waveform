@@ -183,6 +183,13 @@ No new production output profile is promoted by this package.
 Use `--resume` with the exact printed run path. Unchanged completed successful
 sessions are authenticated and read back without retiming renders. Source,
 environment, input, tools, frozen settings and retained output identity must match.
+The entire effective inherited worker environment is authenticated with an aggregate
+hash (values are not serialized); it is not limited to named CUDA/BLAS selectors.
+Even an unlisted NumPy/Python flag or another inherited value change refuses reuse.
+Only shell `_`/`SHLVL` bookkeeping is dropped from workers. Fixed worker Python-path
+and bytecode overrides, selected-tool PATH and per-attempt cache staging remain
+explicit transformations. A different terminal/session can therefore require a
+new campaign if its effective inherited environment differs.
 Failed or uncertain started attempts are preserved, not automatically rerun.
 Use a new explicitly identified campaign after environment/source/tool changes.
 Do not edit an old manifest, erase failure markers or move media behind a resume.

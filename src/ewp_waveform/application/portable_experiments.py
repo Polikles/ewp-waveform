@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import math
 import os
@@ -52,7 +53,27 @@ DEFAULT_BYTES = 37985180
 
 
 def child_env() -> dict[str, str]:
-    return {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1"}
+    # Shell bookkeeping is deliberately not forwarded. All remaining inherited
+    # values are authenticated as one digest, never serialized as credentials.
+    env = {key: value for key, value in os.environ.items() if key not in {"_", "SHLVL"}}
+    return {**env, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+def effective_environment() -> dict[str, Any]:
+    """Credential-safe identity of the entire effective inherited child mapping."""
+    env = child_env()
+    return {
+        "sha256": hashlib.sha256(
+            json.dumps(env, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+        "variable_names": sorted(env),
+        "scope": (
+            "all effective inherited values; no values retained; "
+            "before fixed per-step PATH/cache staging"
+        ),
+        "dropped_shell_bookkeeping": ["_", "SHLVL"],
+        "fixed_overrides": {"PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1"},
+    }
 
 
 def discover_tools(path: str) -> dict[str, list[dict[str, Any]]]:
@@ -95,6 +116,7 @@ def original_inventory(run: Path, media: Path) -> dict[str, Any]:
     value: dict[str, Any] = {
         "captured_utc": dt.datetime.now(dt.timezone.utc).isoformat(),  # noqa: UP017
         "original_path": original_path,
+        "effective_child_environment": effective_environment(),
         "platform": platform.platform(),
         "os_release": Path("/etc/os-release").read_text(errors="replace")
         if Path("/etc/os-release").is_file()
@@ -485,6 +507,7 @@ def freeze(
         "original_observations": identity(run / "original-observations.json"),
         "original_path": original["original_path"],
         "original_environment": original["original_environment"],
+        "effective_child_environment": original["effective_child_environment"],
         "installed": installed,
         "selected": selected,
         "tool_acquisition": tool_acquisition,
@@ -540,6 +563,11 @@ def verify_config(run: Path, verification: Path) -> dict[str, Any]:
         raise ValueError(
             f"new computational environment selectors: {sorted(added_selectors)}; "
             "use a new namespace"
+        )
+    if config.get("effective_child_environment") != effective_environment():
+        raise ValueError(
+            "effective forwarded child environment changed or snapshot missing; "
+            "values are not retained; use a new namespace"
         )
     for item in (config["audio"], config["original"], config["original_observations"]):
         verify(item)

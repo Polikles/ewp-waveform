@@ -102,7 +102,14 @@ def test_optional_matched_prores_failure_does_not_abort_independent_work(monkeyp
 
 
 @pytest.mark.parametrize(
-    "new_selector", ["CUDA_NEW_TIMING_SELECTOR_TEST", "TORCHINDUCTOR_CACHE_DIR"]
+    "new_selector",
+    [
+        "CUDA_NEW_TIMING_SELECTOR_TEST",
+        "TORCHINDUCTOR_CACHE_DIR",
+        "NPY_DISABLE_CPU_FEATURES",
+        "PYTHONOPTIMIZE",
+        "UNLISTED_NUMERICAL_SWITCH",
+    ],
 )
 def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
     tmp_path: Path,
@@ -128,6 +135,7 @@ def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
         "source": {},
         "original_path": os.environ.get("PATH", ""),
         "original_environment": original["original_environment"],
+        "effective_child_environment": original["effective_child_environment"],
     }
     state.save(tmp_path / "config.json", config)
     state.save(tmp_path / "config-seal.json", state.identity(tmp_path / "config.json"))
@@ -137,8 +145,34 @@ def test_timing_environment_changes_and_added_gpu_selectors_refuse_resume(
         app.verify_config(tmp_path, tmp_path)
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "3")
     monkeypatch.setenv(new_selector, "1")
-    with pytest.raises(ValueError, match="new computational environment selectors"):
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"new computational environment selectors|"
+            r"effective forwarded child environment changed"
+        ),
+    ):
         app.verify_config(tmp_path, tmp_path)
+
+
+def test_entire_effective_environment_has_no_secret_values_and_no_shell_drift(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("PRIVATE_TEST_AUTH_TOKEN", "do-not-retain-this-secret-value")
+    monkeypatch.setenv("UNLISTED_NUMERICAL_SWITCH", "one")
+    first = app.effective_environment()
+    serialized = json.dumps(first)
+    assert "do-not-retain-this-secret-value" not in serialized
+    assert "PRIVATE_TEST_AUTH_TOKEN" in first["variable_names"]
+    assert first == app.effective_environment()
+    monkeypatch.setenv("_", "different-shell-launcher")
+    monkeypatch.setenv("SHLVL", "99")
+    assert first == app.effective_environment()
+    assert "_" not in app.child_env() and "SHLVL" not in app.child_env()
+    monkeypatch.setenv("UNLISTED_NUMERICAL_SWITCH", "two")
+    assert first != app.effective_environment()
+    monkeypatch.delenv("UNLISTED_NUMERICAL_SWITCH")
+    assert first != app.effective_environment()
 
 
 def test_invoke_checks_budget_after_terminal_evidence(tmp_path: Path, monkeypatch: Any) -> None:
