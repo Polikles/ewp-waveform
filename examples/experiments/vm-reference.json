@@ -182,7 +182,8 @@
     "source_signature": "fb23e47e5f069a9e83cb8379d4b9a24fdd95b3578df2435899674e979d7d2da2"
   },
   "new_exact_mapping_source": "480035fa97391b23f03464ab73ce1b4ee123e3bd",
-  "final_source_full_MOV_qualification": "PENDING_CAPACITY; new mapping full-source23741fields exact, no new full MOV rendered",
+  "final_source_full_MOV_qualification": "FRESH_FULL_BYTE_IDENTITY_QUALIFIED on 2026-11-13 at actual source81afcb46c339587b53700ef47c03f0e4361047ac; see separately versioned current reference. Historical mapping-only pending state is preserved in earlier Git revisions.",
+  "current_VM1_reference": "examples/experiments/vm1-current-reference.json",
   "new_VM_production32": {
     "control_service_seconds": 29.23320809400002,
     "candidate_service_seconds": 26.144143098999848,

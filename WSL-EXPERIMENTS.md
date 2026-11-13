@@ -173,7 +173,19 @@ report and logs, reconcile uncertainty externally, and use a new namespace for a
 corrected experiment. Resume cannot adopt a copied/relocated/edited run or
 silently rebuild a changed environment/toolchain.
 
-## Qualification and promotion boundary
+## Current VM.1 reference and qualification boundary
+
+[Current VM.1 reference metadata](examples/experiments/vm1-current-reference.json)
+records the fresh 2026-11-13 complete stock render from source
+`81afcb46c339587b53700ef47c03f0e4361047ac`, version 0.5.0: 23,741 frames,
+304.734380 seconds service wall, 309.996185 seconds worker/supervisor envelope,
+1,552.491154 service CPU seconds and 1.739320 seconds external hash/validation
+authentication. Its complete 2,848,387,115-byte MOV SHA-256 is
+`00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78`.
+It matches the accepted master; prior complete-media validation was reused,
+not decoded again. A later driver/documentation/metadata commit is not relabelled
+as the measured source. The process envelope includes costs outside service wall;
+do not add overlapping measurements or call this an isolated GPU speedup.
 
 The entry point is tested through real CPU execution from a fresh clean checkout
 and the fresh full VM.1 reference; versioned current-reference metadata records

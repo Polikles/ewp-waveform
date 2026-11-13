@@ -1,0 +1,169 @@
+{
+  "acceptance": {
+    "new_resolve_event": false,
+    "new_visual_event": false,
+    "promotion": "NOT_APPROVED"
+  },
+  "environment": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "cpu_model": "Intel(R) Core(TM) i7-14700K",
+    "editable_distribution_version": "0.5.0",
+    "kernel": "7.0.0-43-generic",
+    "direct_runtime_dependencies": {
+      "numpy": "2.5.3",
+      "pydantic": "2.13.4",
+      "typer": "0.27.1"
+    },
+    "logical_cpus": 8,
+    "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+    "selected_python_version": "3.12.3 (main, Apr 15 2024, 18:25:56) [Clang 17.0.6 ]",
+    "source_project_version": "0.5.0"
+  },
+  "execution_utc": {
+    "completed_at": "2026-11-13T13:30:28Z",
+    "duration_seconds": 305.0,
+    "started_at": "2026-11-13T13:25:23Z"
+  },
+  "input": {
+    "frames": 23741,
+    "seconds": 395.6785,
+    "sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b"
+  },
+  "measurement": {
+    "comparison_claim": "Environment reference only; no isolated GPU speedup or statistical claim.",
+    "external_verification_seconds": 1.7393197290002718,
+    "fresh_process": true,
+    "phase_spans_additive": false,
+    "process_envelope_scope": "Worker/supervisor startup, render, external verification, shutdown and evidence/hash cost; not pure render/service wall.",
+    "process_supervisor_envelope_seconds": 309.9961853250006,
+    "repetitions": 1,
+    "resumed_render": false,
+    "reused_output": false,
+    "service_cpu_system_seconds": 92.632829,
+    "service_cpu_total_seconds": 1552.491154,
+    "service_cpu_user_seconds": 1459.8583250000001,
+    "service_effective_cpu_cores": 5.094571720547689,
+    "service_wall_seconds": 304.7343798769998
+  },
+  "observed_behavior": {
+    "chunk_count": 2,
+    "encoder_threads_argument": 1,
+    "encoder_threads_option_role": "output_encoder",
+    "final_sample_guaranteed": false,
+    "polling_sleep_seconds": 0.2,
+    "sample_scope": "best-effort process-group sampling; not a complete process-tree CPU or RSS measurement",
+    "sampled_encoder_threads": [
+      46,
+      46
+    ],
+    "stock_encode_workers": 2
+  },
+  "operational_result": {
+    "path": "tasks/results/EWP-SINGLE-DRIVER-001/vm1-wsl-driver-20261113T125158Z-60e0b872/REPORT-r02.md",
+    "repository": "Polikles/ewp-waveform-ops"
+  },
+  "output": {
+    "bulky_media": "Outside Git; canonical/alias navigation and deduplication ledger in private operational result.",
+    "bytes": 2848387115,
+    "frames": 23741,
+    "matches_accepted_master": true,
+    "sha256": "00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78"
+  },
+  "product_version": "0.5.0",
+  "purpose": "Fresh complete VM.1 stock CPU environment reference; not WSL/GPU qualification or a historical render relabelled as current",
+  "recipe": {
+    "contract": "examples/experiments/vm-reference.json",
+    "effective_visual_config_sha256": "fd1ca68db4ce9a4de41385a415cba2878f01c2229bd2ddf5610f2caf224052b7",
+    "format": "transparent ProRes4444",
+    "fps": "60/1",
+    "height": 280,
+    "mapping_revision": 7,
+    "noise_seed": 1729,
+    "requested_processing": {
+      "chunk_seconds": 60,
+      "ffmpeg_threads": 0,
+      "jobs": 2,
+      "profile": "wsl-suite-balanced"
+    },
+    "visual_noise": 0.35,
+    "width": 1400
+  },
+  "remaining_target_checks": [
+    "Actual WSL/RTX3090 runtime and GPU probes",
+    "Optional pinned-source build on target",
+    "Same-host/same-build GPU paired performance",
+    "Native Resolve Studio alpha/import/playback and output-changing visual promotion"
+  ],
+  "schema_version": 1,
+  "source": {
+    "commit": "81afcb46c339587b53700ef47c03f0e4361047ac",
+    "tree": "846d35ff04c8b8cf8fcb5c9684561a77d316bb70"
+  },
+  "tools": {
+    "ffmpeg": {
+      "bytes": 453104,
+      "path": "/usr/bin/ffmpeg",
+      "role": "TOOL",
+      "sha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6"
+    },
+    "ffprobe": {
+      "bytes": 216864,
+      "path": "/usr/bin/ffprobe",
+      "role": "TOOL",
+      "sha256": "a6dac1e9e8631e04075d06854cc4069308aec279bb04683b4a0bca5e4f54b2fe"
+    }
+  },
+  "validation": {
+    "file_sha256": "00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78",
+    "fps": "60/1",
+    "frames": 23741,
+    "height": 280,
+    "native_plane_sha256": {
+      "A": "8f832b25a1ac81514c43dee5a46ba346568ccfa042e6e44c19ac77e1df3752b4",
+      "U": "20a99cd23ff45a20831880695a043c3c040da5f80127ee6463f8fa3429e0881c",
+      "V": "1f6883ae62cd1a8ab052dc24f3c84696d483457f12012dbe07730a3d2e723cfc",
+      "Y": "81a85e1b19482dd36363a1e3e9ca26a6fab81139e9d7b5ce35dd9a2726ad5ae7"
+    },
+    "new_full_decode": false,
+    "note": "Current stock service validation remains fresh; historical full-media evidence reused by complete MOV SHA-256, not rerendered or retimed.",
+    "passed": true,
+    "prior_validation": "PASS_ALL23741FRAMES_YUVA444P12LE_INCLUDING_ALPHA",
+    "prior_validation_receipts": {
+      "all_frame_metadata_sha256": "0b221cdbb32c090722f4d328bac4e02f8ce3d01e2b5666bc5386fb756009287d",
+      "alpha_max": 4095,
+      "alpha_min": 0,
+      "authentication": "Historical Git blobs and complete textual frame/plane evidence reauthenticated 2026-11-13; source-code trust anchor pins this portable contract. Reuse is not a new decode or timing observation.",
+      "canonical_decode_receipt_path": "tasks/results/EWP-LOOK-BACKGROUND-001/ewp-appearance-full-20261110T175649Z-296f9a8b/production-r03/execution-r01-decode-dark/stdout.txt",
+      "canonical_decode_receipt_sha256": "aa1bcf32750ab9420279c1ab7dcf7067a4899eab17db6e2cbb5da85c48a6c819",
+      "commit": "97668ad0b916f933c010078816de939834e850fa",
+      "complete_strict_decode": true,
+      "decoded_rgba_sha256": "12a836774cdb2f04ac93383da78e93d002474f5a92959000686584c04ea6c91c",
+      "exact_all_frame_pts_geometry_cadence": true,
+      "native_frame_hashes_sha256": "72d3375492507d9341e0d20b287e5254e1306a384365b95f156c98419a72cc6f",
+      "native_pixel_format": "yuva444p12le",
+      "native_receipt_path": "tasks/results/EWP-NATIVE-OPT-001/ewp-native-opt-20261111T162325Z-5de79257/verify-full/result.json",
+      "native_receipt_sha256": "b18bac05ff6657ee7dfe34242b87a2a72f3f4660792420b5fd092240296df2ad",
+      "repository": "Polikles/ewp-waveform-ops",
+      "schema_version": 1,
+      "status": "PASS"
+    },
+    "provenance": {
+      "effective_result_path": "tasks/results/EWP-NATIVE-OPT-001/ewp-native-opt-20261111T162325Z-5de79257/full-candidate/result.json",
+      "historical_evidence_commit": "97668ad0b916f933c010078816de939834e850fa",
+      "historical_measurement_repository": "Polikles/ewp-waveform-ops",
+      "local_retained_result_sha256": "cd61c5b8784aadaa55c386dc201fef85874cbbbacbbfa0701a3883793f1cb9fe"
+    },
+    "trusted_contract_sha256": "e4ec8533fe83911b57d69aad8b01178220a3a5d520a3e4997f80a69896160bcf",
+    "verification_route": "AUTHENTICATED_BYTE_IDENTICAL_PRIOR_FULL_MEDIA_VALIDATION",
+    "width": 1400
+  }
+}

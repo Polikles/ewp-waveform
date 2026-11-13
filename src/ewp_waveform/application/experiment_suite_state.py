@@ -453,7 +453,10 @@ def execute(
             proc = subprocess.Popen(argv, stdout=out, stderr=err, env=env, start_new_session=True)
             seen: set[tuple[int, int]] = set()
             selected_tools = session["tools"][
-                "old" if request.get("cell", {}).get("scenario") == "A" else "new"
+                "old"
+                if request.get("operation") in ("cell", "old-preflight")
+                and request.get("cell", {}).get("scenario") == "A"
+                else "new"
             ]
             while proc.poll() is None:
                 observe_group(

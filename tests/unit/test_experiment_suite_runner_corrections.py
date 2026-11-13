@@ -417,3 +417,26 @@ def test_pid_generation_does_not_merge_peaks_or_skip_identity(
     assert samples[(123, 200)]["max_observed_threads"] == 1
     assert seen == {(123, 100), (123, 200)}
     assert json.loads(log.read_text())["start_ticks"] == 200
+
+
+@pytest.mark.parametrize(
+    "operation,expected", [("cell", "old"), ("old-preflight", "old"), ("views", "new")]
+)
+def test_original_build_view_uses_selected_derivative_tools(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, operation: str, expected: str
+) -> None:
+    run, session = fast_session(monkeypatch, tmp_path)
+    session["tools"] = {"old": {"label": "old"}, "new": {"label": "new"}}
+    polls = iter([None, 0])
+    monkeypatch.setattr(subprocess.Popen, "poll", lambda _: next(polls))
+    selected: list[str] = []
+
+    def observe(pgid: int, seen: Any, log: Path, tools: Any, samples: Any) -> None:
+        selected.append(tools["label"])
+
+    monkeypatch.setattr(state, "observe_group", observe)
+    result = state.execute(
+        run, session, "fast", {"operation": operation, "cell": {"scenario": "A"}}, "short"
+    )
+    assert result["status"] == "SUCCEEDED"
+    assert selected == [expected]
