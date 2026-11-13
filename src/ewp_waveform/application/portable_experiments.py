@@ -116,6 +116,7 @@ def original_inventory(run: Path, media: Path) -> dict[str, Any]:
         "original_environment": {
             name: os.environ.get(name)
             for name in (
+                "EWP_ANALYSIS_CACHE",
                 "VIRTUAL_ENV",
                 "CONDA_PREFIX",
                 "LD_LIBRARY_PATH",

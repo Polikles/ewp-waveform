@@ -238,7 +238,14 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "service_result": result,
         "visual": "PENDING",
         "studio": "PENDING",
-        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_context": "full-source"
+        if w["kind"] == "full"
+        else "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "fresh task-owned EWP_ANALYSIS_CACHE selector per service attempt",
+        "analysis_cache_selected_path": os.environ.get("EWP_ANALYSIS_CACHE"),
+        "analysis_cache_observed": result.get("performance", {})
+        .get("extras", {})
+        .get("analysis_cache"),
     }
 
 
@@ -372,6 +379,11 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             str(Path(request["ffmpeg"]).parent) + os.pathsep + request["original_path"]
         )
     operation = request["operation"]
+    if operation == "service":
+        # Fresh per-attempt cache selection keeps cold AB/BA service controls
+        # independent. The selected route may not use this cache; report actual
+        # service cache observations rather than infer a hit from the selector.
+        os.environ["EWP_ANALYSIS_CACHE"] = str(Path(request["media"]) / "analysis-cache")
     if operation == "prepare-tools":
         if os.name != "nt":
             raise ValueError(

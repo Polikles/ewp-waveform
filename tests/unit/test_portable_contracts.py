@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import platform
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ import pytest
 from ewp_waveform.application import portable_experiments as portable
 from ewp_waveform.application import portable_experiments_setup as setup
 from ewp_waveform.application import portable_experiments_state as state
+from ewp_waveform.application import portable_experiments_worker as worker
 from ewp_waveform.ffmpeg import experiment_suite
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +72,21 @@ def test_both_optional_platform_closures_are_versioned_and_hashed() -> None:
     source = state.source_identity(ROOT)
     assert "requirements/torch-cu128-linux-x64-py312.txt" in source["files"]
     assert "requirements-torch-experiment.txt" in source["files"]
+
+
+def test_service_attempt_selects_fresh_private_analysis_cache(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("EWP_ANALYSIS_CACHE", "must-not-reuse-host-cache")
+    monkeypatch.setattr(
+        worker,
+        "service_render",
+        lambda request: {"selected": os.environ["EWP_ANALYSIS_CACHE"]},
+    )
+    first = worker.dispatch({"operation": "service", "media": str(tmp_path / "A")})
+    second = worker.dispatch({"operation": "service", "media": str(tmp_path / "B")})
+    assert first["selected"] == str(tmp_path / "A" / "analysis-cache")
+    assert second["selected"] == str(tmp_path / "B" / "analysis-cache")
 
 
 def test_cuda_lock_refuses_unsupported_architecture(monkeypatch: Any) -> None:
