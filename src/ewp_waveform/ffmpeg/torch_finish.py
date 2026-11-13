@@ -4,7 +4,7 @@ This is a NEW algorithm, not an implementation-equivalence claim for FFmpeg's
 recursive gblur. Horizontal area AA -> separable normalized Gaussian FIR (4 sigma,
 replicated boundary) -> body/halo union -> overscan crop -> lower reflection ->
 independent horizon coverage -> straight RGB, with zero RGB at quantized alpha 0.
-No default renderer imports this module. No compilation or automatic installation.
+No default renderer imports this module. No explicit torch.compile or automatic installation.
 """
 
 from __future__ import annotations
@@ -315,7 +315,10 @@ class TorchFinisher:
             "import_seconds": self.import_seconds,
             "context_seconds": self.context_seconds,
             "setup_seconds": self.setup_seconds,
-            "compilation": "NONE_EAGER",
+            "compilation": (
+                "NO_TORCH_COMPILE_REQUESTED; implicit CUDA/library initialization or driver JIT "
+                "may occur on first calls and remains included in qualification/cold process costs"
+            ),
             "warmup": "NONE; first call retained as ordinal 0",
             "phase_scope": "synchronized serialized batch-one; wall and CUDA events non-additive",
             "calls": self.timings,
