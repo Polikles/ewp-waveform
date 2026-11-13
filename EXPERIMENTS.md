@@ -93,6 +93,14 @@ qualified backend. No silent CPU fallback.
 Use `--preflight-only` for a small diagnostic campaign without the timed matrix.
 Use `--cpu-smoke` without audio for the tiny synthetic workflow; it is not an
 original-input result, a production32 measurement or hardware qualification.
+`--repeats` defaults to2 and accepts even values2–10: the speech shortlist uses
+sequential AB then BA (two fresh observations per side by default). Onset, quiet
+and tail algorithm/qualified-backend screens run once per side and are labelled
+n=1, not repeated-performance evidence. `--no-production32` explicitly omits the
+stock pool2 check; short serial outputs do not replace that evidence.
+`--full` is an explicit later stock-CPU full confirmation, never an automatic
+rerender after a report/wrapper change. `--reference-only` selects the installed
+CPU build for its explicit full reference after shorts.
 Other optional flags are listed by the same entry point's `--help`.
 
 ## What comparisons mean
@@ -122,7 +130,12 @@ WSL/Dozen, not just an OS label on a Linux-only command.
 ## Timing and screening
 
 Keep fixed source, clip bounds, settings, geometry1400×280, cadence60fps, cache
-policy, storage and encoder settings within pairs. Short speech, onset, quiet and
+policy, storage and encoder settings within pairs. Stock service attempts select
+a fresh task-owned analysis-cache directory per observation; actual hit/miss data
+remain observations (some routes may not use that cache). Custom FIR/FFmpeg-raster
+algorithm controls explicitly disable their analysis-cache hooks. Do not call
+an intended cache selector an observed hit or subtract overlapping timings.
+Short speech, onset, quiet and
 tail screens precede expensive full confirmation. A clip called quiet is not proof
 of exact digital silence; synthetic all-zero qualification is separate.
 Keep sequential counterbalanced repetitions and report sample counts and spread,
@@ -210,6 +223,22 @@ extensions, format features and image-usage support with the selected FFmpeg
 build's requirements. Do not infer support from Mesa's global version or assume
 newer FFmpeg alone fixes it. No Linux NVIDIA display drivers are installed in WSL,
 and this task does not attempt an unbounded graphics-stack repair.
+
+## Qualification boundaries still pending
+
+VM.1 cannot establish CUDA or native Windows GPU success. Native Windows Job
+Object kernel behavior, selected executable codec inventory, actual NVIDIA Vulkan
+runtime, Resolve import/alpha/playback and operator visual assessment require the
+target machine. Acquisition/hash readback and static/mocked Windows tests are
+not hardware qualification. The upgraded operator WSL release and actual dzn
+capabilities also remain unknown until its new preflight runs.
+
+The CUDA finisher is batch1 only and bounded to32seconds per prototype render.
+Batch variants and full-source CUDA candidate confirmation are not claimed; they
+follow an actually working, useful target qualification/screen. `--full` is a
+stock CPU route, not a way to relabel a CPU full render as GPU confirmation.
+No useful GPU candidate emerged on VM.1, so the existing full reference is reused
+as reference metadata rather than repeated for a wrapper/report change.
 
 ## Existing VM.1 reference and platform choice
 
