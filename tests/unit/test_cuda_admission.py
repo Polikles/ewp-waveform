@@ -13,7 +13,7 @@ from ewp_waveform.ffmpeg import torch_finish as finish
 
 
 @pytest.mark.parametrize("backend", ["cuda", "transfer-cuda"])
-@pytest.mark.parametrize("device", ["cpu", "cuda", "cuda:-1", "mps:0", "cuda:٠", ""])
+@pytest.mark.parametrize("device", ["cpu", "cuda", "cuda:-1", "mps:0", "cuda:\u0660", ""])
 def test_cuda_rejects_non_cuda_selector_before_import_or_allocation(
     backend: str, device: str, tmp_path: Path, monkeypatch: Any
 ) -> None:
