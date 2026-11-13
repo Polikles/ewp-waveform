@@ -71,15 +71,11 @@ def device_args(device: str) -> list[str]:
 
 
 def selected_device(stderr: str, expected: str) -> str:
-    names = re.findall(r"Using device:\s*([^\r\n]+)", stderr)
-    if not names:
-        raise ValueError("verbose FFmpeg selected-device evidence missing")
-    name = str(names[-1])
-    if not re.search(expected, name, re.I) or re.search(
-        r"llvmpipe|lavapipe|swiftshader|software|CPU", name, re.I
-    ):
-        raise ValueError(f"wrong/software Vulkan device: {name}")
-    return name
+    # One parser for qualification and actual service/codec execution. FFmpeg
+    # versions emit either "Using device:" or "Device N selected:".
+    from ewp_waveform.ffmpeg.backend_qualification import selected_device as parse
+
+    return parse(stderr, expected)
 
 
 def service_argv(argv: list[str], spec: SuiteEncoding) -> list[str]:

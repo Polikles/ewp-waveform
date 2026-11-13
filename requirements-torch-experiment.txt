@@ -1,10 +1,13 @@
-# OPTIONAL ONLY: never installed by the application or default dependency sync.
-# Use a separately selected Python 3.12 environment, only with operator opt-in.
-# Select the CPU/CUDA wheel index from the official target-specific installer:
-# https://pytorch.org/get-started/locally/
-# Stable version verified from official release notes on 2026-11-13:
-# https://pytorch.org/blog/pytorch-2-15-release-blog/ (released 2026-10-28).
-# A version pin does not qualify the selected CUDA wheel, driver or architecture.
-# No torchvision, torchaudio, compiler or GPU encoder is required.
-# Existing application dependencies must also be installed in that environment.
-torch==2.15.0
+# OPTIONAL ONLY: install through --cuda --install-cuda into a private worker env.
+# No global/STT environment, driver, compiler or encoder replacement.
+# Latest upstream stable observed 2026-11-13: PyTorch2.15.0, released2026-10-28.
+# Selected compatibility control: torch2.9.1/CUDA12.8. Official cp312 Linux x86_64
+# and Windows x64 wheels were directly verified in the cu128 index. This is a
+# deliberate older shared control, not a claim2.9.1 is latest or a GPU runtime pass.
+# Primary recipe: https://pytorch.org/get-started/previous-versions/
+# Frozen platform-specific transitive closures and hashes are in requirements/.
+# No torchvision/torchaudio required; PyTorch does not replace CPU ProRes encoding.
+torch==2.9.1
+numpy==2.5.3
+pydantic==2.13.4
+typer==0.27.1

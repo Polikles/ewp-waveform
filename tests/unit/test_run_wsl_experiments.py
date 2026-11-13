@@ -367,7 +367,7 @@ def test_stdlib_help_works_without_package_or_site(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "--reference-only" in proc.stdout and "--cpu-smoke" in proc.stdout
-    assert "--resume" in proc.stdout and "--build-ffmpeg" in proc.stdout
+    assert "--resume" in proc.stdout and "--prepare-ffmpeg" in proc.stdout
 
 
 def test_report_is_numbered_and_never_claims_visual_acceptance(tmp_path: Path) -> None:

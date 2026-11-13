@@ -67,6 +67,7 @@ def render_experiment(
     ffprobe: str = "ffprobe",
     reference: Path | None = None,
     preview: Path | None = None,
+    visual_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Fresh original-input bounded production pipeline, custom finishing seam only.
 
@@ -117,6 +118,7 @@ def render_experiment(
             start=start,
             duration=duration,
             force=True,
+            **(visual_overrides or {}),
         )
         if len(plans) != 1 or plans[0].action != "PROCESS" or plans[0].media is None:
             raise ValueError("exactly one fresh PROCESS with original media required")
@@ -232,7 +234,9 @@ def render_experiment(
                         color=None,
                         ribbon_finish=None,
                     )
+                encode_started = time.perf_counter()
                 encode_rgba_stream(observed(), **kwargs)
+                counters["encoder_envelope_wall_seconds"] = time.perf_counter() - encode_started
 
         class Publication:
             def publish_mov(self, path: Path, *, failure_message: str) -> None:
@@ -319,6 +323,14 @@ def render_experiment(
                 "frames": expected_frames,
             },
             "spec": asdict(spec),
+            "visual_overrides": visual_overrides or {},
+            "effective_preset": preset.model_dump(mode="json"),
+            "encoder_envelope_wall_seconds": counters.get("encoder_envelope_wall_seconds"),
+            "encoder_envelope_scope": (
+                "inclusive stream-generation/finishing/feed/CPU-ProRes-encode envelope; "
+                "overlaps pipeline and finishing; not encoder-exclusive CPU or wall"
+            ),
+            "exclusive_encoding_wall_seconds": None,
             "analysis_context": "interval-local; no full-source causal history",
             "analysis_cache": "disabled",
             "analysis": analysis,

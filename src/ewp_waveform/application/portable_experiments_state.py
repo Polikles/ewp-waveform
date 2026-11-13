@@ -196,7 +196,18 @@ def outside_git(paths: list[Path], audio: Path | None = None) -> None:
 
 def source_identity(root: Path) -> dict[str, Any]:
     paths = [root / "pyproject.toml", root / "uv.lock"]
-    for name in ("src", "scripts", "presets", "performance", "config", "examples/experiments"):
+    requirements = root / "requirements-torch-experiment.txt"
+    if requirements.is_file():
+        paths.append(requirements)
+    for name in (
+        "src",
+        "scripts",
+        "presets",
+        "performance",
+        "config",
+        "examples/experiments",
+        "requirements",
+    ):
         folder = root / name
         if folder.is_dir():
             paths.extend(
@@ -204,7 +215,7 @@ def source_identity(root: Path) -> dict[str, Any]:
                 for p in folder.rglob("*")
                 if p.is_file()
                 and "__pycache__" not in p.parts
-                and p.suffix in (".py", ".toml", ".json")
+                and p.suffix in (".py", ".toml", ".json", ".txt")
             )
     files = {str(p.relative_to(root)): sha(p) for p in sorted(paths)}
     digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
@@ -319,17 +330,20 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
             actual[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
             actual[name] = None
-        if not optional and actual[name] != version:
+        if actual[name] != version:
             problems.append(f"{name}={actual[name]} (locked {version})")
     if problems:
         raise ValueError("locked runtime dependency mismatch: " + "; ".join(problems))
     distributions = sorted(
         (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
     )
-    if optional and not any(name.lower() == "torch" for name, _ in distributions):
-        raise ValueError(
-            "explicit CUDA worker has no torch distribution; nothing installed automatically"
-        )
+    if optional:
+        torch_version = next((v for name, v in distributions if name.lower() == "torch"), None)
+        if torch_version != "2.9.1+cu128":
+            raise ValueError(
+                "explicit CUDA worker requires pinned torch2.9.1+cu128; "
+                f"observed {torch_version}; use --cuda --install-cuda for isolated setup"
+            )
     metadata_files = []
     for dist in importlib.metadata.distributions():
         for entry in dist.files or []:

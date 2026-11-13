@@ -2193,5 +2193,29 @@ def internal_main() -> int:
         return main()
 
 
+def compatibility_main(argv: list[str] | None = None) -> int:
+    """One maintained ordinary workflow; keep frozen legacy protocol recovery.
+
+    Historical sessions are not converted/adopted by the portable driver. A failed
+    legacy campaign still refuses replay under its original integrity checks.
+    """
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] in (["--_supervise"], ["--_environment"], ["--_stage"]):
+        return internal_main()
+    resume: str | None = None
+    for index, argument in enumerate(arguments):
+        if argument == "--resume" and index + 1 < len(arguments):
+            resume = arguments[index + 1]
+        elif argument.startswith("--resume="):
+            resume = argument.partition("=")[2]
+    if resume and (Path(resume).expanduser() / "driver-seal.json").is_file():
+        with interrupt_signals():
+            return main(arguments)
+    sys.path.insert(0, str(ROOT / "src"))
+    from ewp_waveform.application.portable_experiments import main as portable_main
+
+    return portable_main(arguments)
+
+
 if __name__ == "__main__":
-    raise SystemExit(internal_main())
+    raise SystemExit(compatibility_main())

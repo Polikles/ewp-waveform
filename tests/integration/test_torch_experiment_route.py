@@ -25,12 +25,19 @@ def test_original_raster_numpy_ffmpeg_comparison(tmp_path: Path) -> None:
         stream.setparams((1, 2, rate, len(samples), "NONE", "not compressed"))
         stream.writeframes(struct.pack(f"<{len(samples)}h", *samples))
     before = hashlib.sha256(source.read_bytes()).hexdigest()
+    overrides = {
+        "reflection_opacity": 0.0,
+        "center_line": False,
+        "visual_noise": 0.35,
+        "noise_seed": 1729,
+    }
     baseline = render_experiment(
         source=source,
         start=0.1,
         duration=0.1,
         output=tmp_path / "ffmpeg" / "baseline.mov",
         backend="ffmpeg",
+        visual_overrides=overrides,
     )
     result = render_experiment(
         source=source,
@@ -40,6 +47,7 @@ def test_original_raster_numpy_ffmpeg_comparison(tmp_path: Path) -> None:
         backend="numpy",
         reference=Path(baseline["output"]),
         preview=tmp_path / "checker.mp4",
+        visual_overrides=overrides,
     )
     assert result["status"] == baseline["status"] == "SUCCEEDED"
     assert result["original_raster_sha256"] == baseline["original_raster_sha256"]
@@ -49,6 +57,12 @@ def test_original_raster_numpy_ffmpeg_comparison(tmp_path: Path) -> None:
     assert result["spec"]["supersample"] == 2
     assert result["spec"]["overscan"] == 50
     assert result["spec"]["sigma"] == 16
+    assert result["spec"]["reflection"] == 0.0
+    assert result["spec"]["horizon"] is False
+    assert result["visual_overrides"] == overrides
+    assert result["effective_preset"] == baseline["effective_preset"]
+    assert result["encoder_envelope_wall_seconds"] > 0
+    assert result["exclusive_encoding_wall_seconds"] is None
     assert result["validation"]["passed"]
     assert result["validation"]["alpha_min"] == 0
     assert result["validation"]["alpha_max"] > 141  # Not just the independent idle horizon.
