@@ -67,6 +67,80 @@ def test_setup_growth_root_does_not_exclude_other_filesystem_reserves(
     assert set(observed) == {run, media, store}
 
 
+@pytest.mark.parametrize(
+    "evidence_gib,payload_gib,admitted", [(20, 100, True), (0, 100, False), (100, 20, False)]
+)
+def test_payload_headroom_is_not_required_on_evidence_only_filesystems(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    evidence_gib: int,
+    payload_gib: int,
+    admitted: bool,
+) -> None:
+    run, media, store = (tmp_path / n for n in ("run", "media", "store"))
+    for p in (run, media, store):
+        p.mkdir()
+    limits = deps.setup_limits(store, 24, 10)
+    real_disk = shutil.disk_usage(store)
+    monkeypatch.setattr(
+        shutil,
+        "disk_usage",
+        lambda p: real_disk._replace(
+            free=(payload_gib if Path(p) == store else evidence_gib) * 1024**3
+        ),
+    )
+    monkeypatch.setattr(state, "resources", lambda: {"ram_available_bytes": 1024**3})
+    if admitted:
+        result = deps.admit_setup(run, media, limits, 16 * 1024**3)
+        assert result["planning_free_bytes"] == payload_gib * 1024**3
+        assert result["planning_roots"] == [str(store)]
+        assert result["free_bytes"] == evidence_gib * 1024**3
+    else:
+        with pytest.raises(ResourceAdmissionError):
+            deps.admit_setup(run, media, limits, 16 * 1024**3)
+
+
+def test_real_cuda_entry_accepts_safe_split_placement_before_installer_seam(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ewp_waveform.application import portable_experiments_setup as setup
+
+    run, media, store = (tmp_path / n for n in ("run", "media", "store"))
+    for p in (run, media, store):
+        p.mkdir()
+    real_disk = shutil.disk_usage(store)
+    monkeypatch.setattr(
+        shutil,
+        "disk_usage",
+        lambda p: real_disk._replace(free=(100 if Path(p) == store else 20) * 1024**3),
+    )
+    monkeypatch.setattr(state, "resources", lambda: {"ram_available_bytes": 1024**3})
+    monkeypatch.setattr(setup, "reuse_environment", lambda *a: None)
+    monkeypatch.setattr(setup, "discover_environment", lambda *a: None)
+
+    class AdmittedWithoutInstallation(RuntimeError):
+        pass
+
+    def seam(*a: Any, **kwargs: Any) -> Any:
+        raise AdmittedWithoutInstallation("admission reached installer seam; no command executed")
+
+    monkeypatch.setattr(setup, "run_command", seam)
+    with pytest.raises(AdmittedWithoutInstallation):
+        setup.install_cuda(
+            Path(sys.executable),
+            {"locked_runtime": {}},
+            run,
+            media,
+            deps.setup_limits(store, 24, 10),
+            {},
+            managed_root=store,
+            uv_path="fixture-uv",
+        )
+    admission = json.loads((run / "cuda-setup/admission.json").read_text())
+    assert admission["planning_free_bytes"] == 100 * 1024**3
+
+
 def test_existing_campaign_overage_refuses_before_any_dependency_acquisition(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

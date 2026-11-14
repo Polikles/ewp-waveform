@@ -305,18 +305,27 @@ def setup_limits(store: Path, max_gib: float, reserve_gib: float) -> dict[str, A
 def admit_setup(run: Path, media: Path, limits: dict[str, Any], estimate: int) -> dict[str, Any]:
     before = check_budget(run, media, limits)
     remaining = limits["growth_bytes"] - before["growth_bytes"]
-    if remaining < estimate or before["free_bytes"] < estimate + limits["reserve_bytes"]:
+    payload_roots = [Path(p) for p in limits.get("accounting_roots", [run, media])]
+    free_by_root = before.get("filesystem_free_bytes", {})
+    payload_free = (
+        min(free_by_root[str(p)] for p in payload_roots) if free_by_root else before["free_bytes"]
+    )
+    if remaining < estimate or payload_free < estimate + limits["reserve_bytes"]:
         raise ResourceLimitError(
             "dependency capacity admission refused BEFORE download: "
             f"planning_bytes={estimate}, setup_remaining_bytes={remaining}, "
-            f"free_bytes={before['free_bytes']}, reserve_bytes={limits['reserve_bytes']}. "
+            f"payload_free_bytes={payload_free}, reserve_bytes={limits['reserve_bytes']}. "
             "Use verified --python/--cuda-python, or explicitly increase --setup-max-growth-gib "
             "after checking the target filesystem. Render --max-growth-gib is separate."
         )
     return {
         **before,
         "planning_bytes": estimate,
-        "planning_scope": "conservative estimate, not quota",
+        "planning_roots": list(map(str, payload_roots)),
+        "planning_free_bytes": payload_free,
+        "planning_scope": (
+            "conservative payload-filesystem estimate, not quota; all reserves separately checked"
+        ),
     }
 
 
