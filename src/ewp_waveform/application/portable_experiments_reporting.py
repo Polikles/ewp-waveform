@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -12,23 +14,129 @@ from ewp_waveform.application.portable_experiments_state import save, sha
 ROOT = Path(__file__).resolve().parents[3]
 
 
+# Only verbose diagnostic payloads are excerpted. Never truncate result/config
+# trees as byte strings: a metric or failure in their middle is still essential.
+_VERBOSE = {"stderr", "stdout", "stderr_excerpt", "excerpts", "diagnostic_excerpts"}
+_CHECKS = ("transfer", "blur", "prores", "ffv1", "same_build_control")
+
+
+def _compact_diagnostics(
+    value: Any, source: str, pointer: str = "", *, verbose: bool = False
+) -> Any:
+    """Copy semantics intact, replacing only long log payloads with linked excerpts."""
+    if isinstance(value, dict):
+        return {
+            key: _compact_diagnostics(
+                item,
+                source,
+                pointer + "/" + str(key).replace("~", "~0").replace("/", "~1"),
+                verbose=verbose or key in _VERBOSE,
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        # A diagnostic list is one payload; do not retain thousands of short lines.
+        if verbose and len(json.dumps(value, ensure_ascii=False)) > 1200:
+            value = "\n".join(str(line) for line in value)
+        else:
+            return [
+                _compact_diagnostics(item, source, pointer + f"/{i}", verbose=verbose)
+                for i, item in enumerate(value)
+            ]
+    if verbose and isinstance(value, str) and len(value) > 1200:
+        return {
+            "excerpt": value[:600] + "\n[DIAGNOSTIC EXCERPT; original retained]\n" + value[-600:],
+            "characters": len(value),
+            "full_evidence": source + "#" + pointer,
+        }
+    return value
+
+
+def _checks(backends: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Only execution checks; paths, bounds, inventory and devices are observations."""
+    for name in _CHECKS:
+        item = backends.get(name)
+        if isinstance(item, dict):
+            yield name, item
+    controls = backends.get("cpu_controls", {})
+    if isinstance(controls, dict):
+        for name, item in controls.items():
+            if isinstance(item, dict):
+                yield "cpu_controls/" + name, item
+
+
+def _cases(value: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    cases = value.get("cases", {})
+    if isinstance(cases, dict):
+        for name, item in cases.items():
+            if isinstance(item, dict):
+                yield name, item
+    elif isinstance(cases, list):
+        for i, item in enumerate(cases):
+            if isinstance(item, dict) and any(
+                key in item for key in ("name", "case", "status", "passed")
+            ):
+                name = str(item.get("name", item.get("case", i)))
+                geometry = item.get("geometry")
+                if isinstance(geometry, list):
+                    name = "x".join(map(str, geometry)) + "/" + name
+                yield name, item
+
+
+def _reason(value: dict[str, Any]) -> str:
+    if "ffmpeg_version_and_configuration" in value and value.get("status") != "PASS":
+        return (
+            "Same-build control failed: observed FFmpeg/ffprobe version/configuration "
+            "identities are unavailable or unequal"
+        )
+    for key in ("reason", "error", "process_error", "explanation", "classification"):
+        if value.get(key):
+            return str(value[key])
+    failures = [
+        name + ": " + (_reason(case) or str(case.get("status", "failed")))
+        for name, case in _cases(value)
+        if case.get("status") not in (None, "PASS", "SUCCEEDED") or case.get("passed") is False
+    ]
+    if failures:
+        return "; ".join(failures)
+    if value.get("attempt_failures"):
+        return "Failed checks: " + ", ".join(value["attempt_failures"])
+    return ""
+
+
 def diagnostic_bundle(
     run: Path,
     destination: Path,
     *,
     media: Path | None = None,
 ) -> dict[str, Any]:
-    """2MiB text-only return packet, prioritizing complete Vulkan device JSON.
+    """2MiB text-only packet with intact semantics and linked bounded log excerpts.
 
     Only the named backend-qualification subtree is read under media. Native
     controls, outputs, arrays, caches and other media directories are never scanned.
     """
-    import json
-
     cap, total = 2 * 1024**2, 0
     members: list[str] = []
     omissions: list[dict[str, Any]] = []
     candidates: list[tuple[Path, str, int, bool]] = []
+    # The newest report's semantic snapshot/settings precede bulky duplicated logs
+    # and historical reports. Its full JSON/commands remain authoritative on disk.
+    snapshots = sorted(
+        (run / "reports").glob("report-*-diagnostics.json"),
+        key=lambda p: p.stat().st_mtime_ns,
+        reverse=True,
+    )
+    if snapshots:
+        snapshot = snapshots[0]
+        candidates.extend(
+            (p, p.relative_to(run).as_posix(), 256 * 1024, False)
+            for p in (
+                snapshot,
+                snapshot.with_name(snapshot.name.replace("-diagnostics.json", ".md")),
+            )
+        )
+    if (run / "config.json").is_file():
+        candidates.append((run / "config.json", "config.json", 32768, False))
     if media is not None:
         qualifier = media / "backend-qualification"
         device = qualifier / "device"
@@ -43,6 +151,14 @@ def diagnostic_bundle(
                 for p in sorted(device.rglob("*.json"))
             )
         if qualifier.is_dir():
+            candidates.append(
+                (
+                    qualifier / "qualification.json",
+                    "backend-qualification/qualification.json",
+                    256 * 1024,
+                    False,
+                )
+            )
             # The small qualifier subtree contains no user controls. JSON device
             # inventory precedes verbose duplicated command/stderr diagnostics.
             for pattern in ("commands.jsonl", "*.stderr", "*.stdout.txt"):
@@ -61,10 +177,12 @@ def diagnostic_bundle(
             continue
         if path.suffix in (".json", ".jsonl", ".txt", ".md", ".toml", ".stderr"):
             candidates.append((path, path.relative_to(run).as_posix(), 32768, False))
+    seen: set[str] = set()
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path, name, limit, intact_json in candidates:
-            if path.is_symlink() or not path.is_file():
+            if name in seen or path.is_symlink() or not path.is_file():
                 continue
+            seen.add(name)
             size = path.stat().st_size
             if intact_json and size > limit:
                 omissions.append(
@@ -75,29 +193,84 @@ def diagnostic_bundle(
                     }
                 )
                 continue
-            with path.open("rb") as source:
-                data = source.read(limit)
-                if size > limit:
-                    source.seek(size - limit // 2)
-                    data = (
-                        data[: limit // 2]
-                        + b"\n[DIAGNOSTIC EXCERPT; original retained]\n"
-                        + source.read(limit // 2)
+            structured = size > limit and path.suffix in (".json", ".jsonl")
+            data = b""
+            if structured:
+                try:
+                    uri = path.absolute().as_uri()
+                    with path.open(encoding="utf-8") as source:
+                        if path.suffix == ".json":
+                            compact = _compact_diagnostics(json.load(source), uri)
+                            data = json.dumps(compact, ensure_ascii=False).encode()
+                        else:
+                            # JSONL stays parseable. If the structured prefix itself
+                            # reaches the packet cap, disclose that boundary explicitly.
+                            chunks = bytearray()
+                            for ordinal, line in enumerate(source, 1):
+                                compact = _compact_diagnostics(
+                                    json.loads(line), uri + f"?line={ordinal}"
+                                )
+                                row = (json.dumps(compact, ensure_ascii=False) + "\n").encode()
+                                if len(chunks) + len(row) > cap - 128 * 1024:
+                                    omissions.append(
+                                        {
+                                            "path": name,
+                                            "reason": "structured JSONL prefix ends before line "
+                                            + str(ordinal),
+                                        }
+                                    )
+                                    break
+                                chunks.extend(row)
+                            data = bytes(chunks)
+                    omissions.append(
+                        {
+                            "path": name,
+                            "bytes": size,
+                            "reason": "structural log compaction; original retained",
+                            "full_evidence": uri,
+                        }
                     )
-                    omissions.append({"path": name, "bytes": size, "reason": "head/tail excerpt"})
-                    if path.suffix in (".json", ".jsonl"):
-                        name += ".excerpt.txt"
+                    name = Path(name).with_suffix(".compact" + path.suffix).as_posix()
+                except (ValueError, UnicodeError):
+                    structured = False  # A damaged/partial log is text, not valid JSON.
+            if not structured:
+                with path.open("rb") as source:
+                    data = source.read(limit)
+                    if size > limit:
+                        marker = b"\n[DIAGNOSTIC EXCERPT; original retained]\n"
+                        half = (limit - len(marker)) // 2
+                        source.seek(size - half)
+                        data = data[:half] + marker + source.read(half)
+                        omissions.append(
+                            {
+                                "path": name,
+                                "bytes": size,
+                                "reason": "head/tail excerpt",
+                                "full_evidence": path.absolute().as_uri(),
+                            }
+                        )
+                        if path.suffix in (".json", ".jsonl"):
+                            name += ".excerpt.txt"
             if total + len(data) > cap - 128 * 1024:
-                omissions.append({"path": name, "bytes": size, "reason": "2MiB packet cap"})
+                omissions.append(
+                    {
+                        "path": name,
+                        "bytes": size,
+                        "reason": "2MiB packet cap",
+                        "full_evidence": path.absolute().as_uri(),
+                    }
+                )
                 continue
             archive.writestr(name, data)
             total += len(data)
             members.append(name)
         manifest: dict[str, Any] = {
-            "scope": "text only; complete device JSON <=512KiB prioritized; no native media",
+            "scope": "text only; latest semantic report and complete device JSON <=512KiB "
+            "prioritized; long embedded logs structurally excerpted; no native media",
             "omissions": omissions,
             "excluded_subtrees": sorted(excluded),
-            "media_scope": "backend-qualification/device JSON, command and stderr/stdout text only",
+            "media_scope": "backend-qualification/device and qualification JSON, "
+            "command and stderr/stdout text only",
         }
         data = json.dumps(manifest, indent=2).encode()
         # Preserve valid JSON even for unusually large retained metadata trees.
@@ -244,10 +417,13 @@ def report(
         "promotion": "NOT_APPROVED",
     }
     save(path.with_suffix(".json"), value)
+    compact_path = path.with_name(path.stem + "-diagnostics.json")
+    save(compact_path, _compact_diagnostics(value, path.with_suffix(".json").as_uri()))
     commands = {
         name: {
             "worker": result.get("command"),
             "commands": result.get("commands", []),
+            "backend_commands": result.get("backends", {}).get("commands", []),
             "diagnostics": result.get("diagnostic_excerpts", {}),
         }
         for name, result in results.items()
@@ -340,6 +516,24 @@ def report(
                 else "short-first production recipe."
             ),
             "",
+            "Selected scope: "
+            + "; ".join(
+                f"{key}={config.get(key, 'not recorded')}"
+                for key in (
+                    "preflight_only",
+                    "smoke",
+                    "production32",
+                    "full",
+                    "reference_only",
+                    "cuda",
+                )
+            )
+            + ".",
+            "",
+            "Selected limits (not resource observations): `"
+            + json.dumps(config.get("limits", {}), sort_keys=True)
+            + "`.",
+            "",
         ]
     lines += [
         "## Results",
@@ -354,10 +548,13 @@ def report(
         wall_text = f"{wall:.3f}" if isinstance(wall, (float, int)) else "—"
         valid = result.get("validation", {})
         validation = f"{valid.get('frames')} frames PASS" if valid.get("passed") else "—"
-        reason = result.get("reason") or result.get("error") or result.get("process_error")
+        reason = _reason(result)
         use = "FRESH" if name in fresh_names else "REUSED"
         if result.get("evidence_status") == "SALVAGED_UNVERIFIED":
             use += "/SALVAGED_UNVERIFIED"
+        for key in ("failure_scope", "independent_dispatch_allowed"):
+            if key in result:
+                use += f"; {key}={clean(result[key])}"
         lines.append(
             f"| {clean(name)} | {clean(result.get('status', 'UNKNOWN'))} | {wall_text} | "
             f"{validation} | {use}; {clean(reason or '')} |"
@@ -373,20 +570,66 @@ def report(
     for name, result in results.items():
         if "qualif" not in name:
             continue
+        lines += [f"### {clean(name)}", ""]
         backends = result.get("backends")
         if isinstance(backends, dict):
-            for backend, item in backends.items():
-                if isinstance(item, dict):
-                    detail = item.get("reason") or item.get("error") or item.get("classification")
-                    lines.append(
-                        f"- {backend}: **{clean(item.get('status', 'UNKNOWN'))}** — "
-                        f"{clean(detail or '')}"
-                    )
+            lines += [
+                "Observations — not execution qualification: tool paths/hashes, component "
+                "inventory and loader/device enumeration. "
+                "A successful listing is not a runtime PASS.",
+                "",
+                "- Tools: `" + clean(json.dumps(backends.get("tool_paths", {})), 1000) + "`",
+                "- Selected qualification bounds: `"
+                + clean(json.dumps(backends.get("bounds", {})), 1000)
+                + "`",
+                "- Scope: " + clean(backends.get("qualification_scope", "not recorded"), 1000),
+                "",
+            ]
+            checks = list(_checks(backends))
         else:
-            lines.append(
-                f"- {name}: **{clean(result.get('status'))}** — "
-                f"{clean(result.get('scope') or result.get('error') or result.get('claim') or '')}"
-            )
+            checks = [(name, result)]
+        lines += [
+            "Actual checks (a successful process can still fail its numerical oracle):",
+            "",
+            "| Check / case | Status | Failure / scope | Metrics / tolerance |",
+            "|---|---|---|---|",
+        ]
+        for backend, item in checks:
+            rows = [
+                (backend, item),
+                *((backend + "/" + case_name, case) for case_name, case in _cases(item)),
+            ]
+            for label, case in rows:
+                check_status = case.get("status")
+                if check_status is None:
+                    check_status = (
+                        "PASS"
+                        if case.get("passed") is True
+                        else "FAILED"
+                        if case.get("passed") is False
+                        else "OBSERVED (no per-case verdict)"
+                    )
+                detail = _reason(case) or case.get("scope") or case.get("claim") or ""
+                metrics = {
+                    key: val
+                    for key, val in case.items()
+                    if key.endswith("_oracle")
+                    or key in ("metrics", "tolerance", "checks", "timing", "geometry")
+                    or ("error" in key and isinstance(val, (float, int)))
+                    or key.endswith("_equal")
+                }
+                # Metrics and fixed tolerances are never character-truncated.
+                metric_text = json.dumps(metrics, ensure_ascii=False) if metrics else "—"
+                evidence = case.get("command", {}).get("stderr_path")
+                detail_text = clean(detail, 1000)
+                if evidence:
+                    detail_text += f"; [full stderr]({Path(evidence).absolute().as_uri()})"
+                lines.append(
+                    f"| {clean(label)} | {clean(check_status)} | {detail_text} | "
+                    + metric_text.replace("|", "/").replace("\n", " ")
+                    + " |"
+                )
+        lines.append("")
     lines += [
         "",
         "## Counterbalanced descriptive observations",
@@ -455,6 +698,7 @@ def report(
         "",
         "## Appendix / exact evidence",
         "",
+        f"- [Compact complete semantics / bounded diagnostic excerpts]({compact_path.as_uri()})",
         f"- [Structured report / settings / diagnostics]({path.with_suffix('.json').as_uri()})",
         f"- [Exact worker and FFmpeg argv, exit status and stderr]({appendix.as_uri()})",
         "- Original environment, runtime fingerprints and setup receipts are in structured config; "
