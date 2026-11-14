@@ -23,6 +23,14 @@ from pathlib import Path
 from typing import Any
 
 
+class ProcessOwnershipError(RuntimeError):
+    """No further dispatch is safe without authenticated process-tree shutdown."""
+
+
+class ResourceAdmissionError(ValueError):
+    """A supervisor monitor refused global capacity admission; do not retry implicitly."""
+
+
 def windows_last_error() -> int:
     return int(getattr(ctypes, "get_last_error", ctypes.get_errno)())
 
@@ -229,6 +237,17 @@ def run_command(
     error: str | None = None
     verified = False
     interrupted: BaseException | None = None
+    resource_errors: list[str] = []
+
+    def monitor_check() -> None:
+        if monitor:
+            try:
+                monitor()
+            except Exception as exc:
+                detail = f"{type(exc).__name__}: {exc}"
+                if detail not in resource_errors:
+                    resource_errors.append(detail)
+                raise
 
     def record_error(exc: BaseException) -> None:
         nonlocal error, interrupted
@@ -241,8 +260,7 @@ def run_command(
             interrupted = exc
 
     def check() -> None:
-        if monitor:
-            monitor()
+        monitor_check()
         if time.monotonic() >= deadline:
             raise TimeoutError(f"timeout after {timeout:g}s (launch-through-exit)")
 
@@ -393,6 +411,13 @@ def run_command(
         "returncode": proc.returncode if proc else None,
         "error": error,
         "shutdown_verified": verified,
+        "resource_refused": bool(resource_errors),
+        "resource_errors": resource_errors,
+        "failure_scope": "GLOBAL_PROCESS_OWNERSHIP"
+        if not verified
+        else "GLOBAL_RESOURCE_ADMISSION"
+        if resource_errors
+        else None,
         "wall_seconds": time.perf_counter() - started,
         "stdout": tail_text(root / "stdout.txt"),
         "stderr": tail_text(root / "stderr.txt"),
@@ -403,11 +428,18 @@ def run_command(
     }
     (root / "result.json").write_text(json.dumps(value, indent=2))
     try:
-        if monitor:
-            monitor()  # Include the retained command/result logs, not just payload.
+        monitor_check()  # Include the retained command/result logs, not just payload.
     except BaseException as exc:
         record_error(exc)
         value["error"] = error
+        value["resource_refused"] = bool(resource_errors)
+        value["failure_scope"] = (
+            "GLOBAL_PROCESS_OWNERSHIP"
+            if not verified
+            else "GLOBAL_RESOURCE_ADMISSION"
+            if resource_errors
+            else None
+        )
         (root / "result.json").write_text(json.dumps(value, indent=2))
     if interrupted:
         raise interrupted

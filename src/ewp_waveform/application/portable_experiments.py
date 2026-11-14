@@ -23,7 +23,11 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from ewp_waveform.application.portable_experiments_process import run_command
+from ewp_waveform.application.portable_experiments_process import (
+    ProcessOwnershipError,
+    ResourceAdmissionError,
+    run_command,
+)
 from ewp_waveform.application.portable_experiments_reporting import (
     diagnostic_bundle as diagnostic_bundle,
 )
@@ -625,11 +629,16 @@ def invoke(
             else config["limits"]["stage_timeout"],
             monitor=lambda: check_budget(run, media, config["limits"]),
         )
-        value: dict[str, Any] = (
-            load(root / "value.json")
-            if (root / "value.json").is_file()
-            else {"status": "FAILED", "error": "worker exited without result"}
-        )
+        parse_errors: list[dict[str, str]] = []
+        try:
+            value: dict[str, Any] = (
+                load(root / "value.json")
+                if (root / "value.json").is_file()
+                else {"status": "FAILED", "error": "worker exited without result"}
+            )
+        except (ValueError, OSError, UnicodeError) as exc:
+            parse_errors.append({"path": str(root / "value.json"), "error": str(exc)})
+            value = {"status": "FAILED", "error": "invalid worker result; raw bytes retained"}
         good = (
             not value.get("attempt_failures")
             and observed["returncode"] == 0
@@ -646,15 +655,6 @@ def invoke(
                 "argv": observed["argv"],
             }
         value["optional"] = optional
-        if not good:
-            value["failure_scope"] = (
-                "GLOBAL_PROCESS_OWNERSHIP"
-                if not observed["shutdown_verified"]
-                else "OPTIONAL_SCENARIO"
-                if optional
-                else "REQUIRED_SCENARIO"
-            )
-            value["independent_dispatch_allowed"] = bool(optional and observed["shutdown_verified"])
         if request.get("pair"):
             value["pair"] = request["pair"]
         value["execution_settings"] = {
@@ -669,9 +669,43 @@ def invoke(
             command_logs.extend(stage_media.rglob("commands.jsonl"))
         commands = list(value.get("commands", []))
         for command_log in command_logs:
-            if command_log.is_file():
-                commands.extend(json.loads(line) for line in command_log.read_text().splitlines())
+            if not command_log.is_file():
+                continue
+            try:
+                with command_log.open(encoding="utf-8") as stream:
+                    for number, line in enumerate(stream, 1):
+                        try:
+                            record = json.loads(line)
+                            if not isinstance(record, dict):
+                                raise ValueError("command record must be an object")
+                            commands.append(record)
+                        except ValueError as exc:
+                            parse_errors.append(
+                                {"path": str(command_log), "line": str(number), "error": str(exc)}
+                            )
+            except (OSError, UnicodeError) as exc:
+                parse_errors.append({"path": str(command_log), "error": str(exc)})
         value["commands"] = list({json.dumps(c, sort_keys=True): c for c in commands}.values())
+        if parse_errors:
+            good = False
+            value.update(
+                status="FAILED",
+                diagnostic_parse_errors=parse_errors,
+                error=value.get("error") or "invalid diagnostic record; raw evidence retained",
+            )
+        if not good:
+            value["failure_scope"] = (
+                "GLOBAL_PROCESS_OWNERSHIP"
+                if not observed["shutdown_verified"]
+                else "GLOBAL_RESOURCE_ADMISSION"
+                if observed.get("resource_refused")
+                else "OPTIONAL_SCENARIO"
+                if optional
+                else "REQUIRED_SCENARIO"
+            )
+            value["independent_dispatch_allowed"] = bool(
+                optional and observed["shutdown_verified"] and not observed.get("resource_refused")
+            )
         diagnostics = list(root.glob("*.stderr"))
         if stage_media.exists():
             diagnostics.extend(stage_media.rglob("*.stderr"))
@@ -695,7 +729,14 @@ def invoke(
             },
         )
         if not observed["shutdown_verified"]:
-            raise RuntimeError("process-tree ownership shutdown UNVERIFIED; no further dispatch")
+            raise ProcessOwnershipError(
+                "process-tree ownership shutdown UNVERIFIED; no further dispatch"
+            )
+        if observed.get("resource_refused"):
+            raise ResourceAdmissionError(
+                "global resource admission refused; no implicit recovery or further dispatch: "
+                + "; ".join(observed.get("resource_errors", []))
+            )
         # Evidence/event serialization can itself cross the retained-growth cap.
         check_budget(run, media, config["limits"])
         if not good and not optional:
@@ -797,6 +838,12 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
         )
     }
     if config.get("cuda") and config.get("cuda_environment"):
+        finishing["optional-numpy"] = step(
+            "finish-qualify-optional-numpy",
+            {"operation": "qualify-finish", "backend": "numpy"},
+            optional=True,
+            python=config["cuda_python"],
+        )
         for backend in ("torch-cpu", "transfer-cuda", "cuda"):
             finishing[backend] = step(
                 "finish-qualify-" + backend,
@@ -804,6 +851,21 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                 optional=True,
                 python=config["cuda_python"],
             )
+
+    def finish_passed(name: str) -> bool:
+        gate = finishing.get(name, {})
+        return gate.get("status") == "SUCCEEDED" and gate.get("passed") is True
+
+    def finish_reason(name: str) -> str:
+        gate = finishing.get(name, {})
+        return (
+            f"{name} qualification {gate.get('status', 'NOT_RUN')}; passed={gate.get('passed')}: "
+            + str(
+                config.get("cuda_error")
+                if name not in finishing and config.get("cuda_error")
+                else gate.get("error") or gate.get("reason") or "numerical prerequisite not met"
+            )
+        )
 
     if config["preflight_only"]:
         return results
@@ -880,7 +942,7 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
         # from stock-CPU controls alone. Single observations are labelled n=1.
         if w["id"] != "speech" and not config["smoke"]:
             finish_request = {"operation": "cuda", "workload": w}
-            if finishing["numpy"].get("status") == "SUCCEEDED" and finishing["numpy"].get("passed"):
+            if finish_passed("numpy"):
                 pair(
                     w["id"] + "-fir-screen",
                     {**finish_request, "backend": "ffmpeg"},
@@ -888,17 +950,25 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                     comparison="n=1 edge-case algorithm screen; matched original raster",
                     repetitions=1,
                 )
-                for backend in ("torch-cpu", "transfer-cuda", "cuda"):
-                    gate = finishing.get(backend, {})
-                    if gate.get("status") == "SUCCEEDED" and gate.get("passed"):
-                        pair(
-                            w["id"] + "-" + backend + "-screen",
-                            {**finish_request, "backend": "numpy"},
-                            {**finish_request, "backend": backend},
-                            comparison="n=1 edge-case FIR backend screen",
-                            python=config["cuda_python"],
-                            repetitions=1,
-                        )
+            else:
+                skipped(w["id"] + "-fir-screen", finish_reason("numpy"))
+            for backend in ("torch-cpu", "transfer-cuda", "cuda"):
+                if finish_passed("optional-numpy") and finish_passed(backend):
+                    pair(
+                        w["id"] + "-" + backend + "-screen",
+                        {**finish_request, "backend": "numpy"},
+                        {**finish_request, "backend": backend},
+                        comparison="n=1 edge-case FIR backend screen",
+                        python=config["cuda_python"],
+                        repetitions=1,
+                    )
+                else:
+                    skipped(
+                        w["id"] + "-" + backend + "-screen",
+                        finish_reason("optional-numpy")
+                        if not finish_passed("optional-numpy")
+                        else finish_reason(backend),
+                    )
             continue
         if not config["smoke"]:
             for backend, variant in (
@@ -946,11 +1016,7 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                 else backend_failure_reason(qualification, "ffv1"),
             )
         finish = {"operation": "cuda", "workload": w}
-        numpy_ok = (
-            finishing["numpy"].get("status") == "SUCCEEDED"
-            and finishing["numpy"].get("passed") is True
-        )
-        if numpy_ok:
+        if finish_passed("numpy"):
             pair(
                 w["id"] + "-fir-algorithm",
                 {**finish, "backend": "ffmpeg"},
@@ -958,10 +1024,9 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                 comparison="algorithm contrast; matched raster, FFmpeg recursive vs NumPy FIR",
             )
         else:
-            skipped(w["id"] + "-fir-algorithm", "independent NumPy qualification failed")
+            skipped(w["id"] + "-fir-algorithm", finish_reason("numpy"))
         for backend in ("torch-cpu", "transfer-cuda", "cuda"):
-            q = finishing.get(backend, {})
-            if numpy_ok and q.get("status") == "SUCCEEDED" and q.get("passed") is True:
+            if finish_passed("optional-numpy") and finish_passed(backend):
                 # Both sides run under the SAME optional interpreter and use the
                 # same algorithm, original raster, timer and encoding wrapper.
                 pair(
@@ -974,8 +1039,9 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
             else:
                 skipped(
                     w["id"] + "-" + backend,
-                    config.get("cuda_error")
-                    or f"{backend} not explicitly qualified (Torch/CUDA opt-in required)",
+                    finish_reason("optional-numpy")
+                    if not finish_passed("optional-numpy")
+                    else finish_reason(backend),
                 )
     # Production pool check is explicit in the worker and retained, never replaced
     # by short serial renders or a synthetic subprocess benchmark.
