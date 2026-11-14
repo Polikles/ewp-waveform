@@ -4,7 +4,7 @@ description = "Opt-in exact CPU ribbon finishing; runtime qualification per MOV 
 
 [processing]
 chunk_seconds = 60
-jobs = 2
+jobs = 1
 ffmpeg_threads = 0
 ribbon_finish_lut = true
 

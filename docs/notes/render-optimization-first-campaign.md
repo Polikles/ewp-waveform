@@ -17,7 +17,15 @@ GEQ median3.006364s versus LUT2.446602s,18.619% less render/preparation wall. Ea
 candidate includes its selected-executable probe and mask preparation (~.022s).
 Every complete MOV has identical SHA256; no new visual approval is needed for
 those unchanged bytes. This is not yet a full-source or pool2 service speedup.
-The new ordinary-service opt-in and fresh full confirmation are being qualified.
+The ordinary `ribbon-lut` service profile is explicit jobs1 with automatic encoder
+threads. Fresh actual jobs2 production32 AB/BA n2 was neutral/slower:
+26.268921s GEQ versus26.555473s LUT (qualification/setup included). Its existing
+pool policy resolves output encoder threads1. Do not extrapolate the short
+automatic-thread direct gain to that pool policy. Separate actual serial jobs1
+service32 (same25..57s interval, AB/BA n2) measured21.380409s GEQ versus17.541545s LUT,
+17.955% less service time including qualification, setup, validation/publication.
+All eight32s native MOVs match bytes. Pool and serial records remain separately
+labelled, not relabelled as stock pool2 measurements. Full confirmation is pending.
 
 Keep tool identities separate: the maintained first13/21-cell CPU campaigns used
 the discovered Hermes FFmpeg9.0.1, whereas task-local attribution, scratch/row,

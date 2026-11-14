@@ -12,13 +12,13 @@ From a clean current `Polikles/ewp-waveform` checkout:
 WSL:
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize --cuda --optimize-compact --max-growth-gib 6
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize --optimize-service32 --cuda --optimize-compact --max-growth-gib 6
 ```
 
 Native Windows, in PowerShell:
 
 ```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize --optimize-async-depth 4 --optimize-ffv1-gpu --optimize-compact --max-growth-gib 6
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize --optimize-service32 --optimize-async-depth 4 --optimize-ffv1-gpu --optimize-compact --max-growth-gib 6
 ```
 
 No environment activation, exports, manifest editing or private startup documents.
@@ -44,7 +44,13 @@ separate encoder/filter-thread settings, and requested qualified Windows queue
 settings. With `--cuda`, it adds separately qualified host-output, device-output,
 batch1/2 and instrumentation-cost pairs. `--optimize-compact` adds separate fixed
 output-crop and guarded earlier-finishing-domain pairs. Every shortlist pair uses
-fresh AB/BA observations; production32/full are not automatically repeated.
+fresh AB/BA observations. `--optimize-service32` additionally compares actual
+jobs2 GEQ/LUT service, existing jobs2 versus jobs1 policy, then jobs1 GEQ/LUT
+service at25..57s. Per-encode qualification/setup/publication is included. This
+adds12 native32s renders (not a ProRes transcode); omit that flag for short-only
+screens. Serial records are not the stock jobs2 production32 route. The current
+VM.1 jobs2 LUT screen is neutral/slower; the explicit serial `ribbon-lut` profile
+is useful. Full-source execution is never silently admitted by this flag.
 `--full`/`--reference-only` cannot be combined with this shortlist.
 
 Details, exact scopes, transfer sizes, crop placement and pending assessments:

@@ -57,6 +57,18 @@ def test_counterbalanced_service32_uses_actual_service_and_matched_oracle(qualif
     if not qualified:
         assert not cells and "opt-service-lut32" in skipped
         return
+    assert (
+        len(
+            [
+                n
+                for n, v in calls
+                if n.startswith(
+                    ("opt-service-lut32-r", "opt-service-workers32-r", "opt-service-serial-lut32-r")
+                )
+            ]
+        )
+        == 12
+    )
     assert [v["pair"]["side"] for _, v in cells] == ["A", "B", "B", "A"]
     for _, request in cells:
         assert request["operation"] == "service"

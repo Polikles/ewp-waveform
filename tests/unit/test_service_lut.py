@@ -24,7 +24,7 @@ def test_profile_requires_strict_boolean(value: object) -> None:
 def test_profile_is_explicit_and_default_profiles_unchanged() -> None:
     profile = load_performance("ribbon-lut")
     assert profile.processing["ribbon_finish_lut"] is True
-    assert profile.processing["jobs"] == 2
+    assert profile.processing["jobs"] == 1
     assert "ribbon_finish_lut" not in load_performance("balanced").processing
 
 

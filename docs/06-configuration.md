@@ -161,7 +161,11 @@ Results store the fully resolved effective configuration, not only the preset na
 
 The `ribbon-lut` performance profile explicitly sets
 `processing.ribbon_finish_lut = true` (strict boolean; omitted means false), with
-`jobs = 2` and the unchanged field-pool threshold of 1800 frames. Select it through
+`jobs = 1` (serial, automatic encoder threads). The field-pool threshold remains
+1800 frames for other profiles. Actual VM.1 32s screens found the unchanged jobs2
+policy's resolved encoder1 made LUT finishing neutral/slower; the serial service
+showed a useful LUT gain. This is not an isolated thread-count or universal
+worker-pool claim. Select it through
 the existing performance-profile API/CLI, for example
 `waveform render input.wav --preset iuris-ribbon-refined --performance ribbon-lut
 --format prores4444 --output-dir unique-output`. It is an execution choice, not a
