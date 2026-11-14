@@ -430,6 +430,30 @@ def _coverage_to_alpha(cov: np.ndarray) -> np.ndarray:
     return alpha.astype(np.uint8, copy=False)
 
 
+def _contour_row_support(y0: np.ndarray, y1: np.ndarray, height: int) -> tuple[int, int]:
+    """Bound finite, nonempty intervals; retain full-grid fallback otherwise."""
+    # Integer rows and row + 1 must be exactly representable in binary64.
+    # Exotic dimensions/nonfinite bounds keep the original full-grid arithmetic.
+    if (
+        type(height) is not int
+        or not 0 < height < 2**53
+        or not np.isfinite(y0).all()
+        or not np.isfinite(y1).all()
+    ):
+        return 0, height
+    active = y1 > y0
+    if not active.any():
+        return 0, 0
+    # Empty intervals (including the silence sentinel [0, 0)) have zero
+    # coverage everywhere and must not extend the bound towards row zero.
+    lower = float(y0[active].min())
+    upper = float(y1[active].max())
+    start = math.floor(min(float(height), max(0.0, lower)))
+    stop = math.ceil(min(float(height), max(0.0, upper)))
+    # Outside [start, stop), min(row + 1, y1) - max(row, y0) <= 0.
+    return start, max(start, stop)
+
+
 def mirrored_contour_alpha(
     columns: Sequence[float],
     *,
@@ -458,7 +482,6 @@ def mirrored_contour_alpha(
         return np.zeros((max(height, 0), max(out_w, 0)), dtype=np.uint8)
     knots = [min(max(float(value), 0.0), 1.0) for value in columns]
     slopes = pchip_slopes(knots)
-    yy = np.arange(height, dtype=np.float64)[:, np.newaxis]
     if taps > 1 and ss == 1:
         offsets = np.arange(taps, dtype=np.float64) / float(taps)
         xs = np.arange(out_w, dtype=np.float64)[:, np.newaxis] + offsets[np.newaxis, :]
@@ -466,17 +489,27 @@ def mirrored_contour_alpha(
         halfs = np.minimum(float(max_half) * mags, cap)[np.newaxis, :, :]
         y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
         y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
-        yy3 = yy[:, :, np.newaxis]
-        cov = _contour_coverage(yy3, y0, y1).mean(axis=2)
-        alpha = _coverage_to_alpha(cov)
     else:
         xs = np.arange(out_w, dtype=np.float64) / float(ss)
         mags = pchip_eval_many(knots, slopes, xs, unit=True)
         halfs = np.minimum(float(max_half) * mags, cap)
         y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
         y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
-        cov = _contour_coverage(yy, y0, y1)
-        alpha = _coverage_to_alpha(cov)
+    start, stop = _contour_row_support(y0, y1, height)
+    if stop > start:
+        yy = np.arange(start, stop, dtype=np.float64)[:, np.newaxis]
+        if taps > 1 and ss == 1:
+            cov = _contour_coverage(yy[:, :, np.newaxis], y0, y1).mean(axis=2)
+        else:
+            cov = _contour_coverage(yy, y0, y1)
+        active_alpha = _coverage_to_alpha(cov)
+        if start == 0 and stop == height:
+            alpha = active_alpha
+        else:
+            alpha = np.zeros((height, out_w), dtype=np.uint8)
+            alpha[start:stop] = active_alpha
+    else:
+        alpha = np.zeros((height, out_w), dtype=np.uint8)
     if center_line:
         y = min(height - 1, max(0, center))
         empty = alpha[y] == 0

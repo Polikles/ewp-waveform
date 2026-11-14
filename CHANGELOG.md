@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Restrict finite mirrored-contour coverage and alpha conversion to rows touched
+  by nonempty intervals, retaining the complete owned uint8 mask, original tap
+  reduction/arithmetic, center line, full-grid fallbacks and appearance identity.
+
 - Reuse private contour coverage scratch for subtraction, clipping and alpha
   conversion, and avoid an unused initial alpha plane. Preserve raster arithmetic,
   exact output pixels, appearance identity and independent per-call results.
