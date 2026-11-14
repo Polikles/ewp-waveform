@@ -288,6 +288,7 @@ def render_working_area(
             "normalization": normalization,
             "original_raster_sha256": raster_digest.hexdigest(),
             "raster_feed": counters,
+            "phase_metrics": clock.snapshot(),
             "pipeline_wall_seconds": pipeline_seconds,
             "pipeline_timer": (
                 "decode/analysis/raster/full-mask feed/finishing/CPU ProRes through exit; "
@@ -300,6 +301,7 @@ def render_working_area(
             "exclusive_encoding_wall_seconds": None,
             "external_cold_process_wall_seconds": None,
             "validation": valid,
+            "external_verification_seconds": valid["validation_seconds"],
             "validation_reference_rgba": str(validation_reference_rgba)
             if validation_reference_rgba
             else None,

@@ -36,7 +36,7 @@ def compact_render(request: dict[str, Any]) -> dict[str, Any]:
         "throughput_fresh": True,
         "render_fps": w["frames"] / result["pipeline_wall_seconds"],
         "artifacts": [identity(output)],
-        "phase_metrics": result["raster_feed"],
+        "phase_metrics": result["phase_metrics"],
         "visual": "PENDING",
         "studio": "PENDING",
     }
