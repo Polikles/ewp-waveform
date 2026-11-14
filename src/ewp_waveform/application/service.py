@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from ewp_waveform.application.experiments_render import ServiceExperiment
+    from ewp_waveform.application.experiments_render import RenderExperiment as ServiceExperiment
 
 from pydantic import ValidationError
 

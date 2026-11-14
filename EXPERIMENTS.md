@@ -12,13 +12,13 @@ From a clean current `Polikles/ewp-waveform` checkout:
 WSL:
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize --optimize-service32 --cuda --optimize-compact --max-growth-gib 6
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize-single-file --cuda --max-growth-gib 6
 ```
 
 Native Windows, in PowerShell:
 
 ```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize --optimize-service32 --optimize-async-depth 4 --optimize-ffv1-gpu --optimize-compact --max-growth-gib 6
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize-single-file --max-growth-gib 6
 ```
 
 No environment activation, exports, manifest editing or private startup documents.
@@ -37,6 +37,36 @@ driver, CUDA toolkit compiler or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
 ## Optimization scope and reading the results
+
+`--optimize-single-file` is the targeted next campaign on the **current source**,
+not an old-source/new-source comparison or another codec/filter matrix. It runs
+serial GEQ/LUT speech25..29s AB/BA, then independently compares jobs2/jobs1 GEQ
+service32 and jobs1 GEQ/LUT service32 at25..57s. It explicitly authorizes these
+bounded32s cells, never a full episode. With `--cuda`, it also runs the new combined
+FIR candidate through matched **actual serial application service**4s then32s
+AB/BA. Defaults give12 CPU renders plus8 CUDA renders when requested; preparation,
+qualification and separate deduplicated views are additional stages. A failed LUT
+gate does not suppress GEQ worker-policy or independently qualified CUDA checks.
+Omit `--cuda` for the targeted CPU campaign. Existing verified preparations are
+reused through the same runner; no new CUDA installation is requested.
+
+For the narrowest WSL CUDA-only next command (no CPU/Vulkan/FFV1/compact matrix):
+
+```bash
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
+```
+
+Omit `--cuda-combined-service32` for short-only. Both sides use actual jobs1
+`service.render`, unchanged source analysis/raster, CPU ProRes encoder and normal
+validation/publication. Control is host-reference/batch1/diagnostic; the **new,
+unmeasured combination** is device-RGBA8/batch2/ordinary. Import/context/setup and
+per-encode qualification are inside service wall; external preplan, independent
+verification and views are separate, and cold launch-through-exit remains visible.
+These are not historical pipeline-only denominators or an additive combination of
+earlier speedups. The32s CUDA route is an explicit serial FIR service experiment,
+not stock pool2 production32. Exact raster, pre-encode RGBA and decoded RGBA checks
+gate matched cells; failed/incomplete shorts block the dependent32s CUDA stage.
+[Candidate rationale and CPU-only exercise](docs/notes/single-file-combined-candidate.md).
 
 `--optimize` is the new bounded speech25..29s shortlist, not a rerun of the historical
 backend-discovery matrix. It compares actual direct ProRes versus FFV1 output,

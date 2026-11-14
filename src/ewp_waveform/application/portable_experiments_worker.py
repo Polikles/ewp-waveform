@@ -156,6 +156,12 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.ffmpeg.process import command_evidence
 
     finish_lut = request.get("finish_lut", False)
+    torch_finish = request.get("torch_finish", False)
+    if type(torch_finish) is not bool or (
+        torch_finish and (finish_lut or request.get("variant") or request.get("jobs", 2) != 1)
+    ):
+        raise ValueError("FIR service requires explicit jobs1, strict bool, no LUT/codec adapter")
+    torch_adapter = None
     jobs = request.get("jobs", 2)
     if type(jobs) is not int or jobs not in (1, 2):
         raise ValueError("service jobs must be integer 1 or 2")
@@ -189,6 +195,20 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         if perf.processing.get("jobs") != jobs:
             raise ValueError("requested service worker policy drift")
         variant = request.get("variant")
+        if torch_finish:
+            from ewp_waveform.application.cuda_combined_experiment import TorchServiceExperiment
+
+            backend = request.get("backend", "cuda")
+            torch_adapter = TorchServiceExperiment(
+                backend=backend,
+                device="cpu" if backend == "torch-cpu" else "cuda:0",
+                output_mode=request.get("output_mode", "device-rgba"),
+                batch_size=request.get("batch_size", 2),
+                timing_mode=request.get("timing_mode", "ordinary"),
+                expected_preset=preset.model_dump(mode="json"),
+                expected_device=request.get("expected_device"),
+            )
+            kwargs["experiment"] = torch_adapter
         if variant:
             from ewp_waveform.application.experiments_render import ServiceExperiment
             from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding
@@ -224,6 +244,14 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ValueError("service route did not observe required actual worker policy")
     output = Path(result["outputs"][0]["path"])
+    torch_metrics = torch_adapter.metrics if torch_adapter is not None else {}
+    if torch_finish:
+        for expected, observed in (
+            ("expected_raster_sha256", "original_raster_sha256"),
+            ("expected_finished_rgba_sha256", "finished_rgba_sha256"),
+        ):
+            if request.get(expected) not in (None, torch_metrics.get(observed)):
+                raise ValueError("matched FIR service " + observed + " mismatch")
     valid = validation.inspect(
         request["ffmpeg"],
         request["ffprobe"],
@@ -234,9 +262,15 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         log=evidence / "commands.jsonl",
         reference=Path(request["reference"]) if request.get("reference") else None,
         lossless=request.get("variant") == "TRANSFER"
-        or bool(finish_lut and request.get("reference")),
+        or bool(
+            (finish_lut or torch_finish or request.get("reference_lossless"))
+            and request.get("reference")
+        ),
     )
-    if request.get("variant") == "TRANSFER" or (finish_lut and request.get("reference")):
+    if request.get("variant") == "TRANSFER" or (
+        (finish_lut or torch_finish or request.get("reference_lossless"))
+        and request.get("reference")
+    ):
         valid["lossless_against_preencode"] = False
         valid["lossless_against_reference_master"] = True
     return {
@@ -247,15 +281,19 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "render_fps": valid["frames"] / wall,
         "real_time_factor": wall / (w["frames"] / 60),
         "validation": valid,
-        "timer": "perf_counter immediately around stock service.render; plan and strict external "
-        "validation excluded; production validation/publication included",
-        "route": "EXPLICIT_SHORT_SERVICE_EXPERIMENT" if variant else "STOCK_SERVICE",
+        "timer": "perf_counter immediately around actual service.render; external preplan and "
+        "strict external validation excluded; imports/initialization/per-encode qualification "
+        "inside render and production validation/publication included",
+        "route": "EXPLICIT_SERIAL_FIR_SERVICE_EXPERIMENT"
+        if torch_finish
+        else ("EXPLICIT_SHORT_SERVICE_EXPERIMENT" if variant else "STOCK_SERVICE"),
         "workload": w,
         "variant": variant,
         "worker_policy": "serial jobs1 (not stock pool2 production32)" if jobs == 1 else "jobs2",
         "output": str(output),
         "artifacts": [identity(output), identity(performance)],
         "service_result": result,
+        **torch_metrics,
         "phase_metrics": result.get("performance", {}),
         "external_verification_seconds": valid["validation_seconds"],
         "visual": "PENDING",
@@ -263,7 +301,9 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "analysis_context": "full-source"
         if w["kind"] == "full"
         else "interval-local; no full-source causal prehistory",
-        "analysis_cache_policy": "fresh task-owned EWP_ANALYSIS_CACHE selector per service attempt",
+        "analysis_cache_policy": "disabled identically for both FIR service sides"
+        if torch_finish
+        else "fresh task-owned EWP_ANALYSIS_CACHE selector per service attempt",
         "analysis_cache_selected_path": os.environ.get("EWP_ANALYSIS_CACHE"),
         "analysis_cache_observed": result.get("performance", {})
         .get("extras", {})
