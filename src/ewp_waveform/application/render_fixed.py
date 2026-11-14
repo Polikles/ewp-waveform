@@ -1261,7 +1261,7 @@ def run_fixed_pipeline(
                         bar_color_b=bars.color_b,
                         bar_center_line_width=bars.center_line_width,
                         ribbon_finish=appearance.ribbon_finish,
-                        ribbon_finish_lut=ribbon_finish_lut,
+                        **({"ribbon_finish_lut": True} if ribbon_finish_lut else {}),
                     )
                     for index, (start, size) in enumerate(ranges)
                 ]
@@ -1428,7 +1428,7 @@ def run_fixed_pipeline(
             ),
             n_frames=expected_frames,
             ribbon_finish=appearance.ribbon_finish,
-            ribbon_finish_lut=ribbon_finish_lut,
+            **({"ribbon_finish_lut": True} if ribbon_finish_lut else {}),
         )
     if mov_work is not None:
         lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")
