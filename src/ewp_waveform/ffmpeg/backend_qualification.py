@@ -22,15 +22,19 @@ from ewp_waveform.ffmpeg import vulkan_diagnostic
 from ewp_waveform.ffmpeg.experiment_suite import codec_options, raw_input, raw_output
 from ewp_waveform.ffmpeg.experiment_suite_probes import advertised
 from ewp_waveform.ffmpeg.experiment_suite_validation import check_grid, decode_argv
+from ewp_waveform.ffmpeg.vulkan_blur_oracle import (
+    BLUR_RADIUS,
+    assess_blur,
+)
+from ewp_waveform.ffmpeg.vulkan_blur_oracle import (
+    BLUR_TOLERANCE as BLUR_TOLERANCE,
+)
+from ewp_waveform.ffmpeg.vulkan_blur_oracle import (
+    blur_oracle as blur_oracle,
+)
 
 GEOMETRIES = ((64, 32), (1400, 280))
 FORMATS = ("gray", "rgba", "bgra", "yuva444p10le")
-BLUR_TOLERANCE = {
-    "maximum_8bit_code_error": 2.0,
-    "mean_absolute_8bit_code_error": 0.6,
-    "interpretation": "Descriptive finite-kernel float-convolution screen, fixed before execution; "
-    "not production appearance equivalence or a performance acceptance threshold.",
-}
 
 
 def selected_device(stderr: str, expected: str) -> str:
@@ -154,37 +158,61 @@ def fixture(fmt: str, width: int, height: int) -> bytes:
     raise ValueError("unknown fixture format")
 
 
-def blur_oracle(data: bytes, width: int, height: int) -> bytes:
-    """Independent separable sigma=16,size=97 normalized Gaussian, clamp edges.
+def _blur_boundary_control(
+    commands: _Commands,
+    ffmpeg: str,
+    data: bytes,
+    width: int,
+    height: int,
+    device: str,
+    expected: str,
+    graph: str,
+) -> dict[str, Any]:
+    """Diagnostic-only same-device halo control; the unpadded failure stays failed.
 
-    FFmpeg gblur is a recursive approximation, so it is not the finite-kernel
-    oracle for gblur_vulkan. This NumPy float64 convolution specifies the latter's
-    algorithm using Simpson-integrated taps, quantizing both R8_UNORM passes.
+    At 64x32 with radius48 every output footprint crosses an image boundary.
+    Explicitly edge-pad the input, then compare only the original center. All
+    taps influencing that center are in bounds; no oracle or tolerance changes.
+    This is not the timed workload and cannot admit the unpadded implementation.
     """
     import numpy as np
 
-    values = np.frombuffer(data, dtype="u1").reshape(2, height, width).astype("f8")
-    offsets = np.arange(-48, 49, dtype="f8")
-
-    # Match vf_gblur_vulkan.c's Simpson integration over each pixel cell.
-    def gaussian(position: Any) -> Any:
-        return np.exp(-(position * position) / (2 * 16.0**2))
-
-    kernel = (gaussian(offsets - 0.5) + 4 * gaussian(offsets) + gaussian(offsets + 0.5)) / 6
-    kernel /= kernel.sum()
-    for axis in (2, 1):
-        pad = [(0, 0)] * 3
-        pad[axis] = (48, 48)
-        padded = np.pad(values, pad, mode="edge")
-        values = np.apply_along_axis(
-            lambda row: np.convolve(row, kernel, mode="valid"), axis, padded
-        )
-        # Both Vulkan passes write an R8_UNORM image, including the intermediate.
-        values = np.clip(np.rint(values), 0, 255)
-    return values.astype("u1").tobytes()
+    halo = BLUR_RADIUS
+    padded_width, padded_height = width + 2 * halo, height + 2 * halo
+    values = np.frombuffer(data, "u1").reshape(2, height, width)
+    padded = np.pad(values, ((0, 0), (halo, halo), (halo, halo)), mode="edge").tobytes()
+    argv = raw_output(
+        raw_input(ffmpeg, "gray", padded_width, padded_height, gpu=True, device=device),
+        graph,
+        "gray",
+    )
+    argv[1:1] = ["-filter_threads", "1", "-threads", "1"]
+    record, observed = commands.run(
+        f"blur-boundary-control-{padded_width}x{padded_height}", argv, padded
+    )
+    control = _command_result(record, expected)
+    control.update(
+        diagnostic_only=True,
+        can_promote_original_case=False,
+        halo_pixels=halo,
+        upload_geometry=[padded_width, padded_height],
+        comparison_geometry=[width, height],
+        interpretation="Only cropped-center taps are guaranteed in bounds. A passing control "
+        "localizes boundary sensitivity, not a proven driver defect or workload qualification.",
+    )
+    if control["status"] == "PASS":
+        if len(observed) != len(padded):
+            control.update(status="NUMERICAL_MISMATCH", explanation="Truncated boundary control")
+        else:
+            center = np.frombuffer(observed, "u1").reshape(2, padded_height, padded_width)[
+                :, halo : halo + height, halo : halo + width
+            ]
+            control.update(assess_blur(data, center.tobytes(), width, height))
+    return control
 
 
 def _aggregate(cases: dict[str, Any]) -> dict[str, Any]:
+    """Any requested case failure blocks this backend, never unrelated backends."""
     statuses = [value["status"] for value in cases.values()]
     priority = (
         "EXECUTION_ERROR",
@@ -193,10 +221,21 @@ def _aggregate(cases: dict[str, Any]) -> dict[str, Any]:
         "CAPABILITY_UNAVAILABLE",
         "PASS",
     )
-    status = next((s for s in priority if s in statuses), "EXECUTION_ERROR")
+    invalid = [name for name, case in cases.items() if case["status"] not in priority]
+    status = (
+        "EXECUTION_ERROR"
+        if invalid
+        else next((s for s in priority if s in statuses), "EXECUTION_ERROR")
+    )
     return {
         "status": status,
         "cases": cases,
+        "all_cases_passed": bool(cases) and all(s == "PASS" for s in statuses),
+        "passed_cases": [name for name, case in cases.items() if case["status"] == "PASS"],
+        "nonpassing_cases": [name for name, case in cases.items() if case["status"] != "PASS"],
+        "invalid_status_cases": invalid,
+        "aggregation_scope": "All requested cases; a failure blocks this backend only. "
+        "A passing geometry or diagnostic control cannot erase another geometry's failure.",
         "evidence": [
             f"{name}: {case.get('explanation', case['status'])}" for name, case in cases.items()
         ],
@@ -399,6 +438,10 @@ def _qualify(ffmpeg: str, ffprobe: str, root: Path, device: str, expected: str) 
             "frames_per_case": 2,
             "fps": "60/1",
             "per_command_timeout_seconds": 45,
+            "diagnostic_only_on_failed_64x32_blur": {
+                "halo_pixels": BLUR_RADIUS,
+                "geometry": [160, 128],
+            },
         },
         "inventory": inventory,
         "same_build_control": same_build,
@@ -469,7 +512,6 @@ def _qualify(ffmpeg: str, ffprobe: str, root: Path, device: str, expected: str) 
                 backend_cases["blur"][geometry] = absent
             else:
                 data = fixture("gray", width, height)
-                oracle = blur_oracle(data, width, height)
                 graph = (
                     "format=gray,hwupload,gblur_vulkan=sigma=16:sigmaV=16:size=97:sizeV=97:"
                     "planes=1,hwdownload,format=gray"
@@ -481,32 +523,13 @@ def _qualify(ffmpeg: str, ffprobe: str, root: Path, device: str, expected: str) 
                 record, observed = commands.run("blur-" + geometry, argv, data)
                 case = _command_result(record, expected)
                 if case["status"] == "PASS":
-                    import numpy as np
-
-                    case["numerical_oracle"] = {
-                        "algorithm": "float64 finite separable Gaussian; "
-                        "sigma16, size97, normalized, clamp-to-edge, nearest 8-bit output",
-                        "tolerance": BLUR_TOLERANCE,
-                        "expected_sha256": _sha(oracle),
-                        "observed_sha256": _sha(observed),
-                    }
-                    if len(observed) != len(oracle):
-                        case.update(
-                            status="NUMERICAL_MISMATCH", explanation="Truncated blur output"
+                    case.update(assess_blur(data, observed, width, height))
+                    # A tiny-image halo control can localize OOB tap sensitivity,
+                    # but MUST NOT erase or promote the original failed case.
+                    if case["status"] == "NUMERICAL_MISMATCH" and (width, height) == (64, 32):
+                        case["boundary_control"] = _blur_boundary_control(
+                            commands, ffmpeg, data, width, height, device, expected, graph
                         )
-                    else:
-                        error = np.abs(
-                            np.frombuffer(observed, "u1").astype("f8") - np.frombuffer(oracle, "u1")
-                        )
-                        maximum, mean = float(error.max()), float(error.mean())
-                        case["numerical_oracle"].update(
-                            maximum_8bit_code_error=maximum, mean_absolute_8bit_code_error=mean
-                        )
-                        if maximum > 2 or mean > 0.6 or observed == data:
-                            case.update(
-                                status="NUMERICAL_MISMATCH",
-                                explanation="Blur differs from finite Gaussian oracle",
-                            )
                 backend_cases["blur"][geometry] = case
             for codec, cpu_encoder, gpu_encoder in (
                 ("prores", "prores_ks", "prores_ks_vulkan"),

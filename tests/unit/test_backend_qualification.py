@@ -96,6 +96,9 @@ class FakeCommands:
         output = b""
         code = 0
         stderr = "Device 0 selected: NVIDIA GeForce RTX 3090"
+        if name.endswith("-encode"):
+            width, height = map(int, argv[argv.index("-video_size") + 1].split("x"))
+            self.dimensions = (width, height)
         if name.startswith("inventory-"):
             if name == "inventory-filters":
                 output = b"... hwupload\n... hwdownload\n... gblur_vulkan\n"
@@ -341,6 +344,74 @@ def test_missing_blur_filter_does_not_block_other_backends(
     assert result["blur"]["status"] == "CAPABILITY_UNAVAILABLE"
     assert result["blur"]["cases"]["64x32"]["capability_kind"] == "FILTER"
     assert all(result[b]["status"] == "PASS" for b in ("transfer", "ffv1", "prores"))
+
+
+@pytest.mark.parametrize("control_failure", [False, True])
+def test_tiny_failure_and_large_pass_preserved_even_when_halo_passes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, control_failure: bool
+) -> None:
+    """Fake execution tests aggregation only; a halo pass is not RTX qualification."""
+    setup_fake(monkeypatch)
+    monkeypatch.setattr(bq, "GEOMETRIES", ((64, 32), (1400, 280)))
+    original = FakeCommands.run
+
+    def run(
+        self: FakeCommands,
+        name: str,
+        argv: list[str],
+        data: bytes | None = None,
+        *,
+        text: bool = False,
+    ) -> tuple[dict[str, Any], bytes]:
+        record, value = original(self, name, argv, data, text=text)
+        if name == "blur-64x32":
+            value = data or b""  # An unchanged output is a deliberate failing fake.
+        if control_failure and name.startswith("blur-boundary-control-"):
+            record.update(status="EXECUTION_ERROR", returncode=7)
+        return record, value
+
+    monkeypatch.setattr(FakeCommands, "run", run)
+    result = bq.qualify("mock-ffmpeg", "mock-ffprobe", tmp_path)
+    blur = result["blur"]
+    assert blur["status"] == "NUMERICAL_MISMATCH"
+    assert not blur["all_cases_passed"]
+    assert blur["passed_cases"] == ["1400x280"]
+    assert blur["nonpassing_cases"] == ["64x32"]
+    assert blur["cases"]["64x32"]["status"] == "NUMERICAL_MISMATCH"
+    assert blur["cases"]["1400x280"]["status"] == "PASS"
+    control = blur["cases"]["64x32"]["boundary_control"]
+    assert control["status"] == ("EXECUTION_ERROR" if control_failure else "PASS")
+    assert control["diagnostic_only"] and not control["can_promote_original_case"]
+    assert control["upload_geometry"] == [160, 128]
+    assert control["comparison_geometry"] == [64, 32]
+    assert not result["all_backends_passed"]
+    assert result["cpu_controls_status"] == result["same_build_control"]["status"] == "PASS"
+    assert all(result[b]["status"] == "PASS" for b in ("transfer", "prores", "ffv1"))
+    retained = json.loads((tmp_path / "qualification.json").read_text())
+    assert retained["blur"] == blur
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["EXECUTION_ERROR", "DEVICE_MISMATCH", "NUMERICAL_MISMATCH", "CAPABILITY_UNAVAILABLE"],
+)
+def test_aggregate_never_promotes_mixed_geometry_results(failure: str) -> None:
+    for cases in (
+        {"64x32": {"status": failure}, "1400x280": {"status": "PASS"}},
+        {"64x32": {"status": "PASS"}, "1400x280": {"status": failure}},
+    ):
+        result = bq._aggregate(cases)
+        assert result["status"] == failure
+        assert result["cases"] == cases
+        assert not result["all_cases_passed"]
+        assert len(result["passed_cases"]) == len(result["nonpassing_cases"]) == 1
+
+
+def test_empty_or_unknown_case_status_cannot_pass_aggregation() -> None:
+    assert bq._aggregate({})["status"] == "EXECUTION_ERROR"
+    result = bq._aggregate({"64x32": {"status": "UNKNOWN"}, "1400x280": {"status": "PASS"}})
+    assert result["status"] == "EXECUTION_ERROR"
+    assert result["invalid_status_cases"] == ["64x32"]
 
 
 def test_vulkan_constants_and_api_version() -> None:
