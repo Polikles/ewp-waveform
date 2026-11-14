@@ -159,3 +159,37 @@ def test_optional_interpreter_numpy_is_the_actual_paired_backend_prerequisite(
             assert "optional-numpy qualification FAILED" in skips[f"speech-{backend}"]
             assert "fixture NumPy failed" in skips[f"onset-{backend}-screen"]
     assert "speech-fir-algorithm-r01-B" not in names
+
+
+@pytest.mark.parametrize(
+    "kind,status",
+    [
+        ("resource", "REFUSED_RESOURCE_LIMIT"),
+        ("ownership", "REFUSED_PROCESS_OWNERSHIP"),
+    ],
+)
+def test_main_preserves_global_refusal_classification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    status: str,
+) -> None:
+    from ewp_waveform.application.portable_experiments_process import ProcessOwnershipError
+
+    monkeypatch.setattr(app, "outside_git", lambda *a: None)
+    monkeypatch.setattr(app, "original_inventory", lambda *a: {})
+
+    def freeze(*a: Any) -> Any:
+        error = ResourceAdmissionError if kind == "resource" else ProcessOwnershipError
+        raise error("fixture global refusal")
+
+    monkeypatch.setattr(app, "freeze", freeze)
+    monkeypatch.setattr(app, "execute", lambda *a: pytest.fail("dispatch after global refusal"))
+    assert app.main(["--cpu-smoke", "--output-root", str(tmp_path)]) == 1
+    reports = [
+        p
+        for p in tmp_path.glob("run-*/reports/report-*.json")
+        if not p.name.endswith("-commands.json")
+    ]
+    assert len(reports) == 1
+    assert json.loads(reports[0].read_text())["status"] == status

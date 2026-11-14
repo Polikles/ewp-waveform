@@ -1310,6 +1310,10 @@ def main(argv: list[str] | None = None) -> int:
         error = f"{type(exc).__name__}: {exc}"
         if isinstance(exc, KeyboardInterrupt):
             status, code = "INTERRUPTED_NO_REPLAY", 130
+        elif isinstance(exc, ProcessOwnershipError):
+            status = "REFUSED_PROCESS_OWNERSHIP"
+        elif isinstance(exc, ResourceAdmissionError):
+            status = "REFUSED_RESOURCE_LIMIT"
         # Keep all already completed optional records visible even on required failure.
         if (run / "events.jsonl").is_file():
             for line in (run / "events.jsonl").read_text().splitlines():
