@@ -638,3 +638,39 @@ def test_required_root_symlink_never_claims_complete_zero_usage(
         replace()
     with pytest.raises(StorageObservationError, match="required storage root"):
         state.check_budget(tmp_path, tmp_path, limits_for(root, active=True))
+
+
+@pytest.mark.parametrize("outer_incomplete", [False, True])
+def test_successful_nested_history_survives_final_outer_root_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outer_incomplete: bool
+) -> None:
+    root, campaign, run, media = (
+        tmp_path / name for name in ("managed", "campaign", "run", "media")
+    )
+    for path in (root, campaign, run, media):
+        path.mkdir()
+    if outer_incomplete:
+        disappear_repeatedly(monkeypatch, root)
+    disappear_repeatedly(monkeypatch, campaign)
+    original = state.tree_usage
+    nested_samples = 0
+
+    def sample(roots: list[Path], **kwargs: Any) -> dict[str, Any]:
+        nonlocal nested_samples
+        result = original(roots, **kwargs)
+        if roots == [campaign]:
+            nested_samples += 1
+            if nested_samples == 3:
+                root.rename(tmp_path / "lost-managed-root")
+        return result
+
+    monkeypatch.setattr(state, "tree_usage", sample)
+    policy = {**limits_for(root, active=True), "campaign_limits": limits_for(campaign)}
+    live, _ = deps.installation_monitors(run, media, policy, tmp_path / "evidence")
+    with pytest.raises(StorageObservationError, match="required storage root") as error:
+        live()
+    observations = error.value.storage_observations
+    assert len(observations) == (6 if outer_incomplete else 3)
+    assert sum(item.get("scope") == "campaign" for item in observations) == 3
+    event = json.loads((tmp_path / "evidence/storage-samples.jsonl").read_text())
+    assert event["incomplete_samples"] == observations

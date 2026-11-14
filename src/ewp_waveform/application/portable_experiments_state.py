@@ -778,6 +778,11 @@ def _check_budget(
     if limits.get("campaign_limits"):
         campaign_limits = {**limits["campaign_limits"], "allow_transient_disappearance": active}
         campaign = check_budget(run, media, campaign_limits)
+        # Collect a successful nested lower bound before any later fallible root
+        # check, so its history also survives an enclosing observation failure.
+        incomplete_samples.extend(
+            {**sample, "scope": "campaign"} for sample in campaign["storage"]["incomplete_samples"]
+        )
     _verify_storage_roots(required)
     if not usage["complete"] and (not active or usage["requires_resample"]):
         raise StorageObservationError(
@@ -796,10 +801,7 @@ def _check_budget(
         campaign_storage = campaign["storage"]
         usage["campaign_storage"] = campaign_storage
         usage["complete"] = usage["complete"] and campaign_storage["complete"]
-        usage["incomplete_samples"] = [
-            *incomplete_samples,
-            *({**sample, "scope": "campaign"} for sample in campaign_storage["incomplete_samples"]),
-        ]
+
     return {
         "growth_bytes": growth,
         "free_bytes": space,
