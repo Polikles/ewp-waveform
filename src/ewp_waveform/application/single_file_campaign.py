@@ -37,6 +37,7 @@ def campaign(
                     skipped(name, "matched service control unavailable")
                     values[side].append({"status": "SKIPPED"})
                     continue
+                request_operation = (a if side == "A" else b)["operation"]
                 request = {
                     **(a if side == "A" else b),
                     "workload": workload,
@@ -45,12 +46,20 @@ def campaign(
                         "repeat": repeat,
                         "order": order,
                         "side": side,
-                        "comparison": comparison + "; actual service.render includes "
-                        "per-encode setup/qualification, validation/publication",
+                        "comparison": comparison
+                        + (
+                            "; actual service.render includes per-encode setup/qualification, "
+                            "validation/publication"
+                            if request_operation == "service"
+                            else "; direct pipeline includes selected finishing preparation; "
+                            "no service publication"
+                        ),
                     },
                 }
                 if control_valid:
                     request.update(reference=first["output"], reference_lossless=True)
+                    if request["operation"] == "direct":
+                        request["expected_raster_sha256"] = first["original_raster_sha256"]
                 value = step(name, request, optional=True)
                 values[side].append(value)
                 if not first and side == "A":
@@ -68,6 +77,14 @@ def campaign(
     lut = step("single-file-lut-qualification", {"operation": "qualify-lut"}, optional=True)
     lut_ready = lut.get("status") == "SUCCEEDED" and lut.get("passed") is True
     if lut_ready:
+        pair(
+            "single-file-direct-lut",
+            short,
+            {"operation": "direct", "codec": "prores"},
+            {"operation": "direct", "codec": "prores", "finish_lut": True},
+            "matched direct production pipeline GEQ vs LUT; repaired executable alias seam; "
+            "not service publication",
+        )
         short_control, short_candidate = pair(
             "single-file-short-lut",
             short,

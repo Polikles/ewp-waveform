@@ -378,6 +378,7 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "opt-service-lut32": {"finish_lut"},
                 "opt-service-workers32": {"jobs"},
                 "opt-service-serial-lut32": {"finish_lut"},
+                "single-file-direct-lut": {"finish_lut"},
                 "single-file-short-lut": {"finish_lut"},
                 "single-file-lut32": {"finish_lut"},
                 "single-file-jobs32": {"jobs"},

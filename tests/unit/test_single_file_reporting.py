@@ -14,6 +14,7 @@ from ewp_waveform.application.portable_experiments_reporting import pair_statist
 @pytest.mark.parametrize(
     "group,controls",
     [
+        ("single-file-direct-lut", {"finish_lut": True}),
         ("single-file-short-lut", {"finish_lut": True}),
         ("single-file-lut32", {"finish_lut": True}),
         ("single-file-jobs32", {"jobs": 1}),

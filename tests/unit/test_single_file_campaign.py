@@ -38,7 +38,7 @@ def test_single_file_target_pairs_and_optional_cuda_are_narrow() -> None:
         lambda name, reason: skipped.append(name),
     )
     assert not skipped
-    assert len(calls) == 23  # 1 LUT gate +12 CPU renders +2 CUDA gates +8 CUDA renders.
+    assert len(calls) == 27  # 1 LUT gate +16 CPU renders +2 CUDA gates +8 CUDA renders.
     assert [n for n, _ in calls[:1]] == ["single-file-lut-qualification"]
     for label in (
         "single-file-short-lut",
@@ -51,11 +51,15 @@ def test_single_file_target_pairs_and_optional_cuda_are_narrow() -> None:
         assert [r["pair"]["side"] for r in pair] == list("ABBA")
         assert all(r["operation"] == "service" for r in pair)
         assert all(r["workload"]["duration"] == (4 if "short" in label else 32) for r in pair)
+    direct = [r for n, r in calls if n.startswith("single-file-direct-lut-r")]
+    assert [r["pair"]["side"] for r in direct] == list("ABBA")
+    assert all(r["operation"] == "direct" and r["codec"] == "prores" for r in direct)
+    assert all(r["workload"]["duration"] == 4 for r in direct)
+    assert all("no service publication" in r["pair"]["comparison"] for r in direct)
+    assert all(r["expected_raster_sha256"] == "r" for r in direct[1:])
     jobs = [r["jobs"] for n, r in calls if n.startswith("single-file-jobs32-r")]
     assert jobs == [2, 1, 1, 2]
-    assert not any(
-        r.get("operation") in ("qualify", "direct", "codec", "compact") for _, r in calls
-    )
+    assert not any(r.get("operation") in ("qualify", "codec", "compact") for _, r in calls)
 
 
 @pytest.mark.parametrize("failure", ["lut-gate", "lut-short"])
@@ -105,11 +109,12 @@ def test_single_file_smoke_never_authorizes_medium() -> None:
             "status": "SUCCEEDED",
             "passed": True,
             "output": "fixture.mov",
+            "original_raster_sha256": "r",
             "validation": {"passed": True},
         }
 
     campaign({"repeats": 2}, [{"id": "smoke"}], step, lambda name, reason: skipped.append(name))
-    assert len(calls) == 5
+    assert len(calls) == 9
     assert skipped == ["single-file-jobs32", "single-file-lut32"]
 
 
@@ -144,6 +149,7 @@ def test_execute_single_file_never_enters_historical_dispatch(
             "passed": True,
             "validation": {"passed": True},
             "output": "fixture.mov",
+            "original_raster_sha256": "r",
         }
 
     monkeypatch.setattr(app, "invoke", invoke)
@@ -152,5 +158,5 @@ def test_execute_single_file_never_enters_historical_dispatch(
     app.execute(
         {"optimize_single_file": True, "selected": {"tools": {}}, "smoke": True, "repeats": 2}, {}
     )
-    assert len(calls) == 6
+    assert len(calls) == 10
     assert all(n == "audio-plan" or n.startswith("single-file-") for n in calls)

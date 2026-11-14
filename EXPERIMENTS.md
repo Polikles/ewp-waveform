@@ -40,11 +40,12 @@ The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
 `--optimize-single-file` is the targeted next campaign on the **current source**,
 not an old-source/new-source comparison or another codec/filter matrix. It runs
-serial GEQ/LUT speech25..29s AB/BA, then independently compares jobs2/jobs1 GEQ
-service32 and jobs1 GEQ/LUT service32 at25..57s. It explicitly authorizes these
-bounded32s cells, never a full episode. With `--cuda`, it also runs the new combined
-FIR candidate through matched **actual serial application service**4s then32s
-AB/BA. Defaults give12 CPU renders plus8 CUDA renders when requested; preparation,
+direct GEQ/LUT speech25..29s AB/BA (including the repaired Windows direct seam)
+and separate serial-service GEQ/LUT speech AB/BA, then independently compares
+jobs2/jobs1 GEQ service32 and jobs1 GEQ/LUT service32 at25..57s. It explicitly
+authorizes these bounded32s cells, never a full episode. With `--cuda`, it also runs
+the new combined FIR candidate through matched **actual serial application service**4s
+then32s AB/BA. Defaults give16 CPU renders plus8 CUDA renders when requested; preparation,
 qualification and separate deduplicated views are additional stages. A failed LUT
 gate does not suppress GEQ worker-policy or independently qualified CUDA checks.
 Omit `--cuda` for the targeted CPU campaign. Existing verified preparations are
@@ -58,7 +59,7 @@ python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Dam
 
 Omit `--cuda-combined-service32` for short-only. Both sides use actual jobs1
 `service.render`, unchanged source analysis/raster, CPU ProRes encoder and normal
-validation/publication. Control is host-reference/batch1/diagnostic; the **new,
+validation/publication. Control retains host-reuse/batch1/diagnostic; the **new,
 unmeasured combination** is device-RGBA8/batch2/ordinary. Import/context/setup and
 per-encode qualification are inside service wall; external preplan, independent
 verification and views are separate, and cold launch-through-exit remains visible.
