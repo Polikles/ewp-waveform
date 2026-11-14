@@ -51,8 +51,8 @@ class ServiceExperiment:
             raise ValueError(
                 "experiments require refined ribbon, MOV only and explicit duration <=4s"
             )
-        if self.encoding.candidate == "ENC-FFV1":
-            raise ValueError("FFV1 service publication unavailable; fixture/NLE smoke only")
+        if self.encoding.candidate in ("ENC-FFV1", "FFV1-DIRECT"):
+            raise ValueError("FFV1 service publication unavailable; use explicit native pipeline")
         c = self.encoding.crop
         if c and (c.canvas_width, c.canvas_height) != (preset.canvas.width, preset.canvas.height):
             raise ValueError("frozen crop canvas does not match production geometry")

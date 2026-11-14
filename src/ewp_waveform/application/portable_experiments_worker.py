@@ -182,6 +182,7 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
                     evidence / "commands.jsonl",
                     request["device"],
                     request["expected_device"],
+                    async_depth=request.get("async_depth"),
                 ),
                 expected_preset=preset.model_dump(mode="json"),
             )
@@ -236,6 +237,8 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "output": str(output),
         "artifacts": [identity(output), identity(performance)],
         "service_result": result,
+        "phase_metrics": result.get("performance", {}),
+        "external_verification_seconds": valid["validation_seconds"],
         "visual": "PENDING",
         "studio": "PENDING",
         "analysis_context": "full-source"
@@ -255,12 +258,18 @@ def codec_render(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.ffmpeg import experiment_suite_validation as validation
     from ewp_waveform.ffmpeg.experiments import run_captured
 
+    w = request["workload"]
+    if request.get("codec_prefix") and (
+        w["frames"] not in (6, 60)
+        or w["duration"] != w["frames"] / 60
+        or request.get("reference_workload", {}).get("frames", 0) < w["frames"]
+    ):
+        raise ValueError("codec diagnostic requires explicit 6/60-frame prefix within master")
     root = Path(request["media"])
     root.mkdir(parents=True, exist_ok=False)
     log = Path(request["evidence"]) / "commands.jsonl"
     output = root / "native.mkv"
     original = Path(request["reference"])
-    w = request["workload"]
     gpu = request.get("gpu", False)
     argv = ff.codec_argv(
         request["ffmpeg"], original, output, gpu=gpu, device=request["device"], frames=w["frames"]
@@ -284,6 +293,7 @@ def codec_render(request: dict[str, Any]) -> dict[str, Any]:
         codec="ffv1",
         reference=original,
         lossless=True,
+        reference_prefix_frames=w["frames"] if request.get("codec_prefix") else None,
     )
     valid["lossless_against_preencode"] = False
     valid["lossless_against_reference_master"] = True
@@ -296,13 +306,19 @@ def codec_render(request: dict[str, Any]) -> dict[str, Any]:
         "wall_seconds": wall,
         "throughput_fresh": True,
         "render_fps": w["frames"] / wall,
+        "external_verification_seconds": valid["validation_seconds"],
         "workload": w,
         "gpu": gpu,
         "route": "SHARED_CPU_MOV_DECODE_CONVERSION_FFV1_ENCODING_NOT_SERVICE",
         "timer": "run_captured decode+conversion+encode+container; excludes validation",
         "reference": identity(original),
+        "reference_workload": request.get("reference_workload"),
+        "diagnostic_scope": "n=1 bounded prefix; decode/conversion/encode/process startup mixed; "
+        "not waveform render savings or pure startup attribution"
+        if request.get("codec_prefix")
+        else None,
         # inspect(lossless=True) has compared every RGBA byte including hidden RGB.
-        "comparison_mov": str(original),
+        "comparison_mov": None if request.get("codec_prefix") else str(original),
         "visual": "PENDING",
         "studio": "PENDING",
     }
@@ -379,7 +395,7 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             str(Path(request["ffmpeg"]).parent) + os.pathsep + request["original_path"]
         )
     operation = request["operation"]
-    if operation == "service":
+    if operation in ("service", "direct"):
         # Fresh per-attempt cache selection keeps cold AB/BA service controls
         # independent. The selected route may not use this cache; report actual
         # service cache observations rather than infer a hit from the selector.
@@ -404,6 +420,10 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
         return audio_plan(request)
     if operation == "service":
         return service_render(request)
+    if operation == "direct":
+        from ewp_waveform.application.portable_experiments_optimize import direct_render
+
+        return direct_render(request)
     if operation == "codec":
         return codec_render(request)
     if operation == "qualify":

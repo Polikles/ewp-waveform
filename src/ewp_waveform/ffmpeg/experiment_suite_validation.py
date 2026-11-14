@@ -21,7 +21,13 @@ from ewp_waveform.ffmpeg.experiments import (
 )
 
 
-def decode_argv(ffmpeg: str, path: Path, fmt: str = "rgba") -> list[str]:
+def decode_argv(
+    ffmpeg: str,
+    path: Path,
+    fmt: str = "rgba",
+    *,
+    frames: int | None = None,
+) -> list[str]:
     return [
         ffmpeg,
         "-nostdin",
@@ -41,6 +47,7 @@ def decode_argv(ffmpeg: str, path: Path, fmt: str = "rgba") -> list[str]:
         "rawvideo",
         "-pix_fmt",
         fmt,
+        *(["-frames:v", str(frames)] if frames is not None else []),
         "-f",
         "rawvideo",
         "pipe:1",
@@ -49,10 +56,24 @@ def decode_argv(ffmpeg: str, path: Path, fmt: str = "rgba") -> list[str]:
 
 @contextmanager
 def decoded(
-    ffmpeg: str, path: Path, log: Path, size: int, fmt: str = "rgba"
+    ffmpeg: str,
+    path: Path,
+    log: Path,
+    size: int,
+    fmt: str = "rgba",
+    *,
+    frames: int | None = None,
 ) -> Iterator[Iterator[bytes]]:
-    argv = decode_argv(ffmpeg, path, fmt)
-    record_command(log, argv, phase="strict-complete-software-decode")
+    argv = decode_argv(ffmpeg, path, fmt, frames=frames)
+    record_command(
+        log,
+        argv,
+        phase=(
+            "strict-reference-prefix-software-decode"
+            if frames is not None
+            else "strict-complete-software-decode"
+        ),
+    )
     # Diagnostics are retained on disk, avoiding pipe deadlock and unbounded capture.
     errors = log.parent / (path.name + "." + fmt + ".decode.stderr")
     with errors.open("ab") as err:
@@ -143,7 +164,15 @@ def inspect(
     codec: str = "prores",
     reference: Path | None = None,
     lossless: bool = False,
+    reference_prefix_frames: int | None = None,
 ) -> dict[str, Any]:
+    if reference_prefix_frames is not None and (
+        type(reference_prefix_frames) is not int
+        or reference_prefix_frames != frames
+        or frames <= 0
+        or reference is None
+    ):
+        raise ValueError("explicit reference prefix must match positive output frame count")
     start = time.perf_counter()
     argv = [
         ffprobe,
@@ -202,7 +231,13 @@ def inspect(
 
     with decoded(ffmpeg, path, log, width * height * 4) as blocks:
         if reference is not None:
-            with decoded(ffmpeg, reference, log, width * height * 4) as originals:
+            with decoded(
+                ffmpeg,
+                reference,
+                log,
+                width * height * 4,
+                frames=reference_prefix_frames,
+            ) as originals:
                 consume(blocks, originals)
         else:
             consume(blocks, None)
@@ -217,6 +252,7 @@ def inspect(
         "alpha_max": maximum,
         "alpha_association_contract": "straight",
         "lossless_against_preencode": lossless and reference is not None,
+        "reference_prefix_frames": reference_prefix_frames,
         "edge_halo_composite_integer_metrics": metrics,
         "temporal_alpha_absolute_delta_sum": temporal,
         "validation_seconds": time.perf_counter() - start,
@@ -254,9 +290,7 @@ def view_argv(
         graph = argv[index]
         if graph.count("[bg][0:v]") != 1:
             raise ValueError("unknown straight-alpha viewing boundary")
-        argv[index] = "[0:v]settb=1/60,setpts=N[fg];" + graph.replace(
-            "[bg][0:v]", "[bg][fg]"
-        )
+        argv[index] = "[0:v]settb=1/60,setpts=N[fg];" + graph.replace("[bg][0:v]", "[bg][fg]")
         return argv
     graph = (
         f"nullsrc=s={width}x{height}:r=60,format=rgba,"

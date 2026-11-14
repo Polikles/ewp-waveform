@@ -870,9 +870,16 @@ def freeze(
         "preflight_only": args.preflight_only,
         "full": args.full or args.reference_only,
         "reference_only": args.reference_only,
-        "production32": not args.no_production32,
+        "production32": not args.no_production32 and not args.optimize,
         "cuda": args.cuda,
         "repeats": args.repeats,
+        "optimize": args.optimize,
+        "optimization": {
+            "encoder_threads": args.optimize_encoder_threads,
+            "filter_threads": args.optimize_filter_threads,
+            "async_depth": args.optimize_async_depth,
+            "ffv1_gpu": args.optimize_ffv1_gpu,
+        },
         "repeat_scope": "speech shortlist (or six-frame smoke); sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
         "cuda_error": cuda_error,
@@ -972,8 +979,10 @@ def invoke(
             root / "process",
             cwd=ROOT,
             env=child_env(),
-            timeout=min(config["limits"]["stage_timeout"], 120.0)
-            if request["operation"] == "qualify-finish"
+            timeout=min(
+                config["limits"]["stage_timeout"], 60.0 if request.get("codec_prefix") else 120.0
+            )
+            if request["operation"] == "qualify-finish" or request.get("codec_prefix")
             else config["limits"]["stage_timeout"],
             monitor=lambda: check_budget(run, media, config["limits"]),
         )
@@ -1009,6 +1018,10 @@ def invoke(
             key: request.get(key) for key in ("ffmpeg", "ffprobe", "visual_overrides", "workload")
         }
         value["execution_settings"]["python"] = python or config["python"]
+        value["experimental_settings"] = {
+            key: request.get(key)
+            for key in ("codec", "variant", "encoder_threads", "filter_threads", "async_depth")
+        }
         value["command"] = observed
         value["cold_process_wall_seconds"] = observed["wall_seconds"]
         stage_media = Path(request["media"])
@@ -1229,10 +1242,20 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
     plan = step("audio-plan", {"operation": "audio-plan", "smoke": config["smoke"]})
     workloads = plan["workloads"]
     qualification: dict[str, Any] = {}
-    if not config["smoke"]:
+    if not config["smoke"] and (
+        not config.get("optimize")
+        or config.get("optimization", {}).get("async_depth") is not None
+        or config.get("optimization", {}).get("ffv1_gpu")
+    ):
         qualification = step("backend-qualification", {"operation": "qualify"}, optional=True)
     else:
-        skipped("backend-qualification", "CPU smoke only; no GPU qualification requested")
+        skipped("backend-qualification", "CPU-only shortlist/smoke; no GPU qualification requested")
+    if config.get("optimize"):
+        if not config["preflight_only"]:
+            from ewp_waveform.application.portable_experiments_optimize import campaign
+
+            campaign(config, workloads, step, skipped, qualification)
+        return make_result_views(results, step)
     # Always admit the independent CPU oracle in the selected interpreter. Torch
     # qualification is opt-in and each backend is an isolated bounded subprocess.
     finishing = {
@@ -1484,6 +1507,10 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                     },
                 },
             )
+    return make_result_views(results, step)
+
+
+def make_result_views(results: dict[str, Any], step: Any) -> dict[str, Any]:
     # View generation is separate from every timed render. Identical decoded
     # RGBA streams share one useful set even across MOV/MKV container variants.
     views: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -1521,6 +1548,36 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--audio", type=Path)
+    p.add_argument(
+        "--optimize",
+        action="store_true",
+        help="small speech-only direct CPU FFV1/thread campaign; not the historical matrix",
+    )
+    p.add_argument(
+        "--optimize-encoder-threads",
+        type=int,
+        default=2,
+        choices=range(0, 33),
+        help="separate direct FFV1 output encoder threads (0=FFmpeg auto; default2)",
+    )
+    p.add_argument(
+        "--optimize-filter-threads",
+        type=int,
+        default=1,
+        choices=range(0, 33),
+        help="separate CPU ProRes complex-filter threads (0=auto; default1)",
+    )
+    p.add_argument(
+        "--optimize-async-depth",
+        type=int,
+        choices=range(1, 9),
+        help="also screen qualified Vulkan ProRes depth1 vs selected depth (1..8)",
+    )
+    p.add_argument(
+        "--optimize-ffv1-gpu",
+        action="store_true",
+        help="also diagnose qualified shared-master Vulkan FFV1 at 6/60 frames; 60s cap each",
+    )
     p.add_argument(
         "--output-root", type=Path, default=Path.home() / ".local/state/ewp-portable-experiments"
     )
@@ -1667,6 +1724,16 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--audio PATH required except with --cpu-smoke or --resume")
     if args.cpu_smoke and (args.full or args.reference_only):
         p.error("--cpu-smoke cannot authorize a full render")
+    if args.optimize and (args.full or args.reference_only):
+        p.error("--optimize is a bounded shortlist, never --full/--reference-only")
+    optimization_flags = {
+        "--optimize-encoder-threads",
+        "--optimize-filter-threads",
+        "--optimize-async-depth",
+        "--optimize-ffv1-gpu",
+    }
+    if not args.optimize and optimization_flags.intersection(t.split("=", 1)[0] for t in argv):
+        p.error("optimization settings require --optimize")
     if (args.cuda_python or args.install_cuda) and not args.cuda:
         p.error("--cuda-python/--install-cuda require explicit --cuda")
     if (args.ffmpeg is None) != (args.ffprobe is None):
@@ -1684,6 +1751,11 @@ def main(argv: list[str] | None = None) -> int:
         option in {token.split("=", 1)[0] for token in argv}
         for option in (
             "--audio",
+            "--optimize",
+            "--optimize-encoder-threads",
+            "--optimize-filter-threads",
+            "--optimize-async-depth",
+            "--optimize-ffv1-gpu",
             "--managed-root",
             "--setup-uv",
             "--setup-only",

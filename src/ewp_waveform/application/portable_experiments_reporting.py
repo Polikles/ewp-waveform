@@ -535,6 +535,7 @@ def report(
                     "full",
                     "reference_only",
                     "cuda",
+                    "optimize",
                 )
             )
             + ".",
@@ -568,6 +569,53 @@ def report(
             f"| {clean(name)} | {clean(result.get('status', 'UNKNOWN'))} | {wall_text} | "
             f"{validation} | {use}; {clean(reason or '')} |"
         )
+    if config and config.get("optimize"):
+        lines += [
+            "",
+            "## Optimization shortlist",
+            "",
+            "One speech interval (six synthetic frames in smoke); stock service is a separate "
+            "wrapper control. Codec/thread pairs run the real serial production fixed pipeline "
+            "with identical cache-disabled analysis and raster hashing. Native FFV1 MKV is "
+            "direct output, not a ProRes transcode; Resolve support remains unverified.",
+            "",
+            "Optional shared-master FFV1 prefix diagnostics are different: only6/60 frames, "
+            "one CPU/GPU observation each, at most60s per worker including validation. "
+            "They include process startup, MOV decode/conversion and encoding; differences "
+            "across lengths are not pure startup or waveform render savings. Historical "
+            "240-frame operator observations remain separate and unchanged.",
+            "",
+            "Encoder and complex-filter thread settings change individually; omitted options "
+            "mean FFmpeg defaults, not observed runtime counts. Inclusive phase spans are "
+            "non-additive; feed is blocking write time, not encoder CPU. Cold worker envelopes "
+            "include launch/import overhead; validation/views remain outside pipeline timers.",
+            "",
+            "| Step | Encoder / filter / async requested | Cold worker s "
+            "| Generator / feed / wait s | External validation s |",
+            "|---|---|---:|---|---:|",
+        ]
+        for name, result in results.items():
+            if not result.get("output"):
+                continue
+            phase = result.get("phase_metrics", {})
+            seconds = phase.get("seconds", {})
+            settings = result.get("experimental_settings", {})
+            lines.append(
+                f"| {clean(name)} | "
+                + " / ".join(
+                    str(settings.get(k))
+                    for k in ("encoder_threads", "filter_threads", "async_depth")
+                )
+                + " | "
+                + clean(result.get("cold_process_wall_seconds"))
+                + " | "
+                + " / ".join(
+                    clean(seconds.get(k)) for k in ("generator", "ffmpeg_feed", "ffmpeg_wait")
+                )
+                + " | "
+                + clean(result.get("external_verification_seconds"))
+                + " |"
+            )
     lines += [
         "",
         "## Independent qualification",

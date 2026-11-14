@@ -25,10 +25,23 @@ class SuiteEncoding:
     device: str = "RTX 3090"
     expect_device_regex: str = r"RTX\s*3090"
     crop: None = None
+    encoder_threads: int | None = None
+    filter_threads: int | None = None
+    async_depth: int | None = None
 
     def __post_init__(self) -> None:
-        if self.candidate not in ADAPTERS:
-            raise ValueError("unknown suite service adapter; FFV1 is codec-only")
+        if self.candidate not in (*ADAPTERS, "FFV1-DIRECT"):
+            raise ValueError("unknown suite encoding adapter")
+        for name in ("encoder_threads", "filter_threads"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or not 0 <= value <= 32):
+                raise ValueError(f"{name} must be an integer in 0..32 or None")
+        if self.async_depth is not None and (
+            type(self.async_depth) is not int
+            or not 1 <= self.async_depth <= 8
+            or self.candidate != "PRORES-GPU"
+        ):
+            raise ValueError("async_depth requires PRORES-GPU and an integer in 1..8")
         if not re.fullmatch(r"[A-Za-z0-9 ._-]+", self.device):
             raise ValueError("device must be a name substring or numeric index")
         re.compile(self.expect_device_regex)
@@ -45,6 +58,10 @@ class SuiteEncoding:
             if self.candidate in ("PRORES-MATCHED", "PRORES-GPU")
             else "stock-default",
             "loglevel": "verbose",
+            "encoder_threads": self.encoder_threads,
+            "filter_complex_threads": self.filter_threads,
+            "async_depth": (self.async_depth or 1) if self.candidate == "PRORES-GPU" else None,
+            "thread_scope": "requested FFmpeg options, not observed runtime thread counts",
         }
 
     @property
@@ -99,7 +116,25 @@ def service_argv(argv: list[str], spec: SuiteEncoding) -> list[str]:
             pi = len(out) - 1 - out[::-1].index("-pix_fmt")
             out[pi + 1] = "vulkan"
         out[gi] = graph + "[vout]"
-        out[-1:-1] = ["-alpha_bits", "16"] + (["-async_depth", "1"] if spec.gpu else [])
+        out[-1:-1] = ["-alpha_bits", "16"] + (
+            ["-async_depth", str(spec.async_depth or 1)] if spec.gpu else []
+        )
+    if spec.candidate == "FFV1-DIRECT":
+        # Only the explicit fixed-pipeline experiment may publish native MKV.
+        # There is no prior MOV master or fixture decode in this path.
+        if Path(out[-1]).suffix.lower() != ".mkv":
+            raise ValueError("direct FFV1 requires native .mkv output")
+        ci = out.index("-c:v")
+        if out[ci:-1] != ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"]:
+            raise ValueError("unknown production single-output codec boundary")
+        out[ci:-1] = codec_options("ffv1", False)
+    if spec.encoder_threads is not None:
+        if "-threads" in out:
+            raise ValueError("separate encoder threads cannot override legacy -threads")
+        out[-1:-1] = ["-threads:v", str(spec.encoder_threads)]
+    if spec.filter_threads is not None:
+        # This route uses a complex graph, not a simple -vf graph.
+        out[1:1] = ["-filter_complex_threads", str(spec.filter_threads)]
     if spec.gpu:
         out[1:1] = device_args(spec.device)
     key = "-loglevel" if "-loglevel" in out else "-v"
