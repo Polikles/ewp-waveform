@@ -454,6 +454,38 @@ def _contour_row_support(y0: np.ndarray, y1: np.ndarray, height: int) -> tuple[i
     return start, max(start, stop)
 
 
+def _interval_contour_alpha(
+    y0: np.ndarray, y1: np.ndarray, height: int, start: int, stop: int
+) -> np.ndarray:
+    """Exact single-sample spans: uint8 interiors plus at most two float edges/X.
+
+    Call only for finite one-dimensional bounds and ordinary integer geometry.
+    Each interval's full rows have coverage exactly one; all other potentially
+    nonzero rows are floor(y0) and ceil(y1)-1. Preserve the old edge arithmetic
+    and quantization, including tiny-positive and near-full coverage rules.
+    """
+    width = y0.size
+    alpha = np.zeros((height, width), dtype=np.uint8)
+    if stop <= start:
+        return alpha
+    full_start = np.ceil(np.clip(y0, 0, height)).astype(np.intp)
+    full_stop = np.floor(np.clip(y1, 0, height)).astype(np.intp)
+    rows = np.arange(start, stop, dtype=np.intp)[:, None]
+    alpha[start:stop] = (rows >= full_start) & (rows < full_stop)
+    alpha[start:stop] *= 255
+    first = np.floor(np.clip(y0, -1, height)).astype(np.intp)
+    last = np.ceil(np.clip(y1, 0, height + 1)).astype(np.intp) - 1
+    for edge, distinct in ((first, np.ones(width, dtype=bool)), (last, last != first)):
+        visible = distinct & (edge >= 0) & (edge < height) & (y1 > y0)
+        xs = np.flatnonzero(visible)
+        if xs.size:
+            yy = edge[xs].astype(np.float64)
+            cov = np.minimum(yy + 1.0, y1[xs]) - np.maximum(yy, y0[xs])
+            np.clip(cov, 0.0, 1.0, out=cov)
+            alpha[edge[xs], xs] = _coverage_to_alpha(cov)
+    return alpha
+
+
 def mirrored_contour_alpha(
     columns: Sequence[float],
     *,
@@ -496,7 +528,15 @@ def mirrored_contour_alpha(
         y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
         y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
     start, stop = _contour_row_support(y0, y1, height)
-    if stop > start:
+    if (
+        y0.ndim == 1
+        and type(height) is int
+        and 0 < height < 2**31 - 1
+        and np.isfinite(y0).all()
+        and np.isfinite(y1).all()
+    ):
+        alpha = _interval_contour_alpha(y0, y1, height, start, stop)
+    elif stop > start:
         yy = np.arange(start, stop, dtype=np.float64)[:, np.newaxis]
         if taps > 1 and ss == 1:
             cov = _contour_coverage(yy[:, :, np.newaxis], y0, y1).mean(axis=2)

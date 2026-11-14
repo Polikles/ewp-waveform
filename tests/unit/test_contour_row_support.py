@@ -243,8 +243,14 @@ def test_padded_geometry_converts_only_149_active_rows(
             aa_taps=taps,
         ),
     )
-    assert observed and all(rows == (116, 264) for rows in observed)
-    assert converted and all(rows == 149 for rows in converted)
+    if ss == 2:
+        # Single-sample intervals now convert only their two boundary vectors.
+        assert not observed
+        assert converted and all(size <= 7 * ss for size in converted)
+    else:
+        # Multitap reduction order remains on the qualified row-limited grid.
+        assert observed and all(rows == (116, 264) for rows in observed)
+        assert converted and all(rows == 149 for rows in converted)
 
 
 @pytest.mark.parametrize("center_line", [False, True])
