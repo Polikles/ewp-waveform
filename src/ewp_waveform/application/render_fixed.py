@@ -8,6 +8,7 @@ validation/publication implementation; calls retain their report/failure orderin
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -74,6 +75,7 @@ class FieldChunkTask:
     bar_color_b: str
     bar_center_line_width: float
     ribbon_finish: tuple[float, bool, float, float, float] | None = None
+    ribbon_finish_lut: bool = False
 
 
 # Keep the selected-base pool admission threshold.
@@ -277,6 +279,7 @@ class FixedHooks(Protocol):
         color: str | None = ...,
         n_frames: int | None = ...,
         ribbon_finish: tuple[float, bool, float, float, float] | None = ...,
+        ribbon_finish_lut: bool = ...,
     ) -> None: ...
 
     def field_to_columns(self, field: VisualField, width: int) -> list[float]: ...
@@ -785,6 +788,17 @@ def _field_frame_ranges(hooks: FixedHooks, n_frames: int, workers: int) -> list[
     return ranges
 
 
+def _read_lut_diagnostic(sidecar: Path) -> dict[str, Any]:
+    """A missing/damaged diagnostic must never replace the worker's real failure."""
+    try:
+        value = json.loads(sidecar.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("expected diagnostic object")
+        return value
+    except (OSError, ValueError) as exc:
+        return {"status": "unavailable", "error": str(exc)}
+
+
 def encode_field_chunk(hooks: FixedHooks, task: FieldChunkTask) -> Path | None:
     """Raster and encode one precomputed column range. Spawn-pool safe."""
     columns = hooks.np.load(task.columns_path, mmap_mode="r")
@@ -847,6 +861,7 @@ def encode_field_chunk(hooks: FixedHooks, task: FieldChunkTask) -> Path | None:
         color=task.color if task.pix_fmt == "gray" or task.ribbon_finish is not None else None,
         n_frames=task.n_frames,
         ribbon_finish=task.ribbon_finish,
+        ribbon_finish_lut=task.ribbon_finish_lut,
     )
     return prores_path
 
@@ -997,6 +1012,15 @@ def run_fixed_pipeline(
     clock: PhaseTimes,
 ) -> None:
     assert appearance is not None
+    ribbon_finish_lut = performance.processing.get("ribbon_finish_lut", False)
+    if type(ribbon_finish_lut) is not bool:
+        raise ValueError("processing.ribbon_finish_lut must be an explicit boolean")
+    if ribbon_finish_lut and (
+        appearance.ribbon_finish is None or not producing_mov or producing_png
+    ):
+        raise ValueError(
+            "ribbon_finish_lut requires ordinary CPU ribbon finishing and one MOV/no PNG"
+        )
     geometry = appearance.geometry
     scale = str(preset.signal.get("scale") or "sqrt")
     raw_smooth = preset.signal.get("smoothing", 0.0)
@@ -1237,6 +1261,7 @@ def run_fixed_pipeline(
                         bar_color_b=bars.color_b,
                         bar_center_line_width=bars.center_line_width,
                         ribbon_finish=appearance.ribbon_finish,
+                        ribbon_finish_lut=ribbon_finish_lut,
                     )
                     for index, (start, size) in enumerate(ranges)
                 ]
@@ -1244,12 +1269,27 @@ def run_fixed_pipeline(
                     f"spectrum encode {len(column_rows)} frames "
                     f"with {spectrum_encode_workers} process(es)"
                 )
-                with clock.span("field_encode_parallel"):
-                    ctx = hooks.multiprocessing.get_context("spawn")
-                    with hooks.ProcessPoolExecutor(
-                        max_workers=spectrum_encode_workers, mp_context=ctx
-                    ) as pool:
-                        parts = list(pool.map(hooks.encode_field_chunk, tasks))
+                try:
+                    with clock.span("field_encode_parallel"):
+                        ctx = hooks.multiprocessing.get_context("spawn")
+                        with hooks.ProcessPoolExecutor(
+                            max_workers=spectrum_encode_workers, mp_context=ctx
+                        ) as pool:
+                            parts = list(pool.map(hooks.encode_field_chunk, tasks))
+                finally:
+                    if ribbon_finish_lut:
+                        # Shutdown joins workers before collecting even on a failed map.
+                        clock.extras["ribbon_finish_lut_workers"] = [
+                            {
+                                "chunk_index": task.chunk_index,
+                                "first_frame": task.first_frame,
+                                "n_frames": task.n_frames,
+                                "diagnostic": _read_lut_diagnostic(sidecar),
+                            }
+                            for task in tasks
+                            if task.prores_path is not None
+                            for sidecar in [Path(task.prores_path).with_suffix(".ribbon-lut.json")]
+                        ]
                 field_chunk_movs = [path for path in parts if path is not None]
                 field_encoded = True
                 frames = iter(())
@@ -1388,6 +1428,7 @@ def run_fixed_pipeline(
             ),
             n_frames=expected_frames,
             ribbon_finish=appearance.ribbon_finish,
+            ribbon_finish_lut=ribbon_finish_lut,
         )
     if mov_work is not None:
         lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")

@@ -893,6 +893,18 @@ def _render_job(
     preset = _with_classic_alternate_opacity(preset, classic_alternate_opacity)
 
     appearance = select_pipeline(job.domain.value).prepare(_pipeline_hooks(), preset, options)
+    ribbon_finish_lut = performance.processing.get("ribbon_finish_lut", False)
+    if type(ribbon_finish_lut) is not bool:
+        raise ValueError("processing.ribbon_finish_lut must be an explicit boolean")
+    if ribbon_finish_lut and (
+        appearance is None
+        or appearance.ribbon_finish is None
+        or set(options.formats) != {"prores4444"}
+        or experiment is not None
+    ):
+        raise ValueError(
+            "ribbon_finish_lut requires ordinary CPU ribbon finishing and one MOV/no PNG"
+        )
     fixed_axis_recipe = appearance.identity() if appearance is not None else None
     lifecycle_hooks = _lifecycle_hooks()
     pipeline_hooks = _pipeline_hooks()

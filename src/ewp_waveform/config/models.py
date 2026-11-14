@@ -109,6 +109,12 @@ class PerformanceProfile(BaseModel):
     processing: dict[str, object] = Field(default_factory=dict)
     workdirs: dict[str, object] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _validate_ribbon_finish_lut(self) -> Self:
+        if type(self.processing.get("ribbon_finish_lut", False)) is not bool:
+            raise ValueError("processing.ribbon_finish_lut must be an explicit boolean")
+        return self
+
 
 class BenchmarkInput(BaseModel):
     # Input-only strictness prevents misspelled/coerced bounds becoming full-source jobs.

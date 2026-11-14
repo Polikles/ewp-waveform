@@ -157,6 +157,40 @@ Preset inheritance (`extends`) is intentionally excluded from MVP for simplicity
 Results store the fully resolved effective configuration, not only the preset name.
 
 
+## Opt-in exact CPU ribbon finishing
+
+The `ribbon-lut` performance profile explicitly sets
+`processing.ribbon_finish_lut = true` (strict boolean; omitted means false), with
+`jobs = 2` and the unchanged field-pool threshold of 1800 frames. Select it through
+the existing performance-profile API/CLI, for example
+`waveform render input.wav --preset iuris-ribbon-refined --performance ribbon-lut
+--format prores4444 --output-dir unique-output`. It is an execution choice, not a
+visual preset or a new default. Future GUI adapters can select the same profile.
+
+Only ordinary CPU ribbon finishing with one ProRes MOV and no PNG is supported.
+Other styles/routes, PNG or dual-output requests, and experiment adapters are
+refused, not silently routed through GEQ. Existing output/reuse identity remains
+unchanged because this setting promises exact decoded pixels, not a new look.
+An already validated matching output may still be reused without encoding.
+
+Each encode (each spawn worker chunk too) runs the selected FFmpeg's bounded
+actual GEQ/LUT byte qualification before preparing an exclusively owned PGM class
+mask. Sampling behavior is observed, never inferred from FFmpeg version. Failed
+qualification, unknown seams and unsupported geometry fail closed; no implicit
+fallback or hidden preparation cache is used. The unchanged production command's
+final gray GEQ alone is replaced; AA, glow, blend, crop, colorization and ProRes
+options are preserved.
+
+Qualification and mask preparation are inside service/end-to-end wall, including
+the parent parallel-encode span. Results retain `performance.extras.ribbon_finish_lut`
+for serial encoding or `ribbon_finish_lut_workers` (ordered chunk ranges and
+diagnostics) for pool encoding. These include qualification, preparation, selected
+argv and inclusive per-encode wall; worker times are not an additive parent CPU
+breakdown. Tiny adjacent `.ribbon-lut.json` workdir sidecars carry worker diagnostics
+to the parent before normal workdir cleanup. Unique PGM/qualification scratch is
+removed on success and failure. This bounded gate is not original-input/full-style
+performance confirmation or operator/NLE acceptance.
+
 ## Moving mouth — preserved activity style
 
 `iuris-moving-mouth` selects `signal.fixed_axis_profile="moving-mouth-v1"`.

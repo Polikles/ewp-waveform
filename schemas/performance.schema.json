@@ -40,6 +40,10 @@
         "ffmpeg_threads": {
           "type": "integer",
           "minimum": 0
+        },
+        "ribbon_finish_lut": {
+          "type": "boolean",
+          "default": false
         }
       }
     },

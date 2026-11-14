@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import time
 from collections.abc import Iterable
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -146,7 +151,19 @@ def encode_rgba_stream(
     n_frames: int | None = None,
     ribbon_finish: tuple[float, bool, float, float, float] | None = None,
     experiment: EncodeExperiment | SuiteEncoding | None = None,
+    ribbon_finish_lut: bool = False,
 ) -> None:
+    if type(ribbon_finish_lut) is not bool:
+        raise ValueError("ribbon_finish_lut must be an explicit boolean")
+    if ribbon_finish_lut and (
+        png_dir is not None
+        or prores_path is None
+        or ribbon_finish is None
+        or experiment is not None
+    ):
+        raise ValueError(
+            "ribbon_finish_lut requires ordinary CPU ribbon finishing and one MOV/no PNG"
+        )
     if experiment is not None and (png_dir is not None or prores_path is None):
         raise ValueError("experiments require one MOV output, never simultaneous PNG")
     if png_dir is None and prores_path is None:
@@ -273,6 +290,18 @@ def encode_rgba_stream(
             if isinstance(experiment, SuiteEncoding)
             else experiment_argv(argv, experiment)
         )
+    if ribbon_finish_lut:
+        assert prores_path is not None and ribbon_finish is not None
+        _encode_ribbon_lut(
+            argv,
+            frames,
+            prores_path=prores_path,
+            width=width,
+            height=height,
+            finish=ribbon_finish,
+            phases=phases,
+        )
+        return
     stderr_path = (
         experiment.command_log.with_suffix(".service.stderr")
         if experiment is not None and experiment.command_log is not None
@@ -292,6 +321,100 @@ def encode_rgba_stream(
     if completed.returncode != 0:
         msg = completed.stderr.decode("utf-8", errors="replace")
         raise EncodeError(msg.strip() or "ffmpeg encode failed")
+
+
+def _encode_ribbon_lut(
+    argv: list[str],
+    frames: Iterable[bytes],
+    *,
+    prores_path: Path,
+    width: int,
+    height: int,
+    finish: tuple[float, bool, float, float, float],
+    phases: Any | None,
+) -> None:
+    """Per-call qualification inside service wall; no cache or worker-global state.
+
+    Masks and qualifier scratch are uniquely output-workdir-owned and removed even
+    on failure. The small adjacent sidecar survives for pool-parent collection.
+    """
+    from ewp_waveform.ffmpeg.ribbon_lut import (
+        GeqSampling,
+        prepare_ribbon_lut,
+        qualify_ribbon_lut,
+        ribbon_lut_argv,
+    )
+
+    record: dict[str, Any] = {
+        "enabled": True,
+        "status": "started",
+        "ffmpeg": argv[0],
+        "pid": os.getpid(),
+        "output_path": str(prores_path),
+        "timing_scope": (
+            "inclusive qualification/setup/encode/scratch-cleanup wall; excludes lazy imports, "
+            "ordinary argv construction and sidecar serialization; "
+            "all included in outer service wall"
+        ),
+    }
+    sidecar = prores_path.with_suffix(".ribbon-lut.json")
+    started = time.perf_counter()
+    root: Path | None = None
+    try:
+        with TemporaryDirectory(prefix=".ribbon-lut-", dir=prores_path.parent) as directory:
+            root = Path(directory)
+            before = time.perf_counter()
+            try:
+                qualification = qualify_ribbon_lut(argv[0], root / "qualification")
+            except Exception:
+                record["qualification_diagnostics"] = {
+                    str(path.relative_to(root)): path.read_text(encoding="utf-8", errors="replace")
+                    for path in (root / "qualification").glob("*.stderr")
+                }
+                raise
+            finally:
+                record["qualification_seconds"] = time.perf_counter() - before
+            record["qualification"] = qualification
+            if qualification.get("passed") is not True:
+                raise ValueError("ribbon LUT selected-runtime qualification did not pass")
+            mode = qualification.get("sampling")
+            if mode not in ("identity", "smear"):
+                raise ValueError("ribbon LUT qualification returned unsupported GEQ sampling")
+            sampling = GeqSampling(argv[0], "identity" if mode == "identity" else "smear")
+            prepared = prepare_ribbon_lut(
+                root / "classes.pgm",
+                width=width,
+                height=height,
+                finish=finish,
+                sampling=sampling,
+            )
+            record["prepared"] = prepared.record()
+            command = ribbon_lut_argv(argv, prepared)
+            record["argv"] = command
+            record["setup_seconds"] = time.perf_counter() - started
+            stderr_path = root / "encode.stderr"
+            try:
+                completed = run_argv_stdin(command, frames, phases=phases, stderr_path=stderr_path)
+            finally:
+                if stderr_path.is_file():
+                    record["stderr"] = stderr_path.read_text(encoding="utf-8", errors="replace")
+            record["returncode"] = completed.returncode
+            record["stderr"] = completed.stderr.decode("utf-8", errors="replace")
+            if completed.returncode:
+                raise EncodeError(record["stderr"].strip() or "ffmpeg LUT encode failed")
+            record["status"] = "succeeded"
+    except (ValueError, subprocess.SubprocessError) as exc:
+        record.update(status="failed", error=f"{type(exc).__name__}: {exc}")
+        raise EncodeError(f"ribbon LUT refused: {exc}") from exc
+    except BaseException as exc:
+        record.update(status="failed", error=f"{type(exc).__name__}: {exc}")
+        raise
+    finally:
+        record["service_encode_seconds_including_setup"] = time.perf_counter() - started
+        record["temporary_masks_removed"] = root is None or not root.exists()
+        sidecar.write_text(json.dumps(record, indent=2), encoding="utf-8")
+        if phases is not None:
+            phases.extras["ribbon_finish_lut"] = record
 
 
 def _dual_output_argv(

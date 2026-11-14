@@ -1,0 +1,14 @@
+schema_version = 1
+name = "ribbon-lut"
+description = "Opt-in exact CPU ribbon finishing; runtime qualification per MOV encode."
+
+[processing]
+chunk_seconds = 60
+jobs = 2
+ffmpeg_threads = 0
+ribbon_finish_lut = true
+
+[workdirs]
+persistent = false
+keep_on_success = false
+keep_on_failure = true

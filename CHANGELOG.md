@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add the opt-in `ribbon-lut` CPU ProRes execution profile, preserving the exact
+  ribbon finish through runtime-qualified LUT tables, including spawn workers.
+  Qualify per encode inside service wall, retain worker diagnostics in results,
+  and refuse unsupported routes; existing execution defaults remain unchanged.
+
 - Restrict finite mirrored-contour coverage and alpha conversion to rows touched
   by nonempty intervals, retaining the complete owned uint8 mask, original tap
   reduction/arithmetic, center line, full-grid fallbacks and appearance identity.

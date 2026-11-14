@@ -457,6 +457,25 @@ def test_visual_peak_sampling_and_precompute_keep_canonical_columns(
     assert render.normalize_bins.call_count == min(2, length)
 
 
+@pytest.mark.parametrize("formats", [["png"], ["png", "prores4444"]])
+def test_lut_profile_refuses_non_mov_only_route_before_hashing(
+    fixed: SimpleNamespace, formats: list[str]
+) -> None:
+    fixed.context = replace(fixed.context, preset=load_preset("iuris-ribbon-refined"))
+    fixed.context.performance.processing["ribbon_finish_lut"] = True
+    with pytest.raises(ValueError, match="one MOV/no PNG"):
+        _run(fixed, formats=formats)
+    render.sha256_file.assert_not_called()
+    render.encode_rgba_stream.assert_not_called()
+
+
+def test_lut_profile_refuses_unrelated_style_before_hashing(fixed: SimpleNamespace) -> None:
+    fixed.context.performance.processing["ribbon_finish_lut"] = True
+    with pytest.raises(ValueError, match="ordinary CPU ribbon finishing"):
+        _run(fixed, formats=["prores4444"])
+    render.sha256_file.assert_not_called()
+
+
 def test_live_hook_view_and_payload_alias() -> None:
     hooks: FixedHooks = typed_render
     assert hooks is render and render._fixed_hooks() is hooks
@@ -497,7 +516,10 @@ def test_field_payload_preserves_scalars_and_appends_primitive_ribbon_finish() -
         "bar_color_b",
         "bar_center_line_width",
         "ribbon_finish",
+        "ribbon_finish_lut",
     ]
-    finish = fields(render.FieldChunkTask)[-1]
+    finish = fields(render.FieldChunkTask)[-2]
     assert finish.default is None
     assert finish.type == "tuple[float, bool, float, float, float] | None"
+    flag = fields(render.FieldChunkTask)[-1]
+    assert flag.default is False and flag.type == "bool"
