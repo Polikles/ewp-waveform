@@ -1034,6 +1034,7 @@ def invoke(
                 "crop",
                 "margin",
                 "finish_lut",
+                "jobs",
             )
         }
         value["experimental_settings"] = {

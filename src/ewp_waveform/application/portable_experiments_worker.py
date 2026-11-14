@@ -16,14 +16,16 @@ from typing import Any, cast
 from ewp_waveform.application.portable_experiments_state import identity, save
 
 
-def performance_file(root: Path, *, finish_lut: bool = False) -> Path:
+def performance_file(root: Path, *, finish_lut: bool = False, jobs: int = 2) -> Path:
     if type(finish_lut) is not bool:
         raise ValueError("finish_lut must be a strict bool")
+    if type(jobs) is not int or jobs not in (1, 2):
+        raise ValueError("service jobs must be integer 1 or 2")
     path = root / "performance.toml"
     # JSON-quoted forward slash paths are TOML basic-string safe on Windows too.
     path.write_text(
         'schema_version=1\nname="portable-experiment"\n[processing]\n'
-        "jobs=2\nffmpeg_threads=0\nchunk_seconds=60\n"
+        f"jobs={jobs}\nffmpeg_threads=0\nchunk_seconds=60\n"
         + f"ribbon_finish_lut={str(finish_lut).lower()}\n[workdirs]\npersistent=false\n"
         "root=" + json.dumps((root / "work").as_posix()) + "\n"
         "keep_on_success=false\nkeep_on_failure=true\n",
@@ -154,12 +156,21 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.ffmpeg.process import command_evidence
 
     finish_lut = request.get("finish_lut", False)
+    jobs = request.get("jobs", 2)
+    if type(jobs) is not int or jobs not in (1, 2):
+        raise ValueError("service jobs must be integer 1 or 2")
+    if jobs != 2 and request["workload"]["kind"] == "production32":
+        raise ValueError("serial service32 must not be labelled stock pool2 production32")
     if type(finish_lut) is not bool or (finish_lut and request.get("variant")):
         raise ValueError("service LUT requires a strict bool and no experiment adapter")
     root = Path(request["media"])
     root.mkdir(parents=True, exist_ok=False)
     evidence = Path(request["evidence"])
-    performance = performance_file(root, finish_lut=True) if finish_lut else performance_file(root)
+    performance = (
+        performance_file(root, finish_lut=finish_lut, jobs=jobs)
+        if finish_lut or jobs != 2
+        else performance_file(root)
+    )
     w = request["workload"]
     kwargs: dict[str, Any] = {
         "output_dir": root / "output",
@@ -175,8 +186,8 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         _, preset, perf, plans, _ = plan_jobs(Path(request["audio"]), **kwargs)
         if len(plans) != 1 or plans[0].action != "PROCESS" or plans[0].media is None:
             raise ValueError("exactly one fresh production PROCESS required")
-        if perf.processing.get("jobs") != 2:
-            raise ValueError("production jobs=2 configuration drift")
+        if perf.processing.get("jobs") != jobs:
+            raise ValueError("requested service worker policy drift")
         variant = request.get("variant")
         if variant:
             from ewp_waveform.application.experiments_render import ServiceExperiment
@@ -208,10 +219,10 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ValueError("production result failed fresh validated PROCESS requirements")
     if (
-        w["kind"] in ("production32", "full")
-        and result.get("analysis", {}).get("encode_workers") != 2
+        w["kind"] in ("production32", "full", "service32")
+        and result.get("analysis", {}).get("encode_workers") != jobs
     ):
-        raise ValueError("stock production route did not observe required multiprocessing pool2")
+        raise ValueError("service route did not observe required actual worker policy")
     output = Path(result["outputs"][0]["path"])
     valid = validation.inspect(
         request["ffmpeg"],
@@ -241,6 +252,7 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "route": "EXPLICIT_SHORT_SERVICE_EXPERIMENT" if variant else "STOCK_SERVICE",
         "workload": w,
         "variant": variant,
+        "worker_policy": "serial jobs1 (not stock pool2 production32)" if jobs == 1 else "jobs2",
         "output": str(output),
         "artifacts": [identity(output), identity(performance)],
         "service_result": result,

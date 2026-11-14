@@ -284,7 +284,7 @@ def campaign(
         elif lut.get("status") != "SUCCEEDED" or lut.get("passed") is not True:
             skipped("opt-service-lut32", "CPU LUT byte qualification failed")
         else:
-            service32 = {
+            service32: dict[str, Any] = {
                 "operation": "service",
                 "workload": {
                     "id": "production32",
@@ -300,6 +300,27 @@ def campaign(
                 {**service32, "finish_lut": True},
                 "actual production32 jobs2/two chunks; only qualified LUT finishing changes; "
                 "per-encode qualification/setup/publication included",
+            )
+            serial_window = {
+                **service32,
+                "workload": {
+                    **service32["workload"],
+                    "id": "service32",
+                    "kind": "service32",
+                },
+            }
+            pair(
+                "opt-service-workers32",
+                {**serial_window, "jobs": 2},
+                {**serial_window, "jobs": 1},
+                "same service32 window; only jobs policy changes; existing policy also "
+                "resolves encoder threads1 in pool vs automatic in serial",
+            )
+            pair(
+                "opt-service-serial-lut32",
+                {**serial_window, "jobs": 1},
+                {**serial_window, "jobs": 1, "finish_lut": True},
+                "same actual serial jobs1 service; only qualified LUT finishing changes",
             )
     pair(
         "opt-direct-ffv1",
