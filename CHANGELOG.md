@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add a focused `--optimize-single-file` current-code service campaign for serial
+  GEQ/LUT shorts, jobs2/jobs1 GEQ32 and serial LUT32, with optional independent CUDA
+  combined4/32. Keep the existing individual experiments separately selectable.
+- Add the bounded opt-in FIR serial-service adapter and CUDA-only
+  `--cuda-combined [--cuda-combined-service32]` campaign: device RGBA8, within-file
+  batch2 and ordinary completed timing. Include initialization and per-encode
+  qualification in matched service wall; keep external checks/cold envelopes
+  distinct. CPU Torch tests do not establish native CUDA performance or acceptance.
+
 - Add the opt-in `ribbon-lut` CPU ProRes execution profile, preserving the exact
   ribbon finish through runtime-qualified LUT tables, including spawn workers.
   Qualify per encode inside service wall, retain worker diagnostics in results,

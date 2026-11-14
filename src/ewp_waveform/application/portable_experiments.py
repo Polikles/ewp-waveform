@@ -870,8 +870,12 @@ def freeze(
         "preflight_only": args.preflight_only,
         "full": args.full or args.reference_only,
         "reference_only": args.reference_only,
-        "production32": not args.no_production32 and not args.optimize,
+        "production32": not args.no_production32
+        and not (args.optimize or args.cuda_combined or args.optimize_single_file),
         "cuda": args.cuda,
+        "cuda_combined": args.cuda_combined,
+        "cuda_combined_service32": args.cuda_combined_service32,
+        "optimize_single_file": args.optimize_single_file,
         "repeats": args.repeats,
         "optimize": args.optimize,
         "optimization": {
@@ -882,7 +886,7 @@ def freeze(
             "compact": getattr(args, "optimize_compact", False),
             "service32": getattr(args, "optimize_service32", False),
         },
-        "repeat_scope": "speech shortlist (or six-frame smoke) and selected serial service32; "
+        "repeat_scope": "speech shortlist (or six-frame smoke) and selected service32 pairs; "
         "sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
         "cuda_error": cuda_error,
@@ -1036,6 +1040,7 @@ def invoke(
                 "margin",
                 "finish_lut",
                 "jobs",
+                "torch_finish",
             )
         }
         value["experimental_settings"] = {
@@ -1261,6 +1266,16 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
 
     plan = step("audio-plan", {"operation": "audio-plan", "smoke": config["smoke"]})
     workloads = plan["workloads"]
+    if config.get("optimize_single_file"):
+        from ewp_waveform.application.single_file_campaign import campaign as single_file_campaign
+
+        single_file_campaign(config, workloads, step, skipped)
+        return make_result_views(results, step)
+    if config.get("cuda_combined"):
+        from ewp_waveform.application.cuda_combined_experiment import campaign as cuda_campaign
+
+        cuda_campaign(config, workloads, step, skipped)
+        return make_result_views(results, step)
     qualification: dict[str, Any] = {}
     if not config["smoke"] and (
         not config.get("optimize")
@@ -1574,6 +1589,21 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--audio", type=Path)
     p.add_argument(
+        "--optimize-single-file",
+        action="store_true",
+        help="targeted GEQ/LUT short then jobs policy32/LUT32; --cuda adds combined FIR4/32",
+    )
+    p.add_argument(
+        "--cuda-combined",
+        action="store_true",
+        help="only matched serial FIR service short: host-reference vs RGBA8/batch2/ordinary",
+    )
+    p.add_argument(
+        "--cuda-combined-service32",
+        action="store_true",
+        help="after successful combined original-input shorts, also matched serial FIR service32",
+    )
+    p.add_argument(
         "--optimize",
         action="store_true",
         help="small speech-only direct CPU FFV1/thread campaign; not the historical matrix",
@@ -1761,6 +1791,28 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--cpu-smoke cannot authorize a full render")
     if args.optimize_service32 and not args.optimize:
         p.error("--optimize-service32 requires --optimize")
+    if args.cuda_combined_service32 and not args.cuda_combined:
+        p.error("--cuda-combined-service32 requires --cuda-combined")
+    if args.optimize_single_file and (
+        args.optimize
+        or args.cuda_combined
+        or args.full
+        or args.reference_only
+        or args.preflight_only
+        or args.setup_only
+    ):
+        p.error(
+            "--optimize-single-file excludes optimize/combined/full/reference/preflight/setup-only"
+        )
+    if args.cuda_combined and (
+        not args.cuda
+        or args.optimize
+        or args.full
+        or args.reference_only
+        or args.preflight_only
+        or args.setup_only
+    ):
+        p.error("--cuda-combined requires --cuda and excludes optimize/full/reference/preflight")
     if args.optimize and (args.full or args.reference_only):
         p.error("--optimize is a bounded shortlist, never --full/--reference-only")
     optimization_flags = {
@@ -1789,6 +1841,9 @@ def main(argv: list[str] | None = None) -> int:
         option in {token.split("=", 1)[0] for token in argv}
         for option in (
             "--audio",
+            "--optimize-single-file",
+            "--cuda-combined",
+            "--cuda-combined-service32",
             "--optimize",
             "--optimize-compact",
             "--optimize-encoder-threads",

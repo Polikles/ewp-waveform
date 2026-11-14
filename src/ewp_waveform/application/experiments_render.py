@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from ewp_waveform.application import render_fixed, render_lifecycle
 from ewp_waveform.application.render_pipelines import PipelineHooks
@@ -16,6 +16,22 @@ from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.domain.models import PlannedJob
 from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding
 from ewp_waveform.ffmpeg.experiments import EncodeExperiment
+
+
+class RenderExperiment(Protocol):
+    """Internal structural bridge; each adapter owns its bounded admission."""
+
+    def validate(
+        self, job: PlannedJob, preset: VisualPreset, formats: list[str], duration: float | None
+    ) -> None: ...
+
+    def identity(self) -> dict[str, Any]: ...
+
+    def lifecycle_hooks(
+        self, base: render_lifecycle.LifecycleHooks
+    ) -> render_lifecycle.LifecycleHooks: ...
+
+    def pipeline_hooks(self, base: PipelineHooks) -> PipelineHooks: ...
 
 
 class _View:
