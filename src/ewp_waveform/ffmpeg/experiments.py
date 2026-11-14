@@ -539,6 +539,23 @@ def frame_metrics(original: bytes, padded: bytes, width: int, height: int) -> di
     int32 covers products/differences; int64 reductions avoid overflow. Never
     include fully transparent RGB in ROI or round compositing before summation.
     """
+    if original == padded:
+        # Byte equality proves every error/composite term zero, including hidden
+        # RGB. Retain the exact original ROI denominators without full int32 RGB
+        # conversions, checker allocation or three redundant composite passes.
+        aa = np.frombuffer(original, dtype=np.uint8).reshape(height, width, 4)[:, :, 3]
+        return {
+            "union_count": int(np.count_nonzero(aa)),
+            "alpha_error": 0,
+            "rgb_error": 0,
+            "edge_error": 0,
+            "edge_n": int(np.count_nonzero((aa > 0) & (aa < 255))),
+            "halo_error": 0,
+            "halo_n": int(np.count_nonzero((aa > 0) & (aa < 32))),
+            "081018": 0,
+            "F0F0F0": 0,
+            "checkerboard": 0,
+        }
     a = np.frombuffer(original, dtype=np.uint8).reshape(height, width, 4).astype(np.int32)
     b = np.frombuffer(padded, dtype=np.uint8).reshape(height, width, 4).astype(np.int32)
     aa, ba = a[:, :, 3], b[:, :, 3]

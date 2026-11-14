@@ -12,6 +12,8 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ewp_waveform.ffmpeg.experiments import (
     frame_metrics,
     inspect_view,
@@ -178,6 +180,8 @@ def inspect(
         ffprobe,
         "-v",
         "error",
+        "-threads",
+        "0",
         "-select_streams",
         "v:0",
         "-show_entries",
@@ -205,11 +209,11 @@ def inspect(
             digest.update(block)
             alpha = block[3::4]
             alpha_digest.update(alpha)
-            minimum, maximum = min(minimum, min(alpha)), max(maximum, max(alpha))
+            alpha_values = np.frombuffer(alpha, dtype=np.uint8)
+            minimum = min(minimum, int(alpha_values.min()))
+            maximum = max(maximum, int(alpha_values.max()))
             if previous is not None:
                 # Integral temporal alpha delta, not an appearance threshold.
-                import numpy as np
-
                 temporal += int(
                     abs(
                         np.frombuffer(alpha, dtype=np.uint8).astype(np.int16)

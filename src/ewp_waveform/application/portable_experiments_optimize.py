@@ -179,7 +179,8 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         "visual": "PENDING",
         "studio": "PENDING",
         "analysis_cache_policy": "disabled identically on both direct-pipeline sides",
-        "execution_policy": "explicit serial jobs1;32s direct pairs are not stock pool2 production32",
+        "execution_policy": "explicit serial jobs1; "
+        "32s direct pairs are not stock pool2 production32",
         "claim": "direct native output; no master decode; no Resolve support or speedup claim",
     }
 
