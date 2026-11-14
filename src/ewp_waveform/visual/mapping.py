@@ -237,7 +237,7 @@ class RefinedRibbonMapping(CenterOutMapping):
 
     SHAPE_SECONDS = 0.24
     SHAPE_SUPPORT_SECONDS = 0.60
-    LOBE_CENTERS = (
+    LOBE_CENTERS: tuple[float, ...] = (
         -58.0,
         -52.1,
         -47.0,
@@ -283,9 +283,17 @@ class RefinedRibbonMapping(CenterOutMapping):
         # A bounded, sequence-identity-scoped descriptor memo, not temporal state.
         # Each immutable slot update is independent; concurrent/random accesses
         # may recompute a value but cannot change the returned field.
-        self._texture_memo: tuple[
-            AnalysisSequence, list[tuple[int, tuple[float, ...]] | None]
-        ] | None = None
+        self._texture_memo: (
+            tuple[
+                AnalysisSequence,
+                list[tuple[int, tuple[float, ...]] | None],
+                tuple[int, tuple[tuple[float, ...], ...], int],
+            ]
+            | None
+        ) = None
+        self._offset_memo: (
+            tuple[tuple[int, tuple[float, ...], int], tuple[tuple[float, ...], ...]] | None
+        ) = None
         sigma = {"smooth": 2.6, "balanced": 1.2, "detailed": 0.6}[detail_level]
         self.contrast = 2.0
         self.width_scale = {"smooth": 1.8, "balanced": 1.0, "detailed": 0.65}[detail_level]
@@ -320,12 +328,17 @@ class RefinedRibbonMapping(CenterOutMapping):
 
         Capture one memo locally so another caller switching sequences cannot
         associate a descriptor with the wrong sequence. There are no global
-        caches, float-key comparisons, rounded keys or changes to reduction order.
+        caches, rounded keys or changes to reduction order. The frame-local
+        descriptor configuration is part of the memo identity as well.
         """
         capacity = math.ceil(self.SHAPE_SUPPORT_SECONDS * self.fps) + 1
+        # These public attributes can be replaced between evaluations. The ring
+        # predates geometry precomputation, but must not retain stale descriptors
+        # when their actual upstream configuration changes either.
+        state = (self.n_bands, self.feature_weights, len(self.LOBE_CENTERS))
         memo = self._texture_memo
-        if memo is None or memo[0] is not sequence or len(memo[1]) != capacity:
-            memo = (sequence, [None] * capacity)
+        if memo is None or memo[0] is not sequence or len(memo[1]) != capacity or memo[2] != state:
+            memo = (sequence, [None] * capacity, state)
             self._texture_memo = memo
         slot = index % capacity
         entry = memo[1][slot]
@@ -356,6 +369,20 @@ class RefinedRibbonMapping(CenterOutMapping):
 
         return 0.65 * sample(channel) + 0.35 * sample(channel // 3 + 100)
 
+    def _lobe_offsets(self) -> tuple[tuple[float, ...], ...]:
+        """One geometry table; retain subtraction before division and squaring."""
+        state = (self.center, tuple(self.LOBE_CENTERS), len(self.carrier))
+        memo = self._offset_memo
+        if memo is None or memo[0] != state:
+            center, centers, slots = state
+            offsets = tuple(
+                tuple(float(slot - center) - lobe_center for slot in range(slots))
+                for lobe_center in centers
+            )
+            memo = (state, offsets)
+            self._offset_memo = memo
+        return memo[1]
+
     def _compose_field(
         self,
         level: float,
@@ -379,14 +406,26 @@ class RefinedRibbonMapping(CenterOutMapping):
                 width = (0.68 + 3.0 * ratio * ratio) * self.width_scale
                 width *= 1.0 + 0.48 * self.visual_noise * w_noise
             lobes.append((strength, width))
-        amplitudes = []
-        for slot, gain in enumerate(self.carrier):
-            d = float(slot - self.center)
-            local = sum(
-                strength * math.exp(-0.5 * ((d - center) / width) ** 2)
-                for center, (strength, width) in zip(self.LOBE_CENTERS, lobes, strict=True)
+        # Keep each slot's terms and sum in the original lobe order (including
+        # Python's float-sum semantics). Lobe-major comprehensions avoid a Python
+        # generator resume and zipped tuple unpacking for every slot/lobe pair.
+        # Only d-center is fixed: (d-center)/width must still precede **2.
+        if not self.carrier:
+            return VisualField.from_amplitudes([])
+        exp = math.exp
+        terms = [
+            [strength * exp(-0.5 * (offset / width) ** 2) for offset in offsets]
+            for offsets, (strength, width) in zip(self._lobe_offsets(), lobes, strict=True)
+        ]
+        if not terms:
+            # The original sum of zero lobes is integer zero at every slot.
+            return VisualField.from_amplitudes(
+                [level * gain * (0.015 + 0) for gain in self.carrier]
             )
-            amplitudes.append(level * gain * (0.015 + local))
+        amplitudes = [
+            level * gain * (0.015 + sum(values))
+            for gain, values in zip(self.carrier, zip(*terms, strict=True), strict=True)
+        ]
         return VisualField.from_amplitudes(amplitudes)
 
     def idle_at(self, index: int) -> VisualField:
