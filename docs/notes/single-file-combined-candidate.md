@@ -38,7 +38,9 @@ strict comparative decoding and views remain outside; the supervisor also retain
 launch-through-exit cold worker wall. Inclusive encode/finishing spans are
 non-additive and never called encoder-exclusive CPU time.
 
-Control is host-reference/batch1/diagnostic. Candidate is the combined tuple above.
+Control retains the demonstrated host-reuse/batch1/diagnostic assembly improvement.
+Candidate is the combined tuple above. The allocating host-reference control remains
+separately selectable in the existing individual campaign, not the denominator here.
 Each tuple also has a separate qualification gate before the timed campaign. Every
 observation uses a new namespace and per-encode qualification is deliberately not
 reused across files. Analysis-cache hooks are disabled on both FIR service sides.

@@ -378,6 +378,11 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "opt-service-lut32": {"finish_lut"},
                 "opt-service-workers32": {"jobs"},
                 "opt-service-serial-lut32": {"finish_lut"},
+                "single-file-short-lut": {"finish_lut"},
+                "single-file-lut32": {"finish_lut"},
+                "single-file-jobs32": {"jobs"},
+                "cuda-combined-short": {"output_mode", "batch_size", "timing_mode"},
+                "cuda-combined-service32": {"output_mode", "batch_size", "timing_mode"},
             }.get(group, set())
             if changed_controls - allowed_controls:
                 reason = "undeclared experimental control changes"

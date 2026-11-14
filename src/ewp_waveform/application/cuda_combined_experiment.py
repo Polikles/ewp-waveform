@@ -20,7 +20,7 @@ from ewp_waveform.config.models import VisualPreset
 from ewp_waveform.domain.models import PlannedJob
 
 CONTROL: dict[str, Any] = {
-    "output_mode": "host-reference",
+    "output_mode": "host-reuse",
     "batch_size": 1,
     "timing_mode": "diagnostic",
 }
@@ -287,7 +287,7 @@ def campaign(
                         "order": order,
                         "side": side,
                         "comparison": "combined device RGBA8 + within-file batch2 + ordinary "
-                        "timing vs host-reference batch1 diagnostic; same serial service API; "
+                        "timing vs retained host-reuse batch1 diagnostic; same serial service API; "
                         "initialization/per-encode qualification/validation/publication included",
                     },
                 }
