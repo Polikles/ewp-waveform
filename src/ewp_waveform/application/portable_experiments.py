@@ -208,7 +208,9 @@ def original_inventory(run: Path, media: Path) -> dict[str, Any]:
         observations[name] = (
             {
                 "binary": identity(Path(executable)),
-                **run_command([executable, *arguments], run / ("original-" + name), timeout=20),
+                **bootstrap_command(
+                    [executable, *arguments], run / ("original-" + name), timeout=20
+                ),
             }
             if executable
             else {"status": "NOT_FOUND"}
@@ -217,17 +219,25 @@ def original_inventory(run: Path, media: Path) -> dict[str, Any]:
     return value
 
 
+def bootstrap_command(argv: list[str], root: Path, **kwargs: Any) -> dict[str, Any]:
+    from ewp_waveform.application.portable_experiments_dependencies import require_process_safe
+
+    observed = run_command(argv, root, **kwargs)
+    require_process_safe(observed)
+    return observed
+
+
 def python_candidates() -> list[Path]:
     return [ROOT / ".venv/Scripts/python.exe", ROOT / ".venv/bin/python"]
 
 
 def probe_python(python: Path, folder: Path, *, optional: bool = False) -> dict[str, Any]:
-    observed = run_command(
+    observed = bootstrap_command(
         [str(python), str(DRIVER), "--_environment", *(["--_optional"] if optional else [])],
         folder,
         env=child_env(),
         cwd=ROOT,
-        timeout=60,
+        timeout=300 if optional else 60,
     )
     if observed["returncode"] != 0 or observed["error"]:
         raise ValueError(
@@ -243,34 +253,57 @@ def select_python(
     *,
     media: Path | None = None,
     limits: dict[str, Any] | None = None,
+    managed_root: Path | None = None,
+    rerun: list[str] | None = None,
+    uv_path: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     candidates = [explicit.expanduser().absolute()] if explicit else python_candidates()
     for index, candidate in enumerate(candidates):
         if candidate.is_file():
             try:
                 return candidate, probe_python(candidate, run / f"python-candidate-{index}")
+            except (ResourceAdmissionError, ProcessOwnershipError):
+                raise
             except ValueError:
                 if explicit:
                     raise
-    uv = shutil.which("uv")
+    if explicit:
+        raise ValueError(f"explicit --python does not exist; no install attempted: {explicit}")
+    from ewp_waveform.application.portable_experiments_dependencies import (
+        SETUP_ESTIMATES,
+        admit_setup,
+        discover_environment,
+        missing_uv,
+        new_attempt,
+        register_environment,
+        reuse_environment,
+        setup_environment,
+    )
+
+    store = managed_root or run / "managed-dependencies"
+    reused = reuse_environment(store, ROOT, "runtime", run, probe_python) or discover_environment(
+        store, ROOT, "runtime", run, probe_python
+    )
+    if reused:
+        selected, environment, receipt = reused
+        save(run / "runtime-reuse.json", receipt)
+        return selected, environment
+    uv = uv_path or shutil.which("uv")
     if not uv:
-        raise ValueError("provide uv, checkout .venv, or --python pointing to a frozen Python 3.12")
-    # Never repair an existing user environment: setup gets its own namespace.
-    target = run / "python-env"
-    outside_git([target])
+        raise ValueError(missing_uv(rerun or [str(DRIVER), *sys.argv[1:]]))
     if media is None or limits is None:
         raise ValueError("automatic Python setup requires explicit run+media admission limits")
-    check_budget(run, media, limits)
-    observed = run_command(
+    admit_setup(run, media, limits, SETUP_ESTIMATES["runtime"])
+    attempt = new_attempt(store, ROOT, "runtime")
+    target = attempt / "env"
+    observed = bootstrap_command(
         [uv, "sync", "--frozen", "--no-dev", "--python", "3.12", "--project", str(ROOT)],
         run / "uv-sync",
         timeout=900,
         monitor=lambda: check_budget(run, media, limits),
         env={
-            **child_env(),
+            **setup_environment(store, child_env()),
             "UV_PROJECT_ENVIRONMENT": str(target),
-            "UV_CACHE_DIR": str(run / "uv-cache"),
-            "UV_PYTHON_INSTALL_DIR": str(run / "python-managed"),
         },
         cwd=ROOT,
     )
@@ -279,7 +312,11 @@ def select_python(
             "uv sync --frozen failed; no dependency versions changed\n" + observed["stderr"]
         )
     selected = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    return selected, probe_python(selected, run / "selected-python")
+    environment = probe_python(selected, run / "selected-python")
+    receipt = register_environment(store, ROOT, "runtime", selected, environment)
+    save(run / "runtime-setup.json", receipt)
+    check_budget(run, media, limits)
+    return selected, environment
 
 
 def inventory_pair(ffmpeg: Path, ffprobe: Path, root: Path) -> dict[str, Any]:
@@ -299,7 +336,7 @@ def inventory_pair(ffmpeg: Path, ffprobe: Path, root: Path) -> dict[str, Any]:
         ("hwaccels", [str(ffmpeg), "-hwaccels"]),
         ("ffprobe-version", [str(ffprobe), "-version"]),
     ):
-        record = run_command(argv, root / label)
+        record = bootstrap_command(argv, root / label)
         record["stdout_file"] = identity(root / label / "stdout.txt")
         observations[label] = record
         if record["returncode"] != 0 or record["error"]:
@@ -307,7 +344,9 @@ def inventory_pair(ffmpeg: Path, ffprobe: Path, root: Path) -> dict[str, Any]:
     libraries: list[dict[str, Any]] = []
     if sys.platform.startswith("linux") and shutil.which("ldd"):
         for name, item in pair.items():
-            record = run_command([str(shutil.which("ldd")), item["path"]], root / ("ldd-" + name))
+            record = bootstrap_command(
+                [str(shutil.which("ldd")), item["path"]], root / ("ldd-" + name)
+            )
             for token in record["stdout"].split():
                 if token.startswith("/") and Path(token).is_file():
                     info = identity(Path(token))
@@ -354,6 +393,8 @@ def choose_tools(
             installed = inventory_pair(
                 Path(first["ffmpeg"]), Path(first["ffprobe"]), run / "installed-tools"
             )
+        except (ResourceAdmissionError, ProcessOwnershipError):
+            raise
         except Exception as exc:
             discovery.append({"role": "installed baseline", "error": str(exc)})
     candidates = [installed] if installed else []
@@ -368,6 +409,8 @@ def choose_tools(
                 candidates.append(
                     inventory_pair(ffmpeg, ffprobe, run / f"discovered-tools-{index}")
                 )
+            except (ResourceAdmissionError, ProcessOwnershipError):
+                raise
             except Exception as exc:
                 discovery.append(
                     {"role": "discovered candidate", "path": str(ffmpeg), "error": str(exc)}
@@ -379,17 +422,26 @@ def choose_tools(
         setup.mkdir()
         request = {
             "operation": "prepare-tools",
-            "media": str(run / "ffmpeg-tools"),
+            "media": str(
+                args._managed_root
+                / "ffmpeg"
+                / identity(ROOT / "src/ewp_waveform/ffmpeg/portable_ffmpeg_lock.json")["sha256"]
+            ),
             "result_path": str(setup / "value.json"),
         }
         save(setup / "request.json", request)
-        limits = {
-            "growth_bytes": args.max_growth_gib * 1024**3,
-            "reserve_bytes": args.reserve_gib * 1024**3,
-            "memory_floor_bytes": 128 * 1024**2,
-        }
+        from ewp_waveform.application.portable_experiments_dependencies import admit_setup
+        from ewp_waveform.ffmpeg.portable_tools import read_lock
+
+        limits = args._setup_limits
+        tool_lock = read_lock()
+        destination = Path(request["media"]) / tool_lock["archive_root"]
+        if not destination.exists():
+            admit_setup(
+                run, media, limits, tool_lock["max_archive_bytes"] + tool_lock["max_expanded_bytes"]
+            )
         check_budget(run, media, limits)
-        observed = run_command(
+        observed = bootstrap_command(
             [str(python), str(DRIVER), "--_worker", str(setup / "request.json")],
             setup / "process",
             env=child_env(),
@@ -437,6 +489,161 @@ def make_smoke_audio(path: Path) -> None:
         )
 
 
+def dependency_policy(args: argparse.Namespace, run: Path, media: Path) -> dict[str, Any]:
+    """Print/persist explicit independent setup and render policy before downloads."""
+    from ewp_waveform.application.portable_experiments_dependencies import (
+        SETUP_ESTIMATES,
+        setup_limits,
+    )
+
+    store = (args.managed_root or args.output_root / "managed-dependencies").expanduser().resolve()
+    outside_git([store])
+    if any(store.is_relative_to(p) or p.is_relative_to(store) for p in (run, media)):
+        raise ValueError("managed dependency store must be disjoint from run/media namespaces")
+    args._managed_root = store
+    args._setup_limits = setup_limits(store, args.setup_max_growth_gib, args.reserve_gib)
+    policy = {
+        "managed_root": str(store),
+        "setup_new_allocation_bytes": args._setup_limits["growth_bytes"],
+        "setup_baseline_bytes": args._setup_limits["baseline_bytes"],
+        "render_retained_allocation_bytes": args.max_growth_gib * 1024**3,
+        "free_reserve_bytes": args.reserve_gib * 1024**3,
+        "planning_estimates_bytes": SETUP_ESTIMATES,
+        "defaults_reason": (
+            "24GiB setup allows CUDA wheels+unpack+copy fallback; admission estimates "
+            "2GiB runtime, 16GiB Linux/10GiB Windows CUDA. 8GiB render is a short-screen "
+            "retention policy, not full-render sizing; 10GiB disk reserve is an operator "
+            "safety margin. These are configurable policies, not VM/host capacity claims."
+        ),
+        "accounting": (
+            "global inode dedup; allocated blocks where available; logical fallback labelled"
+        ),
+        "limits": "sampled admission/monitoring, not kernel quotas; temporary peaks may be missed",
+    }
+    print(
+        "Dependency/render resource policy (before acquisition):\n" + json.dumps(policy, indent=2),
+        flush=True,
+    )
+    save(run / "preparation-policy.json", policy)
+    from ewp_waveform.application.portable_experiments_dependencies import existing_uv
+
+    args._uv_path = existing_uv(store)
+    if args.setup_uv:
+        from ewp_waveform.application.portable_experiments_dependencies import bootstrap_uv
+
+        args._uv_path = bootstrap_uv(store, run, media, args._setup_limits, child_env())
+    return policy
+
+
+def dependency_action(args: argparse.Namespace) -> int:
+    """Independent readback/preparation; never continue or rewrite an old campaign."""
+    from ewp_waveform.application.portable_experiments_dependencies import register_environment
+    from ewp_waveform.application.portable_experiments_state import tree_usage
+
+    if args.inspect_storage is not None:
+        roots = [
+            p.expanduser().resolve(strict=True)
+            for p in (args.inspect_storage or [args.output_root])
+        ]
+        print(
+            json.dumps(
+                {
+                    "roots": list(map(str, roots)),
+                    **tree_usage(roots, max_entries=1_000_000, timeout_seconds=args.timeout),
+                },
+                indent=2,
+            )
+        )
+        return 0
+    token = uuid.uuid4().hex
+    run = args.output_root.expanduser().resolve() / ("dependency-check-" + token)
+    outside_git([run])
+    run.mkdir(parents=True, exist_ok=False)
+    try:
+        if args.verify_environment:
+            python = args.verify_environment.expanduser().absolute()
+            environment = probe_python(python, run / "environment", optional=args.cuda)
+            receipt = None
+            if args.register_environment:
+                store = (
+                    (args.managed_root or args.output_root / "managed-dependencies")
+                    .expanduser()
+                    .resolve()
+                )
+                receipt = register_environment(
+                    store, ROOT, "cu128" if args.cuda else "runtime", python, environment
+                )
+            save(run / "verified.json", {"environment": environment, "registered": receipt})
+            value = {"status": "VERIFIED_DEPENDENCIES_ONLY", "python": str(python)}
+        else:
+            media = run / "unused-media"
+            media.mkdir()
+            # Store and output namespace are disjoint; this directory contains no render media.
+            dependency_policy(args, run, media)
+            python, environment = select_python(
+                args.python,
+                run,
+                media=media,
+                limits=args._setup_limits,
+                managed_root=args._managed_root,
+                rerun=args._rerun,
+                uv_path=args._uv_path,
+            )
+            if args.cuda:
+                if args.install_cuda:
+                    from ewp_waveform.application.portable_experiments_setup import install_cuda
+
+                    python, _ = install_cuda(
+                        python,
+                        environment,
+                        run,
+                        media,
+                        args._setup_limits,
+                        child_env(),
+                        managed_root=args._managed_root,
+                        probe=probe_python,
+                        rerun=args._rerun,
+                        uv_path=args._uv_path,
+                    )
+                else:
+                    from ewp_waveform.application.portable_experiments_dependencies import (
+                        prepared_environment,
+                    )
+
+                    reused = (
+                        None
+                        if args.cuda_python
+                        else prepared_environment(
+                            args._managed_root, ROOT, "cu128", run, probe_python
+                        )
+                    )
+                    python = args.cuda_python or (reused[0] if reused else python)
+                    environment = (
+                        reused[1]
+                        if reused
+                        else probe_python(python, run / "cuda-verification", optional=True)
+                    )
+                    register_environment(args._managed_root, ROOT, "cu128", python, environment)
+            if args.prepare_ffmpeg:
+                original = original_inventory(run, media)
+                choose_tools(args, original, run, media, python)
+            value = {"status": "DEPENDENCIES_READY_NO_RENDER", "python": str(python)}
+        save(run / "result.json", value)
+        print(json.dumps({**value, "report": str(run / "result.json")}, indent=2))
+        return 0
+    except Exception as exc:
+        status = (
+            "REFUSED_RESOURCE_LIMIT"
+            if isinstance(exc, ResourceAdmissionError)
+            else "UNVERIFIED_PROCESS_OWNERSHIP"
+            if isinstance(exc, ProcessOwnershipError)
+            else "FAILED"
+        )
+        save(run / "result.json", {"status": status, "error": str(exc)})
+        print(f"Dependency check failed: {exc}\nReport: {run / 'result.json'}")
+        return 1
+
+
 def freeze(
     args: argparse.Namespace, run: Path, media: Path, original: dict[str, Any]
 ) -> dict[str, Any]:
@@ -455,12 +662,16 @@ def freeze(
         )
     if args.audio:
         outside_git([run, media], audio)
-    admission = {
-        "growth_bytes": args.max_growth_gib * 1024**3,
-        "reserve_bytes": args.reserve_gib * 1024**3,
-        "memory_floor_bytes": 128 * 1024**2,
-    }
-    python, environment = select_python(args.python, run, media=media, limits=admission)
+    preparation = dependency_policy(args, run, media)
+    python, environment = select_python(
+        args.python,
+        run,
+        media=media,
+        limits=args._setup_limits,
+        managed_root=args._managed_root,
+        rerun=getattr(args, "_rerun", None),
+        uv_path=args._uv_path,
+    )
     if (args.ffmpeg is None) != (args.ffprobe is None):
         raise ValueError("--ffmpeg and --ffprobe must be supplied together")
     installed, selected, tool_acquisition = choose_tools(args, original, run, media, python)
@@ -482,18 +693,30 @@ def freeze(
                     environment,
                     run,
                     media,
-                    {
-                        "growth_bytes": args.max_growth_gib * 1024**3,
-                        "reserve_bytes": args.reserve_gib * 1024**3,
-                        "memory_floor_bytes": 128 * 1024**2,
-                    },
+                    args._setup_limits,
                     child_env(),
+                    managed_root=args._managed_root,
+                    probe=probe_python,
+                    rerun=getattr(args, "_rerun", None),
+                    uv_path=args._uv_path,
                 )
-            cuda_environment = probe_python(
-                cuda_python,
-                run / "cuda-environment",
-                optional=True,
-            )
+            elif not args.cuda_python:
+                from ewp_waveform.application.portable_experiments_dependencies import (
+                    prepared_environment,
+                )
+
+                reused = prepared_environment(args._managed_root, ROOT, "cu128", run, probe_python)
+                if reused:
+                    cuda_python, cuda_environment, cuda_setup = reused
+                    save(run / "cuda-reuse.json", cuda_setup)
+            if cuda_environment is None:
+                cuda_environment = probe_python(
+                    cuda_python,
+                    run / "cuda-environment",
+                    optional=True,
+                )
+        except (ResourceAdmissionError, ProcessOwnershipError):
+            raise
         except Exception as exc:
             cuda_error = str(exc)  # Optional; CPU and Vulkan still run.
     if source_identity(ROOT) != source:
@@ -527,6 +750,7 @@ def freeze(
         "cuda_error": cuda_error,
         "cuda_python": str(cuda_python),
         "cuda_setup": cuda_setup,
+        "preparation_policy": preparation,
         "device": args.device,
         "expected_device": args.expect_device_regex,
         "visual_overrides": template["visual_overrides"],
@@ -550,7 +774,8 @@ def verify_config(run: Path, verification: Path) -> dict[str, Any]:
         raise ValueError("retained CUDA environment/setup failure; use a new namespace, no replay")
     if config.get("cuda_setup"):
         for key in ("requirements", "lock", "receipt", "uv"):
-            verify(config["cuda_setup"][key])
+            if key in config["cuda_setup"]:
+                verify(config["cuda_setup"][key])
     if config["run"] != str(run) or config["source"] != source_identity(ROOT):
         raise ValueError("frozen namespace/source changed; use a new namespace")
     if config["original_path"] != os.environ.get("PATH", ""):
@@ -1180,7 +1405,51 @@ def parser() -> argparse.ArgumentParser:
         default=2,
         help="even pair repetitions (2..10), sequential AB/BA; other baselines run once",
     )
-    p.add_argument("--max-growth-gib", type=float, default=8.0)
+    p.add_argument(
+        "--setup-uv",
+        action="store_true",
+        help="explicit private uv 0.12.6 install using bootstrap venv; "
+        "never alters PATH/global Python",
+    )
+    p.add_argument(
+        "--managed-root",
+        type=Path,
+        help="persistent verified dependency/tool store (default output-root/managed-dependencies)",
+    )
+    p.add_argument(
+        "--setup-only",
+        action="store_true",
+        help="explicit isolated dependency preparation; no audio or renders",
+    )
+    p.add_argument(
+        "--verify-environment",
+        type=Path,
+        help="read-only verify an existing interpreter, independently of any failed run",
+    )
+    p.add_argument(
+        "--register-environment",
+        action="store_true",
+        help="register --verify-environment for future verified reuse",
+    )
+    p.add_argument(
+        "--inspect-storage",
+        type=Path,
+        nargs="*",
+        help="read-only global allocated/logical accounting; no paths means output-root",
+    )
+    p.add_argument(
+        "--setup-max-growth-gib",
+        type=float,
+        default=24.0,
+        help="separate new installation/cache/temp allowance; "
+        "conservative CUDA copy/unpack headroom",
+    )
+    p.add_argument(
+        "--max-growth-gib",
+        type=float,
+        default=8.0,
+        help="campaign render/media/evidence allowance, excludes managed preparation",
+    )
     p.add_argument("--reserve-gib", type=float, default=10.0)
     return p
 
@@ -1207,7 +1476,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     p = parser()
     args = p.parse_args(argv)
-    if not args.resume and not args.audio and not args.cpu_smoke:
+    if not (
+        args.resume
+        or args.audio
+        or args.cpu_smoke
+        or args.setup_only
+        or args.verify_environment
+        or args.inspect_storage is not None
+    ):
         p.error("--audio PATH required except with --cpu-smoke or --resume")
     if args.cpu_smoke and (args.full or args.reference_only):
         p.error("--cpu-smoke cannot authorize a full render")
@@ -1219,13 +1495,20 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--install-cuda creates its own environment; do not combine with --cuda-python")
     if args.repeats not in range(2, 11, 2):
         p.error("--repeats must be even, between 2 and 10, for balanced AB/BA orders")
-    for name in ("timeout", "max_growth_gib", "reserve_gib"):
+    for name in ("timeout", "max_growth_gib", "setup_max_growth_gib", "reserve_gib"):
         if not math.isfinite(getattr(args, name)) or getattr(args, name) <= 0:
             p.error(f"--{name.replace('_', '-')} must be finite and positive")
     if args.resume and any(
         option in {token.split("=", 1)[0] for token in argv}
         for option in (
             "--audio",
+            "--managed-root",
+            "--setup-uv",
+            "--setup-only",
+            "--verify-environment",
+            "--register-environment",
+            "--inspect-storage",
+            "--setup-max-growth-gib",
             "--python",
             "--ffmpeg",
             "--ffprobe",
@@ -1249,6 +1532,17 @@ def main(argv: list[str] | None = None) -> int:
         )
     ):
         p.error("--resume has no setup/execution overrides; use a new namespace")
+    args._rerun = [str(DRIVER), *argv]
+    if (args.verify_environment or args.inspect_storage is not None) and (
+        args.setup_uv or args.install_cuda or args.prepare_ffmpeg
+    ):
+        p.error("verification/storage inspection cannot authorize installation")
+    if args.register_environment and not args.verify_environment:
+        p.error("--register-environment requires --verify-environment PATH")
+    if sum((args.setup_only, bool(args.verify_environment), args.inspect_storage is not None)) > 1:
+        p.error("--setup-only, --verify-environment and --inspect-storage are independent actions")
+    if args.setup_only or args.verify_environment or args.inspect_storage is not None:
+        return dependency_action(args)
     token = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]  # noqa: UP017
     run = (
         args.resume.expanduser().resolve()

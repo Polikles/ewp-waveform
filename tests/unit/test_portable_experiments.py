@@ -46,7 +46,11 @@ def test_cuda_install_low_budget_refuses_before_any_download(
     from ewp_waveform.application import portable_experiments_setup as setup
 
     monkeypatch.setattr("shutil.which", lambda name: "/not/invoked/uv")
-    monkeypatch.setattr(setup, "check_budget", lambda *a: {"free_bytes": 10 * 1024**3})
+    from ewp_waveform.application import portable_experiments_dependencies as dependencies
+
+    monkeypatch.setattr(
+        dependencies, "check_budget", lambda *a: {"growth_bytes": 0, "free_bytes": 10 * 1024**3}
+    )
     monkeypatch.setattr(setup, "run_command", lambda *a, **k: pytest.fail("must not download"))
     with pytest.raises(ValueError, match="admission"):
         setup.install_cuda(

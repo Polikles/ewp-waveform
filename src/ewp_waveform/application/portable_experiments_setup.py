@@ -1,8 +1,7 @@
 """Explicit isolated CUDA setup from committed platform/hash-locked closures.
 
-PyTorch2.9.1/cu128 is the selected shared compatibility control, not latest2.15.
-No resolution occurs on startup; missing artifacts fail without floating upgrades.
-No existing STT/project environment, driver, toolkit or system package is changed.
+PyTorch2.9.1/cu128 is the selected compatibility control, not floating latest.
+Verified environments are shared across campaigns; attempts remain append-only.
 """
 
 from __future__ import annotations
@@ -14,6 +13,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ewp_waveform.application.portable_experiments_dependencies import (
+    SETUP_ESTIMATES,
+    Probe,
+    admit_setup,
+    discover_environment,
+    missing_uv,
+    new_attempt,
+    register_environment,
+    require_process_safe,
+    reuse_environment,
+    setup_environment,
+)
 from ewp_waveform.application.portable_experiments_process import run_command
 from ewp_waveform.application.portable_experiments_state import check_budget, identity, save
 
@@ -41,30 +52,42 @@ def install_cuda(
     media: Path,
     limits: dict[str, Any],
     child_environment: dict[str, str],
+    *,
+    managed_root: Path | None = None,
+    probe: Probe | None = None,
+    rerun: list[str] | None = None,
+    uv_path: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
-    """Download only after --cuda --install-cuda; retain every failed attempt."""
-    uv = shutil.which("uv")
-    if not uv:
-        raise ValueError("--install-cuda requires uv on the original PATH")
+    """Reuse verified bytes before any installer; never repair an old attempt."""
+    if probe is None:
+        from ewp_waveform.application.portable_experiments import probe_python
+
+        probe = probe_python
     source_root = Path(__file__).resolve().parents[3]
+    store = managed_root or run / "managed-dependencies"
+    reused = reuse_environment(
+        store, source_root, TORCH_BACKEND, run, probe
+    ) or discover_environment(store, source_root, TORCH_BACKEND, run, probe)
+    if reused:
+        selected, _, receipt = reused
+        save(run / "cuda-reuse.json", receipt)
+        return selected, receipt
+    uv = uv_path or shutil.which("uv")
+    if not uv:
+        raise ValueError(missing_uv(rerun or ["scripts/run_experiments.py", *sys.argv[1:]]))
     committed_lock = cuda_lock(source_root)
     if not committed_lock.is_file():
         raise ValueError("committed CUDA platform lock missing; no runtime re-resolution")
-    before = check_budget(run, media, limits)
-    minimum = 4 * 1024**3
-    if limits["growth_bytes"] < minimum or before["free_bytes"] < minimum + limits["reserve_bytes"]:
-        raise ValueError("CUDA install admission needs >=4GiB growth allowance plus disk reserve")
-    setup, target = run / "cuda-setup", run / "cuda-env"
-    setup.mkdir(exist_ok=False)
+    admission = admit_setup(run, media, limits, SETUP_ESTIMATES[TORCH_BACKEND])
+    attempt = new_attempt(store, source_root, TORCH_BACKEND)
+    setup, target = run / "cuda-setup", attempt / "env"
+    setup.mkdir()
+    save(setup / "admission.json", admission)
     requirements = source_root / "requirements-torch-experiment.txt"
     frozen = setup / "requirements-locked.txt"
     frozen.write_bytes(committed_lock.read_bytes())
     selected = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    env = {
-        **child_environment,
-        "UV_CACHE_DIR": str(run / "cuda-cache"),
-        "UV_PYTHON_DOWNLOADS": "never",
-    }
+    env = {**setup_environment(store, child_environment), "UV_PYTHON_DOWNLOADS": "never"}
     commands = [
         [uv, "venv", "--python", str(python), str(target)],
         [
@@ -92,13 +115,18 @@ def install_cuda(
             monitor=lambda: check_budget(run, media, limits),
         )
         observations.append(result)
+        require_process_safe(result)
         if result["returncode"] != 0 or result["error"]:
             raise ValueError(
-                "isolated CUDA setup failed; no replay/shared install:\n"
+                "isolated CUDA setup failed; attempt retained, no replay/shared install:\n"
                 + str(result["error"])
                 + "\n"
                 + result["stderr"]
             )
+    # A successful installer exit is not verification. Register only after the
+    # worker authenticates the Python/runtime/Torch versions and RECORD payloads.
+    verified = probe(selected, run / "cuda-installed-verification", optional=True)
+    registered = register_environment(store, source_root, TORCH_BACKEND, selected, verified)
     receipt = {
         "status": "SUCCEEDED",
         "uv": identity(Path(uv)),
@@ -111,7 +139,9 @@ def install_cuda(
         "application_runtime_expected": environment["locked_runtime"],
         "python": str(selected),
         "commands": observations,
-        "scope": "new private worker environment only; no system/driver changes; no resolution",
+        "registered": registered,
+        "scope": "private managed worker; no system/driver changes; no resolution",
     }
     save(setup / "receipt.json", receipt)
+    check_budget(run, media, limits)
     return selected, {**receipt, "receipt": identity(setup / "receipt.json")}

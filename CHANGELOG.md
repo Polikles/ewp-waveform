@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Make missing-uv startup errors platform-actionable with an exact rerun and
+  explicit PATH-neutral isolated uv/runtime preparation. Admit dependency capacity
+  before downloads using separate installation/cache versus render policies.
+- Globally deduplicate overlapping/hardlinked allocation accounting and report
+  logical versus allocated bytes. Reverify/reuse lock/interpreter/platform/backend
+  keyed dependency preparations and pinned FFmpeg across campaigns, including
+  independent verification of environments retained by failed runs. Preserve all
+  attempts and production defaults; no native Windows/CUDA qualification implied.
+
 ## [0.6.0] - 2026-11-13
 
 - Add a platform-neutral opt-in experiment workflow for WSL and native Windows,

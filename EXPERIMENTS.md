@@ -35,6 +35,147 @@ The WSL command explicitly opts into a private CUDA dependency download; omit
 driver, CUDA toolkit compiler or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
+## Missing uv / bootstrap Python 3.14 (first native Windows run)
+
+The invoking Python only runs the stdlib bootstrap. Python 3.14 is not a supported
+worker: the frozen application and CUDA closures require Python 3.12. `uv` selects
+that interpreter and installs locked packages into private storage; it does not
+upgrade the invoking Python, global site-packages, drivers or an STT environment.
+Missing uv now reports the platform-specific install, why it is needed, a
+**new-terminal** instruction and the exact quoted original rerun command.
+
+In native Windows PowerShell, the explicit system-user tool prerequisite is:
+
+```powershell
+winget install --id astral-sh.uv --exact
+```
+
+Close and reopen PowerShell (existing terminals retain their old PATH), return to
+the checkout, run `uv --version`, then rerun exactly:
+
+```powershell
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg
+```
+
+Alternatively, **without changing PATH or global Python**, explicitly prepare the
+isolated tool/runtime first (no audio, qualification or rendering):
+
+```powershell
+py -3 scripts/run_experiments.py --setup-only --setup-uv --prepare-ffmpeg
+```
+
+`--setup-uv` creates a new bootstrap venv and installs pinned `uv==0.12.6` from
+PyPI (binary only, no dependencies, no global pip/cache). Its executable is hashed
+and reused on subsequent commands without requiring activation or PATH changes.
+This is an explicit network opt-in, not a hidden installer. It requires the
+bootstrap Python's standard `venv`/`ensurepip` support. Failures retain the attempt
+and commands; they do not repair a shared Python installation.
+
+Linux/WSL's explicit uv tool prerequisite is:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Open a **new** shell, verify `uv --version`, and rerun the original WSL command.
+The same `--setup-only --setup-uv` PATH-neutral alternative works on Linux/WSL.
+See the official [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+
+## Preparation capacity is not render capacity
+
+Before any acquisition the driver prints and retains `preparation-policy.json`.
+`--setup-max-growth-gib` (default24) bounds **new** managed environment, wheel-cache,
+interpreter and temporary allocation above its captured preparation baseline.
+`--max-growth-gib` (default8) separately bounds campaign media/evidence. The
+persistent store defaults to `OUTPUT_ROOT/managed-dependencies`; `--managed-root`
+can place it on another filesystem, disjoint from campaign run/media paths.
+The shared `--reserve-gib` (default10) protects free space on each relevant
+filesystem. These are configurable operator policies, not inferred VM RAM/disk
+capacity or target-size measurements. The8GiB policy is for short screening, not
+a prediction that any full render fits.
+
+Admission occurs **before** downloads: conservative planning headroom is2GiB for
+the application closure and16GiB Linux /10GiB Windows for CUDA wheels, extraction,
+cache and an environment-copy fallback. A private uv bootstrap reserves256MiB;
+FFmpeg uses the committed archive+expanded caps. Existing verified bytes do not
+need fresh-install headroom. Estimates are not guarantees: live sampled disk/RAM
+checks still stop work; they are not kernel quotas and may miss temporary peaks.
+No CUDA download is attempted just because a CUDA flag was parsed.
+
+Accounting reports **logical bytes** separately from **allocated bytes**. POSIX
+uses allocated blocks, globally deduplicated by `(device,inode)` across cache,
+environments, hardlinks and overlapping roots. It does not sum cache+environment
+logical sizes independently (uv normally hardlinks these on one filesystem).
+Where allocated-block telemetry is unavailable, including this implementation on
+native Windows, the conservative logical fallback is explicitly labelled and
+`allocated_bytes` is unavailable, not fabricated. Filesystem free-space change is
+an independent observation, not equivalent to a namespace's logical byte total.
+
+For a bounded, read-only accounting check (at most1,000,000 entries and `--timeout`
+seconds), use the default output root, including old runs and managed storage:
+
+```powershell
+py -3 scripts/run_experiments.py --inspect-storage
+```
+
+Or measure explicit overlapping roots **together** (not separate totals):
+
+```powershell
+py -3 scripts/run_experiments.py --inspect-storage "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9" "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9\cuda-env"
+```
+
+A bound/refusal never claims a partial total. The reported14,062,545,214-byte
+supervisor growth versus roughly7.09GB filesystem-free delta has **not** been
+reconciled on the target. Hardlink/overlap/logical accounting is a concrete reason
+not to equate those numbers, not proof of this particular target's cause.
+
+## Reuse preparations, not failed attempts
+
+Managed environments are keyed by committed lock/recipe bytes, required Python,
+platform, architecture and backend, then the verified interpreter bytes/version.
+Every reuse rechecks installed RECORD payload hashes and the locked versions;
+CUDA admission checks the **entire platform closure**, not just torch's version.
+No installer is called on a matching reuse. Managed FFmpeg payloads are keyed by
+the complete committed tool-lock hash and EXE/DLL verified on every acquisition
+request. Neither case reuses old render timings or bypasses hardware qualification.
+
+`--cuda --install-cuda` first checks the verified registry, then automatically
+probes up to the eight newest legacy `OUTPUT_ROOT/run-*/cuda-env` candidates,
+including environments left by failed campaigns. Runtime setup similarly checks
+legacy `python-env` candidates. Only a successful independent dependency probe
+registers a preparation; a failed/changed environment is not synced or repaired.
+Use the same output/managed root across campaigns. Failed run events, setup
+attempts and source evidence remain intact; new campaign IDs stay separate.
+
+To automatically discover/verify a retained WSL CUDA preparation **without any
+CUDA installation**, use (no audio or rendering):
+
+```bash
+python3 scripts/run_experiments.py --setup-only --cuda
+```
+
+`--cuda` alone also reuses a verified preparation during a new campaign.
+For an explicitly selected Windows preparation (only if that failed run actually
+contains this interpreter), independently verify/register without installation:
+
+```powershell
+py -3 scripts/run_experiments.py --verify-environment "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9\cuda-env\Scripts\python.exe" --cuda --register-environment
+```
+
+For WSL, select its actual retained `cuda-env/bin/python`, not the Windows path:
+
+```bash
+python3 scripts/run_experiments.py --verify-environment "$HOME/.local/state/ewp-portable-experiments/RETAINED_RUN/cuda-env/bin/python" --cuda --register-environment
+```
+
+`RETAINED_RUN` must be the actual WSL run ID. This host cannot inspect the user's
+Windows/WSL filesystem or assert that either environment currently exists.
+Alternatively a new campaign can select any verified placement explicitly using
+`--cuda --cuda-python PATH` (never combine with `--install-cuda`). Dependency-only
+verification writes a new `dependency-check-*` report outside the old run and
+establishes **no CUDA device/runtime success**. A CPU-only Torch environment is not
+a matching CUDA closure. Omit `--cuda` when verifying a normal application worker.
+
 ## Frozen optional tools and dependencies
 
 The selected CUDA compatibility control is PyTorch2.9.1+cu128, not the latest
@@ -42,11 +183,12 @@ upstream release. The upstream release API observed v2.15.0 (2026-10-28), but th
 selected official CUDA12.8 index directly supplied Python3.12 Linux x86-64 and
 Windows x64 wheels for2.9.1. Both platform-specific full transitive closures are
 committed with hashes under `requirements/`, constrained to the application's
-existing `uv.lock` runtime closure. Startup installs that frozen closure into a
-fresh private worker environment; it never re-resolves dependencies or modifies
-an existing STT environment. It retains setup commands, timing and receipts.
+existing `uv.lock` runtime closure. Startup reuses a freshly verified matching
+managed preparation or installs a new private worker; it never re-resolves
+dependencies or modifies an existing STT environment. It retains setup commands, timing and receipts.
 The installer download may use several GiB; free-space/growth admission can refuse
-it while independent CPU and Vulkan work continues. `--cuda-python` can select an
+it. Global disk/RAM/ownership refusal stops dispatch; ordinary optional dependency
+failures remain distinct from independent CPU/Vulkan execution. `--cuda-python` can select an
 existing isolated matching worker environment instead. CUDA driver/device/runtime
 execution still must pass the actual qualification probe.
 

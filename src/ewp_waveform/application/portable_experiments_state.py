@@ -16,11 +16,15 @@ import io
 import json
 import os
 import platform
+import re
 import shutil
 import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+from ewp_waveform.application.portable_experiments_process import ResourceAdmissionError
 
 
 def sha(path: Path) -> str:
@@ -389,6 +393,18 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
             continue
         expected[package["name"]] = package["version"]
         pending.extend(package.get("dependencies", []))
+    runtime_expected = dict(expected)
+    optional_expected: dict[str, str] = {}
+    if optional:
+        from ewp_waveform.application.portable_experiments_setup import cuda_lock
+
+        for line in cuda_lock(root).read_text(encoding="utf-8").splitlines():
+            match = re.match(r"^([A-Za-z0-9_.-]+)==([^ \\]+)", line)
+            if match:
+                optional_expected[match[1]] = match[2]
+        if optional_expected.get("torch") != "2.9.1+cu128":
+            raise ValueError("committed CUDA closure missing pinned torch; no reuse/install")
+        expected.update(optional_expected)
     actual: dict[str, str | None] = {}
     problems = []
     for name, version in expected.items():
@@ -427,7 +443,8 @@ def environment_details(root: Path, *, optional: bool = False) -> dict[str, Any]
         "version": sys.version,
         "prefix": sys.prefix,
         "base_prefix": sys.base_prefix,
-        "locked_runtime": expected,
+        "locked_runtime": runtime_expected,
+        "locked_optional": optional_expected,
         "runtime_versions": actual,
         "distributions": distributions,
         "distribution_metadata": metadata_files,
@@ -499,22 +516,87 @@ def lock(run: Path) -> Any:
         path.unlink()
 
 
+class ResourceLimitError(ResourceAdmissionError):
+    """Global capacity/RAM refusal; never an optional backend capability failure."""
+
+
+def tree_usage(
+    roots: list[Path], *, max_entries: int | None = None, timeout_seconds: float | None = None
+) -> dict[str, Any]:
+    """Global inode dedup across overlapping roots and uv hardlink cache/envs.
+
+    POSIX allocation uses st_blocks (512-byte units), including directory blocks.
+    Other platforms conservatively use logical bytes and explicitly label that
+    fallback; no claim of NTFS compressed/sparse allocation measurement is made.
+    Symlinks are not followed. Races/disappearing files fail closed, not undercount.
+    """
+    deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
+    seen: set[tuple[int, int] | str] = set()
+    logical, allocated, files = 0, 0, 0
+    allocation_known = True
+    for root in roots:
+        if not root.exists():
+            continue
+        pending = [root]
+        while pending:
+            if (max_entries is not None and len(seen) >= max_entries) or (
+                deadline is not None and time.monotonic() >= deadline
+            ):
+                raise ValueError("storage inspection bound exceeded; no partial total claimed")
+            path = pending.pop()
+            stat = path.lstat()
+            key = (stat.st_dev, stat.st_ino) if stat.st_ino else str(path.absolute())
+            if key in seen:
+                continue
+            seen.add(key)
+            if path.is_symlink():
+                continue
+            blocks = getattr(stat, "st_blocks", None)
+            if blocks is None:
+                allocation_known = False
+            allocated += stat.st_size if blocks is None else blocks * 512
+            if path.is_dir():
+                pending.extend(path.iterdir())
+            elif path.is_file():
+                files += 1
+                logical += stat.st_size
+    return {
+        "logical_bytes": logical,
+        "allocated_bytes": allocated if allocation_known else None,
+        "budget_bytes": allocated,
+        "budget_basis": "allocated blocks"
+        if allocation_known
+        else "logical fallback (allocation unavailable)",
+        "files": files,
+        "deduplication": "global (device,inode), overlapping roots and hardlinks counted once",
+    }
+
+
 def tree_bytes(root: Path) -> int:
-    return sum(p.stat().st_size for p in root.rglob("*") if p.is_file() and not p.is_symlink())
+    # Compatibility callers need the same allocation basis as check_budget.
+    return int(tree_usage([root])["budget_bytes"])
 
 
 def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, Any]:
-    growth = tree_bytes(run) + tree_bytes(media)
-    space = min(shutil.disk_usage(run).free, shutil.disk_usage(media).free)
+    roots = [Path(p) for p in limits.get("accounting_roots", [run, media])]
+    usage = tree_usage(roots)
+    growth = max(0, usage["budget_bytes"] - limits.get("baseline_bytes", 0))
+    space = min(shutil.disk_usage(p).free for p in roots)
     host = resources()
     if growth > limits["growth_bytes"] or space < limits["reserve_bytes"]:
-        raise ValueError(f"disk budget refused/crossed: growth={growth}, free={space}")
+        raise ResourceLimitError(
+            f"disk budget refused/crossed: growth={growth}, free={space}, "
+            f"basis={usage['budget_basis']}, scope={limits.get('budget_scope', 'run+media')}"
+        )
     available = host["ram_available_bytes"]
     if available is None or available < limits["memory_floor_bytes"]:
-        raise ValueError(f"guest RAM headroom unavailable/below floor: {available}")
+        raise ResourceLimitError(f"guest RAM headroom unavailable/below floor: {available}")
     return {
         "growth_bytes": growth,
         "free_bytes": space,
+        "storage": usage,
         "resources": host,
-        "scope": "run+media sampled sizes; no kernel quota; peaks may be missed",
+        "scope": limits.get(
+            "budget_scope", "run+media sampled allocation; no kernel quota; peaks may be missed"
+        ),
     }

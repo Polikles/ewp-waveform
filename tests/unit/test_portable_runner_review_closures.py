@@ -39,25 +39,38 @@ def test_automatic_python_setup_admitted_and_monitored(tmp_path: Path, monkeypat
     monkeypatch.setattr(shutil, "which", lambda *a: "uv-not-executed")
     monkeypatch.setattr(app, "outside_git", lambda *a: None)
     monkeypatch.setattr(app, "check_budget", lambda *a: order.append("budget"))
+    from ewp_waveform.application import portable_experiments_dependencies as dependencies
+
+    def admission(*a: Any) -> dict[str, Any]:
+        order.append("budget")
+        return {"growth_bytes": 0, "free_bytes": 10**12}
+
+    monkeypatch.setattr(dependencies, "check_budget", admission)
+    monkeypatch.setattr(dependencies, "register_environment", lambda *a: {"verified": True})
     monkeypatch.setattr(app, "probe_python", lambda *a: {"locked": True})
 
     def run(argv: Any, root: Any, **kwargs: Any) -> dict[str, Any]:
         order.append("launch")
         assert kwargs["monitor"] is not None
         kwargs["monitor"]()
-        return {"returncode": 0, "error": None}
+        return {"returncode": 0, "error": None, "shutdown_verified": True}
 
     monkeypatch.setattr(app, "run_command", run)
-    app.select_python(None, tmp_path, media=tmp_path, limits={})
-    assert order == ["budget", "launch", "budget"]
+    app.select_python(
+        None, tmp_path, media=tmp_path, limits={"growth_bytes": 10**12, "reserve_bytes": 1}
+    )
+    assert order == ["budget", "launch", "budget", "budget"]
 
     def refuse(*a: Any) -> None:
         raise ValueError("budget refused")
 
     monkeypatch.setattr(app, "check_budget", refuse)
+    monkeypatch.setattr(dependencies, "check_budget", refuse)
     monkeypatch.setattr(app, "run_command", lambda *a, **k: pytest.fail("no setup after refusal"))
     with pytest.raises(ValueError, match="budget refused"):
-        app.select_python(None, tmp_path, media=tmp_path, limits={})
+        app.select_python(
+            None, tmp_path, media=tmp_path, limits={"growth_bytes": 10**12, "reserve_bytes": 1}
+        )
 
 
 def test_optional_matched_prores_failure_does_not_abort_independent_work(monkeypatch: Any) -> None:
