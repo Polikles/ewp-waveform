@@ -12,13 +12,13 @@ From a clean current `Polikles/ewp-waveform` checkout:
 WSL:
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --install-cuda
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize --cuda --optimize-compact --max-growth-gib 6
 ```
 
 Native Windows, in PowerShell:
 
 ```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize --optimize-async-depth 4 --optimize-ffv1-gpu --optimize-compact --max-growth-gib 6
 ```
 
 No environment activation, exports, manifest editing or private startup documents.
@@ -30,10 +30,41 @@ The driver discovers/selects the locked Python3.12 project environment; if it is
 missing it uses available `uv` for frozen isolated project setup. It does not
 silently modify a global Python installation or borrow an STT/WhisperX environment.
 A missing prerequisite is an actionable report, not an implicit driver installer.
-The WSL command explicitly opts into a private CUDA dependency download; omit
-`--cuda --install-cuda` for CPU/Vulkan-only operation. No Linux NVIDIA display
+The WSL command reuses the already verified CUDA preparation; it does not opt into
+a CUDA download. Only append `--install-cuda` if a new private preparation is
+actually needed. Omit `--cuda` for the CPU shortlist. No Linux NVIDIA display
 driver, CUDA toolkit compiler or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
+
+## Optimization scope and reading the results
+
+`--optimize` is the new bounded speech25..29s shortlist, not a rerun of the historical
+backend-discovery matrix. It compares actual direct ProRes versus FFV1 output,
+separate encoder/filter-thread settings, and requested qualified Windows queue
+settings. With `--cuda`, it adds separately qualified host-output, device-output,
+batch1/2 and instrumentation-cost pairs. `--optimize-compact` adds separate fixed
+output-crop and guarded earlier-finishing-domain pairs. Every shortlist pair uses
+fresh AB/BA observations; production32/full are not automatically repeated.
+`--full`/`--reference-only` cannot be combined with this shortlist.
+
+Details, exact scopes, transfer sizes, crop placement and pending assessments:
+[optimization first campaign](docs/notes/render-optimization-first-campaign.md).
+Native FFV1 MKV and changed finishing/crops remain experimental, not native Resolve
+Studio qualification. Use CPU/FFmpeg ProRes for ordinary asset production.
+
+The operator's supplied four-second CPU, Windows Vulkan ProRes and WSL CUDA FIR
+previews were accepted on2026-11-14, including contrasting-background frames.
+[Recorded supplied acceptance and baselines](examples/experiments/operator-accepted-baselines-20261114.json)
+are observations, not VM.1 target remeasurements. MP4 byte equality does not establish
+MOV-master byte equality. No repeated reassessment of unchanged references is
+needed; new outputs, full episodes and native experimental Resolve behavior remain
+separate assessments. The small and padded Vulkan blur failures remain blocking.
+
+`measurements-*.json` preserves compact complete critical phase/settings/transfer
+measurements and precedes verbose/raw diagnostics in the2MiB ZIP. Oversized critical
+exports refuse packaging explicitly instead of silently dropping comparison data;
+raw ordered call records remain in the full report JSON. Service/pipeline time,
+cold worker envelopes, external verification and MP4 generation remain separate.
 
 ## Missing uv / bootstrap Python 3.14 (first native Windows run)
 
@@ -475,11 +506,11 @@ target machine. Acquisition/hash readback and static/mocked Windows tests are
 not hardware qualification. The upgraded operator WSL release and actual dzn
 capabilities also remain unknown until its new preflight runs.
 
-The CUDA finisher is batch1 only and bounded to32seconds per prototype render.
-Batch variants and full-source CUDA candidate confirmation are not claimed; they
-follow an actually working, useful target qualification/screen. `--full` is a
+The CUDA finisher remains bounded to32seconds per prototype render. Its new
+batch1/2/output/timing variants are explicit optimization experiments; their target
+performance and full-source CUDA confirmation remain pending. `--full` is a
 stock CPU route, not a way to relabel a CPU full render as GPU confirmation.
-No useful GPU candidate emerged on VM.1, so the existing full reference is reused
+No CUDA hardware is exposed on VM.1, so the existing full reference is reused
 as reference metadata rather than repeated for a wrapper/report change.
 
 ## Existing VM.1 reference and platform choice
@@ -492,8 +523,9 @@ Service timing is distinct from worker envelopes and external verification/viewi
 The older WSL control differs in platform and FFmpeg build, so it cannot isolate
 platform performance or predict CUDA/native Windows gains.
 
-Use a working CPU route for immediate production regeneration. WSL CUDA and native
-Windows Vulkan are candidates to measure, not winners selected in advance. Choose
+Use the CPU/FFmpeg ProRes route for ordinary production regeneration. Supplied short
+WSL CUDA and Windows Vulkan ProRes previews are accepted; their new optimization
+variants and experimental native Resolve behavior still need qualification. Choose
 the eventual platform from actual cold end-to-end timings, usable transparency,
 Resolve compatibility, operational friction and maintenance cost. VM.1 CPU tests,
 static Windows tests and mocked devices do not establish native Windows/GPU success.
