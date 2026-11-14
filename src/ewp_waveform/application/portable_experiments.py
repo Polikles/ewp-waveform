@@ -880,6 +880,7 @@ def freeze(
             "async_depth": args.optimize_async_depth,
             "ffv1_gpu": args.optimize_ffv1_gpu,
             "compact": getattr(args, "optimize_compact", False),
+            "service32": getattr(args, "optimize_service32", False),
         },
         "repeat_scope": "speech shortlist (or six-frame smoke); sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
@@ -1606,6 +1607,11 @@ def parser() -> argparse.ArgumentParser:
         help="also diagnose qualified shared-master Vulkan FFV1 at 6/60 frames; 60s cap each",
     )
     p.add_argument(
+        "--optimize-service32",
+        action="store_true",
+        help="also compare actual jobs2 32s CPU service with opt-in qualified LUT finishing",
+    )
+    p.add_argument(
         "--output-root", type=Path, default=Path.home() / ".local/state/ewp-portable-experiments"
     )
     p.add_argument("--media-root", "--media-parent", dest="media_parent", type=Path)
@@ -1751,6 +1757,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--audio PATH required except with --cpu-smoke or --resume")
     if args.cpu_smoke and (args.full or args.reference_only):
         p.error("--cpu-smoke cannot authorize a full render")
+    if args.optimize_service32 and not args.optimize:
+        p.error("--optimize-service32 requires --optimize")
     if args.optimize and (args.full or args.reference_only):
         p.error("--optimize is a bounded shortlist, never --full/--reference-only")
     optimization_flags = {

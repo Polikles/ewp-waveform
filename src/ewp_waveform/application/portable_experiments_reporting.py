@@ -374,6 +374,7 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "opt-prores-filter": {"filter_threads"},
                 "opt-prores-async": {"async_depth"},
                 "opt-prores-lut": {"finish_lut"},
+                "opt-service-lut32": {"finish_lut"},
             }.get(group, set())
             if changed_controls - allowed_controls:
                 reason = "undeclared experimental control changes"

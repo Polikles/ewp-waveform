@@ -241,6 +241,13 @@ def campaign(
                         reference_lossless=a.get("codec") == b.get("codec"),
                         expected_raster_sha256=first["original_raster_sha256"],
                     )
+                if side == "B" and request["operation"] == "service" and request.get("finish_lut"):
+                    if first.get("status") != "SUCCEEDED":
+                        skipped(
+                            f"{label}-r{ordinal:02d}-{side}", "matched service control unavailable"
+                        )
+                        continue
+                    request["reference"] = first["output"]
                 value = step(
                     f"{label}-r{ordinal:02d}-{side}",
                     {
@@ -271,6 +278,29 @@ def campaign(
         )
     else:
         skipped("opt-prores-lut", "CPU LUT byte qualification failed; no candidate throughput")
+    if config.get("optimization", {}).get("service32"):
+        if w.get("id") == "smoke":
+            skipped("opt-service-lut32", "32s original-input service is not a six-frame smoke")
+        elif lut.get("status") != "SUCCEEDED" or lut.get("passed") is not True:
+            skipped("opt-service-lut32", "CPU LUT byte qualification failed")
+        else:
+            service32 = {
+                "operation": "service",
+                "workload": {
+                    "id": "production32",
+                    "kind": "production32",
+                    "start": 25.0,
+                    "duration": 32.0,
+                    "frames": 1920,
+                },
+            }
+            pair(
+                "opt-service-lut32",
+                service32,
+                {**service32, "finish_lut": True},
+                "actual production32 jobs2/two chunks; only qualified LUT finishing changes; "
+                "per-encode qualification/setup/publication included",
+            )
     pair(
         "opt-direct-ffv1",
         {**base, "codec": "prores", "reference": stock["output"], "reference_lossless": True},

@@ -16,12 +16,15 @@ from typing import Any, cast
 from ewp_waveform.application.portable_experiments_state import identity, save
 
 
-def performance_file(root: Path) -> Path:
+def performance_file(root: Path, *, finish_lut: bool = False) -> Path:
+    if type(finish_lut) is not bool:
+        raise ValueError("finish_lut must be a strict bool")
     path = root / "performance.toml"
     # JSON-quoted forward slash paths are TOML basic-string safe on Windows too.
     path.write_text(
         'schema_version=1\nname="portable-experiment"\n[processing]\n'
-        "jobs=2\nffmpeg_threads=0\nchunk_seconds=60\n[workdirs]\npersistent=false\n"
+        "jobs=2\nffmpeg_threads=0\nchunk_seconds=60\n"
+        + f"ribbon_finish_lut={str(finish_lut).lower()}\n[workdirs]\npersistent=false\n"
         "root=" + json.dumps((root / "work").as_posix()) + "\n"
         "keep_on_success=false\nkeep_on_failure=true\n",
         encoding="utf-8",
@@ -150,10 +153,13 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.ffmpeg import experiment_suite_validation as validation
     from ewp_waveform.ffmpeg.process import command_evidence
 
+    finish_lut = request.get("finish_lut", False)
+    if type(finish_lut) is not bool or (finish_lut and request.get("variant")):
+        raise ValueError("service LUT requires a strict bool and no experiment adapter")
     root = Path(request["media"])
     root.mkdir(parents=True, exist_ok=False)
     evidence = Path(request["evidence"])
-    performance = performance_file(root)
+    performance = performance_file(root, finish_lut=True) if finish_lut else performance_file(root)
     w = request["workload"]
     kwargs: dict[str, Any] = {
         "output_dir": root / "output",
@@ -216,9 +222,10 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         frames=w["frames"],
         log=evidence / "commands.jsonl",
         reference=Path(request["reference"]) if request.get("reference") else None,
-        lossless=request.get("variant") == "TRANSFER",
+        lossless=request.get("variant") == "TRANSFER"
+        or bool(finish_lut and request.get("reference")),
     )
-    if request.get("variant") == "TRANSFER":
+    if request.get("variant") == "TRANSFER" or (finish_lut and request.get("reference")):
         valid["lossless_against_preencode"] = False
         valid["lossless_against_reference_master"] = True
     return {
