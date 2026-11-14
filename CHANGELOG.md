@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reduce exact stationary interpolation-coordinate work and raster floating coverage
+  to interval boundaries, retaining output/appearance identity, multitap reductions
+  and exotic/nonfinite fallbacks. Current combined32s service gain is modest;
+  field-rewrite and threaded-lookahead negatives are retained, not promoted.
+
 - Retain usable experiment Markdown and separate full/critical JSON when the bounded
   diagnostic packet refuses oversize data; record packaging independently from
   render outcomes. Add read-only report regeneration from retained records.

@@ -38,6 +38,10 @@ The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
 ## Optimization scope and reading the results
 
+[Exact CPU work reduction and retained negative experiments](docs/notes/single-file-cpu-work-reduction.md)
+records the current incremental VM.1 evidence. The short gains are not additive;
+the combined32s service reduction is modest, not another stock-to-LUT result.
+
 `--optimize-single-file` is the targeted next campaign on the **current source**,
 not an old-source/new-source comparison or another codec/filter matrix. It runs
 direct GEQ/LUT speech25..29s AB/BA (including the repaired Windows direct seam)
