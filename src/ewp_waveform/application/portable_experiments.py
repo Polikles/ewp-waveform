@@ -882,7 +882,8 @@ def freeze(
             "compact": getattr(args, "optimize_compact", False),
             "service32": getattr(args, "optimize_service32", False),
         },
-        "repeat_scope": "speech shortlist (or six-frame smoke); sequential AB/BA alternating",
+        "repeat_scope": "speech shortlist (or six-frame smoke) and selected serial service32; "
+        "sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
         "cuda_error": cuda_error,
         "cuda_python": str(cuda_python),
@@ -1610,7 +1611,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--optimize-service32",
         action="store_true",
-        help="also compare actual jobs2 32s CPU service with opt-in qualified LUT finishing",
+        help="also compare actual serial jobs1 32s service with qualified LUT finishing",
     )
     p.add_argument(
         "--output-root", type=Path, default=Path.home() / ".local/state/ewp-portable-experiments"

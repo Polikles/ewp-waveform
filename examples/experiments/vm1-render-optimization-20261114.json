@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-14",
+  "environment": "VM.1 Ubuntu CPU; not operator WSL/native Windows execution",
+  "input_sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+  "tool": {
+    "version": "FFmpeg8.0.1",
+    "ffmpeg_sha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6",
+    "ffprobe_sha256": "a6dac1e9e8631e04075d06854cc4069308aec279bb04683b4a0bca5e4f54b2fe"
+  },
+  "full": {
+    "scope": "fresh n1 full-source combined exact row-support + serial-auto + LUT service candidate vs stock jobs2/encoder1 control; not an isolated LUT or OS comparison",
+    "A_source": "2c08171d188ebf13d495c77e9edba7b1f7a4763c",
+    "A_service_seconds": 301.95817469900066,
+    "B_service_seconds": 194.6716509370017,
+    "service_seconds_saved": 107.28652376199898,
+    "service_percent_less": 35.53025973512551,
+    "A_external_verification_seconds": 163.07349305500247,
+    "B_external_verification_seconds": 74.2463527309992,
+    "A_cold_worker_seconds": 467.31208445000084,
+    "B_cold_worker_seconds": 271.3433903209989,
+    "cold_worker_percent_less": 41.93529349014069,
+    "frames": 23741,
+    "bytes": 2848387115,
+    "sha256": "00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78",
+    "complete_master_matches_accepted": true,
+    "B_source": "d249053ce85b43e3990dba4af5801a97e5b37ee4"
+  },
+  "serial_service32": {
+    "scope": "actual serial jobs1 service, same source8ef2a29/tool8.0.1 andwindow25..57s, n2 ABBA; LUTincludes perencodequalification/setup/publication; externalvalidation separate",
+    "GEQ_median": 21.380409153500295,
+    "LUT_median": 17.541544916999555,
+    "percent_less": 17.955055064380094,
+    "mov_bytes_equal": true
+  },
+  "pool2_service32": {
+    "scope": "actual service original interval25..57s; jobs2/twochunks both sides; n2 AB/BA; qualification/setup included; externalverification separate",
+    "A_median": 26.268921261000287,
+    "B_median": 26.555473446001997,
+    "percent_less": -1.0908410823368495,
+    "complete_mov_bytes_equal": true
+  },
+  "direct_speech": {
+    "scope": "same direct serial production wrapper, n2 AB/BA, prep included; not stock service",
+    "GEQ_median_seconds": 3.00636392999877,
+    "LUT_median_seconds": 2.4466016690003016,
+    "percent_less": 18.61924484301198
+  },
+  "limits": {
+    "full_comparison_n": 1,
+    "full_B_source": "d249053ce85b43e3990dba4af5801a97e5b37ee4",
+    "full_B_tree": "83253c327ccebfe822e06ee02f2aabd2b39c6064",
+    "full_A_validation": "one output; strict alpha/PTS/hash/count",
+    "full_B_validation": "output plus complete matched reference and exact composites; not an isolated verification speedup",
+    "cold_envelopes": "include import/planning/render/external validation/artifact hashing/shutdown; MP4 not run",
+    "unchanged_MOV": "no new visual reassessment requested; no extension of supplied four-second visual/NLE acceptance",
+    "CUDA_native_Windows_new_measurements": "pending; device/batch/async paths are experimental",
+    "GUI": "deferred",
+    "Vulkan_blur": "small+padded native Windows failure and independent WSLDozen failure remain blocking"
+  }
+}

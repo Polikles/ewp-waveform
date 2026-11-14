@@ -25,7 +25,20 @@ automatic-thread direct gain to that pool policy. Separate actual serial jobs1
 service32 (same25..57s interval, AB/BA n2) measured21.380409s GEQ versus17.541545s LUT,
 17.955% less service time including qualification, setup, validation/publication.
 All eight32s native MOVs match bytes. Pool and serial records remain separately
-labelled, not relabelled as stock pool2 measurements. Full confirmation is pending.
+labelled, not relabelled as stock pool2 measurements.
+
+Fresh full-source confirmation at d249053 completed23741frames: current stock
+jobs2 control301.958175s service versus combined exact row-support/serial-auto/LUT
+194.671651s,35.530% less service wall (n1 each). Complete native MOV bytes match
+the accepted00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78.
+This combined comparison is not an isolated LUT or operating-system result.
+External verification was163.073493s control (one stream) versus74.246353s candidate
+(also the full reference and exact contrasting-composite metrics); do not infer
+an isolated validator speedup from those different scopes. Cold worker envelopes
+were467.312084s and271.343390s, including imports/planning, actual rendering,
+external verification, artifact hashes and shutdown. No full MP4 generation was
+needed for byte-identical masters. Historical304.734380s remains historical, not
+the denominator. [Portable measured record](../../examples/experiments/vm1-render-optimization-20261114.json).
 
 Keep tool identities separate: the maintained first13/21-cell CPU campaigns used
 the discovered Hermes FFmpeg9.0.1, whereas task-local attribution, scratch/row,

@@ -592,7 +592,8 @@ def report(
             f"Media: `{config['media']}` (excluded from diagnostic bundle).",
             "",
             f"Frozen --repeats: **{config.get('repeats', 2)}**; AB/BA on speech shortlist "
-            "(six frames in smoke). Other baseline intervals run once.",
+            "(six frames in smoke), plus explicitly selected serial service32. "
+            "Other baseline intervals run once.",
             "",
             "Mode: "
             + (

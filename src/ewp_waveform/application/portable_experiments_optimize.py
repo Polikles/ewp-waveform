@@ -280,47 +280,31 @@ def campaign(
         skipped("opt-prores-lut", "CPU LUT byte qualification failed; no candidate throughput")
     if config.get("optimization", {}).get("service32"):
         if w.get("id") == "smoke":
-            skipped("opt-service-lut32", "32s original-input service is not a six-frame smoke")
+            skipped(
+                "opt-service-serial-lut32", "32s original-input service is not a six-frame smoke"
+            )
         elif lut.get("status") != "SUCCEEDED" or lut.get("passed") is not True:
-            skipped("opt-service-lut32", "CPU LUT byte qualification failed")
+            skipped("opt-service-serial-lut32", "CPU LUT byte qualification failed")
         else:
+            # Shortlist the useful medium-length route, not twelve redundant native
+            # files. Earlier neutral/slower jobs2 measurements remain retained.
             service32: dict[str, Any] = {
                 "operation": "service",
+                "jobs": 1,
                 "workload": {
-                    "id": "production32",
-                    "kind": "production32",
+                    "id": "service32",
+                    "kind": "service32",
                     "start": 25.0,
                     "duration": 32.0,
                     "frames": 1920,
                 },
             }
             pair(
-                "opt-service-lut32",
+                "opt-service-serial-lut32",
                 service32,
                 {**service32, "finish_lut": True},
-                "actual production32 jobs2/two chunks; only qualified LUT finishing changes; "
-                "per-encode qualification/setup/publication included",
-            )
-            serial_window = {
-                **service32,
-                "workload": {
-                    **service32["workload"],
-                    "id": "service32",
-                    "kind": "service32",
-                },
-            }
-            pair(
-                "opt-service-workers32",
-                {**serial_window, "jobs": 2},
-                {**serial_window, "jobs": 1},
-                "same service32 window; only jobs policy changes; existing policy also "
-                "resolves encoder threads1 in pool vs automatic in serial",
-            )
-            pair(
-                "opt-service-serial-lut32",
-                {**serial_window, "jobs": 1},
-                {**serial_window, "jobs": 1, "finish_lut": True},
-                "same actual serial jobs1 service; only qualified LUT finishing changes",
+                "same actual serial jobs1 service32, not stock pool2 production32; "
+                "only qualified LUT finishing changes; qualification/setup/publication included",
             )
     pair(
         "opt-direct-ffv1",

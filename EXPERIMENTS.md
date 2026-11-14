@@ -45,9 +45,8 @@ settings. With `--cuda`, it adds separately qualified host-output, device-output
 batch1/2 and instrumentation-cost pairs. `--optimize-compact` adds separate fixed
 output-crop and guarded earlier-finishing-domain pairs. Every shortlist pair uses
 fresh AB/BA observations. `--optimize-service32` additionally compares actual
-jobs2 GEQ/LUT service, existing jobs2 versus jobs1 policy, then jobs1 GEQ/LUT
-service at25..57s. Per-encode qualification/setup/publication is included. This
-adds12 native32s renders (not a ProRes transcode); omit that flag for short-only
+serial jobs1 GEQ/LUT service at25..57s. Per-encode qualification/setup/publication
+is included. This adds4 native32s renders (not a ProRes transcode); omit that flag for short-only
 screens. Serial records are not the stock jobs2 production32 route. The current
 VM.1 jobs2 LUT screen is neutral/slower; the explicit serial `ribbon-lut` profile
 is useful. Full-source execution is never silently admitted by this flag.

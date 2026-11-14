@@ -53,9 +53,9 @@ def test_counterbalanced_service32_uses_actual_service_and_matched_oracle(qualif
         lambda n, r: skipped.append(n),
         {},
     )
-    cells = [(n, v) for n, v in calls if n.startswith("opt-service-lut32-r")]
+    cells = [(n, v) for n, v in calls if n.startswith("opt-service-serial-lut32-r")]
     if not qualified:
-        assert not cells and "opt-service-lut32" in skipped
+        assert not cells and "opt-service-serial-lut32" in skipped
         return
     assert (
         len(
@@ -67,14 +67,15 @@ def test_counterbalanced_service32_uses_actual_service_and_matched_oracle(qualif
                 )
             ]
         )
-        == 12
+        == 4
     )
     assert [v["pair"]["side"] for _, v in cells] == ["A", "B", "B", "A"]
     for _, request in cells:
         assert request["operation"] == "service"
+        assert request["jobs"] == 1
         assert request["workload"] == {
-            "id": "production32",
-            "kind": "production32",
+            "id": "service32",
+            "kind": "service32",
             "start": 25.0,
             "duration": 32.0,
             "frames": 1920,
