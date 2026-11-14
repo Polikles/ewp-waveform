@@ -497,6 +497,11 @@ def completed_steps(run: Path) -> dict[str, dict[str, Any]]:
             if row["event"] == "FAILED":
                 raise ValueError(f"retained FAILED {name}; use a new namespace, never retry")
             complete[name] = row["value"]
+        elif row["event"] == "DISPATCH_REFUSED":
+            raise ResourceAdmissionError(
+                "retained post-evidence dispatch refusal; use a new namespace, no replay: "
+                + str(row["value"].get("error"))
+            )
         else:
             raise ValueError("unknown event; no replay")
     if starts != complete.keys():
@@ -581,7 +586,18 @@ def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, An
     roots = [Path(p) for p in limits.get("accounting_roots", [run, media])]
     usage = tree_usage(roots)
     growth = max(0, usage["budget_bytes"] - limits.get("baseline_bytes", 0))
-    space = min(shutil.disk_usage(p).free for p in roots)
+    reserve_roots = list(
+        dict.fromkeys(
+            [
+                *roots,
+                run,
+                media,
+                *(Path(p) for p in limits.get("reserve_roots", [])),
+            ]
+        )
+    )
+    free_by_root = {str(p): shutil.disk_usage(p).free for p in reserve_roots}
+    space = min(free_by_root.values())
     host = resources()
     if growth > limits["growth_bytes"] or space < limits["reserve_bytes"]:
         raise ResourceLimitError(
@@ -591,9 +607,14 @@ def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, An
     available = host["ram_available_bytes"]
     if available is None or available < limits["memory_floor_bytes"]:
         raise ResourceLimitError(f"guest RAM headroom unavailable/below floor: {available}")
+    if limits.get("campaign_limits"):
+        check_budget(run, media, limits["campaign_limits"])
     return {
         "growth_bytes": growth,
         "free_bytes": space,
+        "accounting_roots": list(map(str, roots)),
+        "reserve_roots": list(map(str, reserve_roots)),
+        "filesystem_free_bytes": free_by_root,
         "storage": usage,
         "resources": host,
         "scope": limits.get(

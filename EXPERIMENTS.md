@@ -90,7 +90,11 @@ interpreter and temporary allocation above its captured preparation baseline.
 persistent store defaults to `OUTPUT_ROOT/managed-dependencies`; `--managed-root`
 can place it on another filesystem, disjoint from campaign run/media paths.
 The shared `--reserve-gib` (default10) protects free space on each relevant
-filesystem. These are configurable operator policies, not inferred VM RAM/disk
+filesystem, including evidence-only run/media locations when the managed store is
+on another disk. Growth-accounting roots are separate from free-reserve roots.
+Known campaign metadata is admitted before acquisition and monitored during setup;
+separate preparation allowances cannot override an already-exceeded campaign cap.
+These are configurable operator policies, not inferred VM RAM/disk
 capacity or target-size measurements. The8GiB policy is for short screening, not
 a prediction that any full render fits.
 

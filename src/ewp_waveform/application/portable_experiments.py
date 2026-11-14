@@ -518,6 +518,15 @@ def prerequisite_admission(args: argparse.Namespace) -> None:
             raise ValueError(tool_advice(rerun))
 
 
+def campaign_limits(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "growth_bytes": args.max_growth_gib * 1024**3,
+        "reserve_bytes": args.reserve_gib * 1024**3,
+        "memory_floor_bytes": 128 * 1024**2,
+        "budget_scope": "campaign run+media retained allocation; excludes managed preparation",
+    }
+
+
 def dependency_policy(args: argparse.Namespace, run: Path, media: Path) -> dict[str, Any]:
     """Print/persist explicit independent setup and render policy before downloads."""
     from ewp_waveform.application.portable_experiments_dependencies import (
@@ -530,13 +539,21 @@ def dependency_policy(args: argparse.Namespace, run: Path, media: Path) -> dict[
     if any(store.is_relative_to(p) or p.is_relative_to(store) for p in (run, media)):
         raise ValueError("managed dependency store must be disjoint from run/media namespaces")
     args._managed_root = store
-    args._setup_limits = setup_limits(store, args.setup_max_growth_gib, args.reserve_gib)
+    check_budget(run, media, campaign_limits(args))
+    args._setup_limits = {
+        **setup_limits(store, args.setup_max_growth_gib, args.reserve_gib),
+        "reserve_roots": list(map(str, (store, run, media))),
+        "campaign_limits": campaign_limits(args),
+    }
     policy = {
         "managed_root": str(store),
         "setup_new_allocation_bytes": args._setup_limits["growth_bytes"],
         "setup_baseline_bytes": args._setup_limits["baseline_bytes"],
         "render_retained_allocation_bytes": args.max_growth_gib * 1024**3,
         "free_reserve_bytes": args.reserve_gib * 1024**3,
+        "setup_accounting_roots": args._setup_limits["accounting_roots"],
+        "reserve_roots": args._setup_limits["reserve_roots"],
+        "campaign_limits": campaign_limits(args),
         "planning_estimates_bytes": SETUP_ESTIMATES,
         "defaults_reason": (
             "24GiB setup allows CUDA wheels+unpack+copy fallback; admission estimates "
@@ -702,6 +719,7 @@ def freeze(
             from ewp_waveform.application.portable_experiments_dependencies import tool_advice
 
             raise ValueError(tool_advice(getattr(args, "_rerun", [str(DRIVER), *sys.argv[1:]])))
+    check_budget(run, media, campaign_limits(args))
     preparation = dependency_policy(args, run, media)
     python, environment = select_python(
         args.python,
@@ -715,6 +733,7 @@ def freeze(
     if (args.ffmpeg is None) != (args.ffprobe is None):
         raise ValueError("--ffmpeg and --ffprobe must be supplied together")
     if args.prepare_ffmpeg:
+        check_budget(run, media, campaign_limits(args))
         installed, selected, tool_acquisition = choose_tools(args, original, run, media, python)
     if selected is None:
         raise ValueError(
@@ -725,6 +744,7 @@ def freeze(
     cuda_error = None
     cuda_python = (args.cuda_python or python).expanduser().absolute()
     if args.cuda:
+        check_budget(run, media, campaign_limits(args))
         try:
             if args.install_cuda:
                 from ewp_waveform.application.portable_experiments_setup import install_cuda
@@ -795,12 +815,7 @@ def freeze(
         "device": args.device,
         "expected_device": args.expect_device_regex,
         "visual_overrides": template["visual_overrides"],
-        "limits": {
-            "growth_bytes": args.max_growth_gib * 1024**3,
-            "reserve_bytes": args.reserve_gib * 1024**3,
-            "memory_floor_bytes": 128 * 1024**2,
-            "stage_timeout": args.timeout,
-        },
+        "limits": {**campaign_limits(args), "stage_timeout": args.timeout},
         "claim": "opt-in experiments; production defaults unchanged; GUI future only",
     }
     save(run / "config.json", config)
@@ -933,7 +948,23 @@ def invoke(
         command_logs = [root / "commands.jsonl"]
         if stage_media.exists():
             command_logs.extend(stage_media.rglob("commands.jsonl"))
-        commands = list(value.get("commands", []))
+        command_value = value.get("commands", [])
+        commands: list[dict[str, Any]] = []
+        if not isinstance(command_value, list):
+            parse_errors.append(
+                {"path": str(root / "value.json"), "error": "commands must be a list of objects"}
+            )
+        else:
+            for index, record in enumerate(command_value):
+                if isinstance(record, dict):
+                    commands.append(record)
+                else:
+                    parse_errors.append(
+                        {
+                            "path": str(root / "value.json"),
+                            "error": f"commands[{index}] must be an object",
+                        }
+                    )
         for command_log in command_logs:
             if not command_log.is_file():
                 continue
@@ -1004,7 +1035,27 @@ def invoke(
                 + "; ".join(observed.get("resource_errors", []))
             )
         # Evidence/event serialization can itself cross the retained-growth cap.
-        check_budget(run, media, config["limits"])
+        try:
+            check_budget(run, media, config["limits"])
+        except ValueError as exc:
+            append_event(
+                run,
+                {
+                    "name": name,
+                    "event": "DISPATCH_REFUSED",
+                    "value": {
+                        "status": "FAILED",
+                        "worker_status": value["status"],
+                        "failure_scope": "GLOBAL_RESOURCE_ADMISSION",
+                        "independent_dispatch_allowed": False,
+                        "error": str(exc),
+                        "scope_supersedes": "prior terminal before post-evidence admission",
+                    },
+                },
+            )
+            raise ResourceAdmissionError(
+                "post-evidence global resource refusal; no further dispatch: " + str(exc)
+            ) from exc
         if not good and not optional:
             raise RuntimeError(
                 f"required {name} failed: {value.get('error')}; {observed['stderr']}"
@@ -1660,6 +1711,11 @@ def main(argv: list[str] | None = None) -> int:
                     row = json.loads(line)
                     if "value" in row:
                         results[row["name"]] = {
+                            **(
+                                results.get(row["name"], {})
+                                if row["event"] == "DISPATCH_REFUSED"
+                                else {}
+                            ),
                             **row["value"],
                             "evidence_status": "SALVAGED_UNVERIFIED",
                         }
