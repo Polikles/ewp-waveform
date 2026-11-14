@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reuse private contour coverage scratch for subtraction, clipping and alpha
+  conversion, and avoid an unused initial alpha plane. Preserve raster arithmetic,
+  exact output pixels, appearance identity and independent per-call results.
+
 - Tolerate verified descendant disappearance during active isolated installation
   with bounded storage resampling, retained incomplete samples and strict final
   reconciliation. Keep persistent-root/permission failures fail-closed and report

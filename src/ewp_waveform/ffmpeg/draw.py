@@ -408,11 +408,23 @@ def draw_envelope_frame(
     return bytes(frame)
 
 
+def _contour_coverage(yy: np.ndarray, y0: np.ndarray, y1: np.ndarray) -> np.ndarray:
+    """Private writable coverage scratch; retain the original ufunc/reduction order."""
+    cov: np.ndarray = np.minimum(yy + 1.0, y1)
+    lower = np.maximum(yy, y0)
+    np.subtract(cov, lower, out=cov)
+    np.clip(cov, 0.0, 1.0, out=cov)
+    return cov
+
+
 def _coverage_to_alpha(cov: np.ndarray) -> np.ndarray:
-    alpha = np.rint(255.0 * cov).astype(np.int16)
-    np.clip(alpha, 0, 255, out=alpha)
+    """Consume private coverage scratch, returning an independently owned alpha plane."""
     full = cov >= (1.0 - 1e-6)
     partial = (cov > 0.0) & ~full
+    np.multiply(255.0, cov, out=cov)
+    np.rint(cov, out=cov)
+    alpha = cov.astype(np.int16)
+    np.clip(alpha, 0, 255, out=alpha)
     alpha[full] = 255
     alpha[partial] = np.maximum(alpha[partial], 1)
     return alpha.astype(np.uint8, copy=False)
@@ -442,9 +454,8 @@ def mirrored_contour_alpha(
         vertical_margin=vertical_margin,
         content_height=content_height,
     )
-    alpha = np.zeros((max(height, 0), max(out_w, 0)), dtype=np.uint8)
     if not columns or out_w < 1 or height < 1:
-        return alpha
+        return np.zeros((max(height, 0), max(out_w, 0)), dtype=np.uint8)
     knots = [min(max(float(value), 0.0), 1.0) for value in columns]
     slopes = pchip_slopes(knots)
     yy = np.arange(height, dtype=np.float64)[:, np.newaxis]
@@ -456,7 +467,7 @@ def mirrored_contour_alpha(
         y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
         y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
         yy3 = yy[:, :, np.newaxis]
-        cov = np.clip(np.minimum(yy3 + 1.0, y1) - np.maximum(yy3, y0), 0.0, 1.0).mean(axis=2)
+        cov = _contour_coverage(yy3, y0, y1).mean(axis=2)
         alpha = _coverage_to_alpha(cov)
     else:
         xs = np.arange(out_w, dtype=np.float64) / float(ss)
@@ -464,7 +475,7 @@ def mirrored_contour_alpha(
         halfs = np.minimum(float(max_half) * mags, cap)
         y0 = np.where(halfs > 0.0, float(center) - halfs, 0.0)
         y1 = np.where(halfs > 0.0, float(center) + halfs + 1.0, 0.0)
-        cov = np.clip(np.minimum(yy + 1.0, y1) - np.maximum(yy, y0), 0.0, 1.0)
+        cov = _contour_coverage(yy, y0, y1)
         alpha = _coverage_to_alpha(cov)
     if center_line:
         y = min(height - 1, max(0, center))
