@@ -905,6 +905,13 @@ def _render_job(
         raise ValueError(
             "ribbon_finish_lut requires ordinary CPU ribbon finishing and one MOV/no PNG"
         )
+    render_fixed.validate_ribbon_frame_prefetch(
+        performance,
+        appearance,
+        producing_mov=set(options.formats) == {"prores4444"},
+        producing_png="png" in options.formats,
+        experiment=experiment is not None,
+    )
     fixed_axis_recipe = appearance.identity() if appearance is not None else None
     lifecycle_hooks = _lifecycle_hooks()
     pipeline_hooks = _pipeline_hooks()

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -21,6 +22,7 @@ from ewp_waveform.analysis.spectrum import Float64, FrequencySpan
 from ewp_waveform.application.appearance import FixedAxisAppearance
 from ewp_waveform.application.evidence import PerformanceFingerprint
 from ewp_waveform.application.render_types import RenderOptions
+from ewp_waveform.application.ribbon_pipeline import ribbon_frame_pipeline
 from ewp_waveform.application.timing import PhaseTimes
 from ewp_waveform.config.models import PerformanceProfile, VisualPreset
 from ewp_waveform.config.ribbon import (
@@ -280,6 +282,7 @@ class FixedHooks(Protocol):
         n_frames: int | None = ...,
         ribbon_finish: tuple[float, bool, float, float, float] | None = ...,
         ribbon_finish_lut: bool = ...,
+        feed_stderr_path: _Path | None = ...,
     ) -> None: ...
 
     def field_to_columns(self, field: VisualField, width: int) -> list[float]: ...
@@ -986,6 +989,35 @@ def resolve_fixed_options(
     )
 
 
+def validate_ribbon_frame_prefetch(
+    performance: PerformanceProfile,
+    appearance: FixedAxisAppearance | None,
+    *,
+    producing_mov: bool,
+    producing_png: bool,
+    experiment: bool = False,
+) -> bool:
+    enabled = performance.processing.get("ribbon_frame_prefetch", False)
+    if type(enabled) is not bool:
+        raise ValueError("processing.ribbon_frame_prefetch must be an explicit boolean")
+    if enabled and (
+        appearance is None
+        or appearance.profile != REFINED_RIBBON
+        or appearance.ribbon_finish is None
+        or appearance.geometry != "spectrum"
+        or appearance.field_plan is None
+        or not producing_mov
+        or producing_png
+        or experiment
+        or type(performance.processing.get("jobs", 1)) is not int
+        or performance.processing.get("jobs", 1) != 1
+    ):
+        raise ValueError(
+            "ribbon_frame_prefetch requires serial jobs=1 refined-ribbon CPU ProRes only"
+        )
+    return enabled
+
+
 def run_fixed_pipeline(
     hooks: FixedHooks,
     *,
@@ -1012,6 +1044,9 @@ def run_fixed_pipeline(
     clock: PhaseTimes,
 ) -> None:
     assert appearance is not None
+    prefetch = validate_ribbon_frame_prefetch(
+        performance, appearance, producing_mov=producing_mov, producing_png=producing_png
+    )
     ribbon_finish_lut = performance.processing.get("ribbon_finish_lut", False)
     if type(ribbon_finish_lut) is not bool:
         raise ValueError("processing.ribbon_finish_lut must be an explicit boolean")
@@ -1402,34 +1437,49 @@ def run_fixed_pipeline(
             if field_plan is not None
             else (ribbon_ss if geometry == "spectrum" else hooks.SCROLL_SUPERSAMPLE)
         )
-        hooks.encode_rgba_stream(
-            hooks._tick_frames(
-                frames,
+        if prefetch:
+            clock.extras["ribbon_frame_prefetch"] = {
+                "producer_threads": 1,
+                "max_pending_frames": 1,
+                "feed_stderr_path": str(work / "ribbon-feed.stderr")
+                if not ribbon_finish_lut
+                else None,
+                "generator_metric": "consumer wait for next frame; not producer CPU time",
+            }
+        encode_options: dict[str, Any] = {}
+        if ribbon_finish_lut:
+            encode_options["ribbon_finish_lut"] = True
+        if prefetch and not ribbon_finish_lut:
+            encode_options["feed_stderr_path"] = work / "ribbon-feed.stderr"
+        with ribbon_frame_pipeline(frames) if prefetch else nullcontext(frames) as feed:
+            hooks.encode_rgba_stream(
+                hooks._tick_frames(
+                    feed,
+                    n_frames=expected_frames,
+                    note=note,
+                    label=encode_label,
+                ),
+                width=preset.canvas.width,
+                height=preset.canvas.height,
+                fps=job.fps,
+                glow=glow,
+                png_dir=png_work,
+                prores_path=mov_work,
+                ffmpeg_threads=threads,
+                overscan=hooks.glow_overscan(glow),
+                supersample=encode_ss,
+                phases=clock,
+                pix_fmt=field_plan.pix_fmt if field_plan is not None else "rgba",
+                color=(
+                    preset.waveform.color
+                    if field_plan is not None
+                    and (field_plan.colorize or appearance.ribbon_finish is not None)
+                    else None
+                ),
                 n_frames=expected_frames,
-                note=note,
-                label=encode_label,
-            ),
-            width=preset.canvas.width,
-            height=preset.canvas.height,
-            fps=job.fps,
-            glow=glow,
-            png_dir=png_work,
-            prores_path=mov_work,
-            ffmpeg_threads=threads,
-            overscan=hooks.glow_overscan(glow),
-            supersample=encode_ss,
-            phases=clock,
-            pix_fmt=field_plan.pix_fmt if field_plan is not None else "rgba",
-            color=(
-                preset.waveform.color
-                if field_plan is not None
-                and (field_plan.colorize or appearance.ribbon_finish is not None)
-                else None
-            ),
-            n_frames=expected_frames,
-            ribbon_finish=appearance.ribbon_finish,
-            **({"ribbon_finish_lut": True} if ribbon_finish_lut else {}),
-        )
+                ribbon_finish=appearance.ribbon_finish,
+                **encode_options,
+            )
     if mov_work is not None:
         lifecycle.publish_mov(mov_work, failure_message="spectrum output failed validation")
     if png_work is not None:

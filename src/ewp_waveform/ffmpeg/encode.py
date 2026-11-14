@@ -152,6 +152,7 @@ def encode_rgba_stream(
     ribbon_finish: tuple[float, bool, float, float, float] | None = None,
     experiment: EncodeExperiment | SuiteEncoding | None = None,
     ribbon_finish_lut: bool = False,
+    feed_stderr_path: Path | None = None,
 ) -> None:
     if type(ribbon_finish_lut) is not bool:
         raise ValueError("ribbon_finish_lut must be an explicit boolean")
@@ -302,7 +303,7 @@ def encode_rgba_stream(
             phases=phases,
         )
         return
-    stderr_path = (
+    stderr_path = feed_stderr_path or (
         experiment.command_log.with_suffix(".service.stderr")
         if experiment is not None and experiment.command_log is not None
         else None

@@ -113,6 +113,8 @@ class PerformanceProfile(BaseModel):
     def _validate_ribbon_finish_lut(self) -> Self:
         if type(self.processing.get("ribbon_finish_lut", False)) is not bool:
             raise ValueError("processing.ribbon_finish_lut must be an explicit boolean")
+        if type(self.processing.get("ribbon_frame_prefetch", False)) is not bool:
+            raise ValueError("processing.ribbon_frame_prefetch must be an explicit boolean")
         return self
 
 

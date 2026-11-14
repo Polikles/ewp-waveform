@@ -16,6 +16,31 @@ costs and real service/worker timings have different scopes. Unsupported or
 uncertain attempts cannot produce fresh throughput. Preserve separate render,
 proxy, MP4 and verification costs and operator-owned appearance decisions.
 
+## Serial ribbon lookahead experiment
+
+`processing.ribbon_frame_prefetch = true` is an experimental, strict-boolean,
+opt-in execution setting. It is refused outside the serial (`jobs = 1`)
+refined-ribbon ordinary CPU ProRes-only route, including PNG, other styles and
+experiment adapters. It can be combined with `ribbon_finish_lut`; defaults and
+existing adapter call shapes remain unchanged. No profile is promoted by the
+existence of this setting: completed service measurements must justify adoption.
+
+A single producer thread advances the original immutable-byte frame iterator in
+order, with at most one pending frame beyond the consumer's current frame. It
+starts only when the encoder consumes frames, cancels queued work and joins the
+finite in-flight CPU step on exit, then closes the source. Producer failures are
+raised at their original position. Early encoder failure remains primary; an
+unconsumed lookahead exception is discarded during cancellation. This is not a
+general scheduler or a facility for interrupting arbitrary blocking iterators.
+No files are batched. Failed non-LUT feeds retain drained stderr in the owned
+workdir's `ribbon-feed.stderr`; LUT feeds retain their existing diagnostic record.
+
+The `generator` phase becomes consumer wait for a future rather than total frame
+production; raster/field spans remain inclusive, potentially overlapping feed.
+Only the completed ordinary service wall (including setup, validation and
+publication) supports a performance claim. A bounded paired comparison must hold
+LUT and encoder/worker policy fixed.
+
 ## Two families
 
 ### Performance benchmarks

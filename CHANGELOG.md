@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Experiment with opt-in serial refined-ribbon one-frame CPU lookahead, preserving
+  ordered bytes, bounded buffering, failure diagnostics and default execution.
+  No profile adoption is implied without completed-service performance evidence.
+
 - Add the opt-in `ribbon-lut` CPU ProRes execution profile, preserving the exact
   ribbon finish through runtime-qualified LUT tables, including spawn workers.
   Qualify per encode inside service wall, retain worker diagnostics in results,

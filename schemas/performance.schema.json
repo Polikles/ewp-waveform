@@ -41,6 +41,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "ribbon_frame_prefetch": {
+          "type": "boolean",
+          "default": false
+        },
         "ribbon_finish_lut": {
           "type": "boolean",
           "default": false
