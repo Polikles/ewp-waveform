@@ -138,6 +138,41 @@ not to equate those numbers, not proof of this particular target's cause.
 
 ## Reuse preparations, not failed attempts
 
+During active installation, uv can enumerate, rename and clean temporary
+extraction trees while the supervisor accounts for their storage. A verified
+disappearance of an enumerated descendant is an **incomplete observation**, not
+proof of a capacity breach. The supervisor retains these samples, resamples with
+a bounded policy and requires a complete final reconciliation after the owned
+process tree stops. Observed growth, free-reserve and RAM violations still stop
+work immediately, including a violation already visible in an incomplete sample.
+Permission errors, unexpected I/O errors and loss of required persistent roots
+remain global fail-closed errors; they are not ignored as installation churn.
+
+`FAILED_STORAGE_OBSERVATION` / `GLOBAL_STORAGE_OBSERVATION` means accounting could
+not establish usage. It is distinct from `REFUSED_RESOURCE_LIMIT` /
+`GLOBAL_RESOURCE_ADMISSION`, which means an actual admission/limit check refused
+work. A wrapper exit125 alone does not establish storage exhaustion. Preserve
+`run-20261114T125421Z-13c9bb22` and `report-eb2e18b1b60f.md` unchanged: its reported
+WinError3 under uv's temporary CPython extraction is not evidence of a disk or
+budget breach. The source race is covered deterministically; native Windows
+execution of the repair remains a target retry, not a Linux qualification claim.
+
+From the updated clean checkout in the same native Windows PowerShell location,
+first use this bounded setup/reuse check (no audio, qualification or rendering):
+
+```powershell
+py -3 scripts/run_experiments.py --setup-only --prepare-ffmpeg
+```
+
+Then collect the independent bounded preflight, without resuming the old run:
+
+```powershell
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --preflight-only
+```
+
+Use the same output/managed roots as before (repeat any previous explicit root
+flags). Do not delete a valid old interpreter or environment to force the retry.
+
 Managed environments are keyed by committed lock/recipe bytes, required Python,
 platform, architecture and backend, then the verified interpreter bytes/version.
 Every reuse rechecks installed RECORD payload hashes and the locked versions;
@@ -150,10 +185,26 @@ request. Neither case reuses old render timings or bypasses hardware qualificati
 probes up to the eight newest retained candidates: legacy
 `OUTPUT_ROOT/run-*/cuda-env` and matching managed setup-attempt environments,
 including preparations left by failed campaigns. Runtime setup similarly checks
-legacy `python-env` and matching managed attempts. Only a successful independent dependency probe
+legacy `python-env` and managed attempts across older request keys. Older registry
+pointers locate candidates only: cross-key candidates must pass native interpreter
+identity and the current locked dependency/RECORD probe before a new receipt is
+registered. Enumeration is bounded; candidates beyond the eight newest are not
+implicitly considered verified. Only a successful independent dependency probe
 registers a preparation; a failed/changed environment is not synced or repaired.
 Use the same output/managed root across campaigns. Failed run events, setup
 attempts and source evidence remain intact; new campaign IDs stay separate.
+
+The key includes the complete `pyproject.toml` and `uv.lock`: even project-version
+or dev-only recipe changes invalidate an exact-key match. A source commit change
+alone does not. The recent startup repair commits through `7575a2f` have identical
+recipe keys, so key invalidation is not established as the actual Windows cause
+without its old receipt and selection logs. `<backend>-reuse-selection.jsonl`
+now records search/miss/invalidation decisions. If a new environment really is
+needed, the runner first searches the existing managed Python store offline;
+an independently checked retained CPython3.12 is selected explicitly and Python
+downloads are disabled. A newer available patch is not reason to reacquire it.
+Changing output/managed roots can still hide prior preparations; repeat the same
+root flags or explicitly select the retained environment rather than deleting it.
 
 To automatically discover/verify a retained WSL CUDA preparation **without any
 CUDA installation**, use (no audio or rendering):
@@ -407,6 +458,15 @@ newer FFmpeg alone fixes it. No Linux NVIDIA display drivers are installed in WS
 and this task does not attempt an unbounded graphics-stack repair.
 
 ## Qualification boundaries still pending
+
+The operator reports that P/main `7575a2f4cabc83d1269b3d80246b7698e631abad`
+reused the retained WSL CUDA environment without installation, executed on the
+RTX3090, and passed all10FIR oracle cases at64×32 and1400×280 with zero alpha-byte
+and composite-byte error (`report-92946a5906ee.md`). These are reported target
+results, not a remeasurement on VM.1. The bounded WSL CUDA timing campaign may
+proceed independently: neither Windows bootstrap nor Windows/WSL Vulkan repair
+is its prerequisite. Do not use `--full` to request CUDA timing; it remains the
+stock CPU full route. Preserve the independent WSL Vulkan failure.
 
 VM.1 cannot establish CUDA or native Windows GPU success. Native Windows Job
 Object kernel behavior, selected executable codec inventory, actual NVIDIA Vulkan

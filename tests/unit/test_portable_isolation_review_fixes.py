@@ -88,7 +88,7 @@ def test_resource_refusal_is_global_even_if_next_sample_recovers(
         nonlocal count
         count += 1
         if persistent or count == 1:
-            raise ValueError("fixture capacity admission refused")
+            raise ResourceAdmissionError("fixture capacity admission refused")
 
     monkeypatch.setattr(app, "check_budget", refuse)
     with pytest.raises(ResourceAdmissionError, match="no implicit recovery"):

@@ -18,6 +18,7 @@ from ewp_waveform.application.portable_experiments_dependencies import (
     Probe,
     admit_setup,
     discover_environment,
+    installation_monitors,
     missing_uv,
     new_attempt,
     register_environment,
@@ -106,13 +107,15 @@ def install_cuda(
         ],
     ]
     observations = []
+    monitor, final_monitor = installation_monitors(run, media, limits, setup)
     for number, argv in enumerate(commands):
         result = run_command(
             argv,
             setup / f"command-{number}",
             timeout=1800,
             env=env,
-            monitor=lambda: check_budget(run, media, limits),
+            monitor=monitor,
+            final_monitor=final_monitor,
         )
         observations.append(result)
         require_process_safe(result)
@@ -126,6 +129,7 @@ def install_cuda(
     # A successful installer exit is not verification. Register only after the
     # worker authenticates the Python/runtime/Torch versions and RECORD payloads.
     verified = probe(selected, run / "cuda-installed-verification", optional=True)
+    final_monitor()
     registered = register_environment(store, source_root, TORCH_BACKEND, selected, verified)
     receipt = {
         "status": "SUCCEEDED",

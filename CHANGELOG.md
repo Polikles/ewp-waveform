@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Tolerate verified descendant disappearance during active isolated installation
+  with bounded storage resampling, retained incomplete samples and strict final
+  reconciliation. Keep persistent-root/permission failures fail-closed and report
+  storage-observation failures separately from actual resource-limit refusals.
+- Discover and independently verify retained preparations across recipe-key
+  changes before acquiring another interpreter; retain selection diagnostics and
+  preserve changed environments and historical failures without repair.
 - Make missing-uv startup errors platform-actionable with an exact rerun and
   explicit PATH-neutral isolated uv/runtime preparation. Admit dependency capacity
   before downloads using separate installation/cache versus render policies.

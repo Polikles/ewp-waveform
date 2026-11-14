@@ -24,8 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from ewp_waveform.application.portable_experiments_process import (
+    MonitorFailureError,
     ProcessOwnershipError,
     ResourceAdmissionError,
+    StorageObservationError,
     run_command,
 )
 from ewp_waveform.application.portable_experiments_reporting import (
@@ -257,25 +259,54 @@ def select_python(
     rerun: list[str] | None = None,
     uv_path: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
+    from ewp_waveform.application.portable_experiments_dependencies import reuse_diagnostic
+
     candidates = [explicit.expanduser().absolute()] if explicit else python_candidates()
     for index, candidate in enumerate(candidates):
+        folder = run / f"python-candidate-{index}"
         if candidate.is_file():
             try:
-                return candidate, probe_python(candidate, run / f"python-candidate-{index}")
-            except (ResourceAdmissionError, ProcessOwnershipError):
+                environment = probe_python(candidate, folder)
+                reuse_diagnostic(
+                    run,
+                    "runtime",
+                    status="SELECTED_PROJECT_OR_EXPLICIT",
+                    python=str(candidate),
+                    probe_evidence=str(folder),
+                )
+                return candidate, environment
+            except (
+                ResourceAdmissionError,
+                ProcessOwnershipError,
+                StorageObservationError,
+                MonitorFailureError,
+            ):
                 raise
-            except ValueError:
+            except ValueError as exc:
+                reuse_diagnostic(
+                    run,
+                    "runtime",
+                    status="INVALIDATED_PROJECT_OR_EXPLICIT",
+                    python=str(candidate),
+                    error=str(exc),
+                    probe_evidence=str(folder),
+                    action="retained unchanged; no repair",
+                )
                 if explicit:
                     raise
+        else:
+            reuse_diagnostic(run, "runtime", status="CANDIDATE_MISSING", python=str(candidate))
     if explicit:
         raise ValueError(f"explicit --python does not exist; no install attempted: {explicit}")
     from ewp_waveform.application.portable_experiments_dependencies import (
         SETUP_ESTIMATES,
         admit_setup,
         discover_environment,
+        installation_monitors,
         missing_uv,
         new_attempt,
         register_environment,
+        retained_managed_python,
         reuse_environment,
         setup_environment,
     )
@@ -296,13 +327,29 @@ def select_python(
     admit_setup(run, media, limits, SETUP_ESTIMATES["runtime"])
     attempt = new_attempt(store, ROOT, "runtime")
     target = attempt / "env"
+    retained = retained_managed_python(uv, store, run, child_env())
+    selected_request = str(retained) if retained else "3.12"
+    monitor, final_monitor = installation_monitors(
+        run, media, limits, run / "runtime-setup-storage"
+    )
+    reuse_diagnostic(
+        run,
+        "runtime",
+        status="INSTALL_NEW_ENVIRONMENT",
+        target=str(target),
+        python_request=selected_request,
+        retained_python=bool(retained),
+        reason="no independently verified retained environment selected",
+    )
     observed = bootstrap_command(
-        [uv, "sync", "--frozen", "--no-dev", "--python", "3.12", "--project", str(ROOT)],
+        [uv, "sync", "--frozen", "--no-dev", "--python", selected_request, "--project", str(ROOT)],
         run / "uv-sync",
         timeout=900,
-        monitor=lambda: check_budget(run, media, limits),
+        monitor=monitor,
+        final_monitor=final_monitor,
         env={
             **setup_environment(store, child_env()),
+            **({"UV_PYTHON_DOWNLOADS": "never"} if retained else {}),
             "UV_PROJECT_ENVIRONMENT": str(target),
         },
         cwd=ROOT,
@@ -313,6 +360,7 @@ def select_python(
         )
     selected = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     environment = probe_python(selected, run / "selected-python")
+    final_monitor()  # Strict reconciliation before registration, never a live partial sample.
     receipt = register_environment(store, ROOT, "runtime", selected, environment)
     save(run / "runtime-setup.json", receipt)
     check_budget(run, media, limits)
@@ -393,7 +441,12 @@ def choose_tools(
             installed = inventory_pair(
                 Path(first["ffmpeg"]), Path(first["ffprobe"]), run / "installed-tools"
             )
-        except (ResourceAdmissionError, ProcessOwnershipError):
+        except (
+            ResourceAdmissionError,
+            ProcessOwnershipError,
+            StorageObservationError,
+            MonitorFailureError,
+        ):
             raise
         except Exception as exc:
             discovery.append({"role": "installed baseline", "error": str(exc)})
@@ -409,7 +462,12 @@ def choose_tools(
                 candidates.append(
                     inventory_pair(ffmpeg, ffprobe, run / f"discovered-tools-{index}")
                 )
-            except (ResourceAdmissionError, ProcessOwnershipError):
+            except (
+                ResourceAdmissionError,
+                ProcessOwnershipError,
+                StorageObservationError,
+                MonitorFailureError,
+            ):
                 raise
             except Exception as exc:
                 discovery.append(
@@ -683,6 +741,10 @@ def dependency_action(args: argparse.Namespace) -> int:
         status = (
             "REFUSED_RESOURCE_LIMIT"
             if isinstance(exc, ResourceAdmissionError)
+            else "FAILED_STORAGE_OBSERVATION"
+            if isinstance(exc, StorageObservationError)
+            else "FAILED_MONITOR"
+            if isinstance(exc, MonitorFailureError)
             else "UNVERIFIED_PROCESS_OWNERSHIP"
             if isinstance(exc, ProcessOwnershipError)
             else "FAILED"
@@ -776,7 +838,12 @@ def freeze(
                     run / "cuda-environment",
                     optional=True,
                 )
-        except (ResourceAdmissionError, ProcessOwnershipError):
+        except (
+            ResourceAdmissionError,
+            ProcessOwnershipError,
+            StorageObservationError,
+            MonitorFailureError,
+        ):
             raise
         except Exception as exc:
             cuda_error = str(exc)  # Optional; CPU and Vulkan still run.
@@ -996,12 +1063,20 @@ def invoke(
                 if not observed["shutdown_verified"]
                 else "GLOBAL_RESOURCE_ADMISSION"
                 if observed.get("resource_refused")
+                else "GLOBAL_STORAGE_OBSERVATION"
+                if observed.get("storage_observation_failed")
+                else "GLOBAL_MONITOR_FAILURE"
+                if observed.get("monitor_failed")
                 else "OPTIONAL_SCENARIO"
                 if optional
                 else "REQUIRED_SCENARIO"
             )
             value["independent_dispatch_allowed"] = bool(
-                optional and observed["shutdown_verified"] and not observed.get("resource_refused")
+                optional
+                and observed["shutdown_verified"]
+                and not observed.get("resource_refused")
+                and not observed.get("storage_observation_failed")
+                and not observed.get("monitor_failed")
             )
         diagnostics = list(root.glob("*.stderr"))
         if stage_media.exists():
@@ -1034,10 +1109,20 @@ def invoke(
                 "global resource admission refused; no implicit recovery or further dispatch: "
                 + "; ".join(observed.get("resource_errors", []))
             )
+        if observed.get("storage_observation_failed"):
+            raise StorageObservationError(
+                "global storage observation failed; no further dispatch: "
+                + "; ".join(observed.get("storage_observation_errors", []))
+            )
+        if observed.get("monitor_failed"):
+            raise MonitorFailureError(
+                "global monitor failed; no further dispatch: " + str(observed["error"])
+            )
         # Evidence/event serialization can itself cross the retained-growth cap.
         try:
             check_budget(run, media, config["limits"])
         except ValueError as exc:
+            observation_failed = isinstance(exc, StorageObservationError)
             append_event(
                 run,
                 {
@@ -1046,15 +1131,18 @@ def invoke(
                     "value": {
                         "status": "FAILED",
                         "worker_status": value["status"],
-                        "failure_scope": "GLOBAL_RESOURCE_ADMISSION",
+                        "failure_scope": "GLOBAL_STORAGE_OBSERVATION"
+                        if observation_failed
+                        else "GLOBAL_RESOURCE_ADMISSION",
                         "independent_dispatch_allowed": False,
                         "error": str(exc),
                         "scope_supersedes": "prior terminal before post-evidence admission",
                     },
                 },
             )
-            raise ResourceAdmissionError(
-                "post-evidence global resource refusal; no further dispatch: " + str(exc)
+            error_type = StorageObservationError if observation_failed else ResourceAdmissionError
+            raise error_type(
+                "post-evidence global admission failed; no further dispatch: " + str(exc)
             ) from exc
         if not good and not optional:
             raise RuntimeError(
@@ -1704,6 +1792,10 @@ def main(argv: list[str] | None = None) -> int:
             status = "REFUSED_PROCESS_OWNERSHIP"
         elif isinstance(exc, ResourceAdmissionError):
             status = "REFUSED_RESOURCE_LIMIT"
+        elif isinstance(exc, StorageObservationError):
+            status = "FAILED_STORAGE_OBSERVATION"
+        elif isinstance(exc, MonitorFailureError):
+            status = "FAILED_MONITOR"
         # Keep all already completed optional records visible even on required failure.
         if (run / "events.jsonl").is_file():
             for line in (run / "events.jsonl").read_text().splitlines():
@@ -1758,7 +1850,12 @@ def main(argv: list[str] | None = None) -> int:
                 check_budget(budget_run, budget_media, limits)
             except ValueError as budget_error:
                 preliminary = path
-                status, code = "REFUSED_RESOURCE_LIMIT", 1
+                status, code = (
+                    "FAILED_STORAGE_OBSERVATION"
+                    if isinstance(budget_error, StorageObservationError)
+                    else "REFUSED_RESOURCE_LIMIT",
+                    1,
+                )
                 error = str(budget_error)
                 path = report(
                     report_root,

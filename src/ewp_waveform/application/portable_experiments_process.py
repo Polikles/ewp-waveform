@@ -30,6 +30,26 @@ class ProcessOwnershipError(RuntimeError):
 class ResourceAdmissionError(ValueError):
     """A supervisor monitor refused global capacity admission; do not retry implicitly."""
 
+    def __init__(
+        self, message: str, *, storage_observations: list[dict[str, Any]] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.storage_observations = storage_observations or []
+
+
+class StorageObservationError(ValueError):
+    """Accounting could not establish storage usage; not proof of a limit breach."""
+
+    def __init__(
+        self, message: str, *, storage_observations: list[dict[str, Any]] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.storage_observations = storage_observations or []
+
+
+class MonitorFailureError(RuntimeError):
+    """Unexpected accounting-monitor defect; dispatch must remain fenced."""
+
 
 def windows_last_error() -> int:
     return int(getattr(ctypes, "get_last_error", ctypes.get_errno)())
@@ -209,6 +229,7 @@ def run_command(
     env: dict[str, str] | None = None,
     cwd: Path | None = None,
     monitor: Callable[[], Any] | None = None,
+    final_monitor: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     """Retain exact argv/logs and bound launch-through-exit, including READY.
 
@@ -238,16 +259,60 @@ def run_command(
     verified = False
     interrupted: BaseException | None = None
     resource_errors: list[str] = []
+    storage_errors: list[str] = []
+    monitor_errors: list[str] = []
+    incomplete_samples = 0
 
-    def monitor_check() -> None:
-        if monitor:
+    def monitor_check(*, final: bool = False) -> None:
+        nonlocal incomplete_samples
+        selected_monitor = final_monitor if final and final_monitor is not None else monitor
+        if selected_monitor:
             try:
-                monitor()
+                sample = selected_monitor()
+                if isinstance(sample, dict):
+                    storage = sample.get("storage", {})
+                    if storage.get("complete") is False or storage.get("incomplete_samples"):
+                        # Keep real incomplete observations, including resamples that
+                        # subsequently reconciled. Never present them as exact totals.
+                        with (root / "storage-observations.jsonl").open("a", encoding="utf-8") as f:
+                            f.write(json.dumps(sample, sort_keys=True, allow_nan=False) + "\n")
+                        incomplete_samples += 1
             except Exception as exc:
                 detail = f"{type(exc).__name__}: {exc}"
-                if detail not in resource_errors:
-                    resource_errors.append(detail)
+                target = (
+                    resource_errors
+                    if isinstance(exc, ResourceAdmissionError)
+                    else storage_errors
+                    if isinstance(exc, (StorageObservationError, OSError))
+                    else monitor_errors
+                )
+                if detail not in target:
+                    target.append(detail)
+                incomplete = getattr(exc, "storage_observations", None)
+                if incomplete:
+                    try:
+                        with (root / "storage-observations.jsonl").open("a", encoding="utf-8") as f:
+                            f.write(
+                                json.dumps({"error": detail, "incomplete_samples": incomplete})
+                                + "\n"
+                            )
+                        incomplete_samples += 1
+                    except OSError as evidence_error:
+                        storage_errors.append(
+                            f"incomplete sample retention failed: {evidence_error}"
+                        )
                 raise
+
+    def failure_scope() -> str | None:
+        if not verified:
+            return "GLOBAL_PROCESS_OWNERSHIP"
+        if resource_errors:
+            return "GLOBAL_RESOURCE_ADMISSION"
+        if storage_errors:
+            return "GLOBAL_STORAGE_OBSERVATION"
+        if monitor_errors:
+            return "GLOBAL_MONITOR_FAILURE"
+        return None
 
     def record_error(exc: BaseException) -> None:
         nonlocal error, interrupted
@@ -260,7 +325,7 @@ def run_command(
             interrupted = exc
 
     def check() -> None:
-        monitor_check()
+        monitor_check(final=proc is None)
         if time.monotonic() >= deadline:
             raise TimeoutError(f"timeout after {timeout:g}s (launch-through-exit)")
 
@@ -403,7 +468,9 @@ def run_command(
                 verified = True  # No process was created.
     try:
         # Tree shutdown can itself retain output beyond the last live sample.
-        check()
+        monitor_check(final=True)
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"timeout after {timeout:g}s (launch-through-exit)")
     except BaseException as exc:
         record_error(exc)
     value = {
@@ -413,11 +480,12 @@ def run_command(
         "shutdown_verified": verified,
         "resource_refused": bool(resource_errors),
         "resource_errors": resource_errors,
-        "failure_scope": "GLOBAL_PROCESS_OWNERSHIP"
-        if not verified
-        else "GLOBAL_RESOURCE_ADMISSION"
-        if resource_errors
-        else None,
+        "storage_observation_failed": bool(storage_errors),
+        "storage_observation_errors": storage_errors,
+        "monitor_failed": bool(monitor_errors),
+        "monitor_errors": monitor_errors,
+        "incomplete_storage_samples": incomplete_samples,
+        "failure_scope": failure_scope(),
         "wall_seconds": time.perf_counter() - started,
         "stdout": tail_text(root / "stdout.txt"),
         "stderr": tail_text(root / "stderr.txt"),
@@ -428,18 +496,18 @@ def run_command(
     }
     (root / "result.json").write_text(json.dumps(value, indent=2))
     try:
-        monitor_check()  # Include the retained command/result logs, not just payload.
+        monitor_check(final=True)  # Include retained command/result logs, not just payload.
     except BaseException as exc:
         record_error(exc)
         value["error"] = error
         value["resource_refused"] = bool(resource_errors)
-        value["failure_scope"] = (
-            "GLOBAL_PROCESS_OWNERSHIP"
-            if not verified
-            else "GLOBAL_RESOURCE_ADMISSION"
-            if resource_errors
-            else None
-        )
+        value["storage_observation_failed"] = bool(storage_errors)
+        value["monitor_failed"] = bool(monitor_errors)
+        value["failure_scope"] = failure_scope()
+        (root / "result.json").write_text(json.dumps(value, indent=2))
+    # A final reconciliation can observe an incomplete-then-complete scan too.
+    if value["incomplete_storage_samples"] != incomplete_samples:
+        value["incomplete_storage_samples"] = incomplete_samples
         (root / "result.json").write_text(json.dumps(value, indent=2))
     if interrupted:
         raise interrupted

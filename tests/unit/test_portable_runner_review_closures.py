@@ -42,7 +42,7 @@ def test_automatic_python_setup_admitted_and_monitored(tmp_path: Path, monkeypat
     from ewp_waveform.application import portable_experiments_dependencies as dependencies
 
     def admission(*a: Any) -> dict[str, Any]:
-        order.append("budget")
+        order.append("live" if a[2].get("allow_transient_disappearance") else "strict")
         return {"growth_bytes": 0, "free_bytes": 10**12}
 
     monkeypatch.setattr(dependencies, "check_budget", admission)
@@ -53,13 +53,14 @@ def test_automatic_python_setup_admitted_and_monitored(tmp_path: Path, monkeypat
         order.append("launch")
         assert kwargs["monitor"] is not None
         kwargs["monitor"]()
+        kwargs["final_monitor"]()
         return {"returncode": 0, "error": None, "shutdown_verified": True}
 
     monkeypatch.setattr(app, "run_command", run)
     app.select_python(
         None, tmp_path, media=tmp_path, limits={"growth_bytes": 10**12, "reserve_bytes": 1}
     )
-    assert order == ["budget", "launch", "budget", "budget"]
+    assert order == ["strict", "launch", "live", "strict", "strict", "budget"]
 
     def refuse(*a: Any) -> None:
         raise ValueError("budget refused")

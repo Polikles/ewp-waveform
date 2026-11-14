@@ -10,6 +10,7 @@ import ast
 import base64
 import csv
 import ctypes
+import errno
 import hashlib
 import importlib.metadata
 import io
@@ -18,13 +19,17 @@ import os
 import platform
 import re
 import shutil
+import stat
 import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from ewp_waveform.application.portable_experiments_process import ResourceAdmissionError
+from ewp_waveform.application.portable_experiments_process import (
+    ResourceAdmissionError,
+    StorageObservationError,
+)
 
 
 def sha(path: Path) -> str:
@@ -498,7 +503,12 @@ def completed_steps(run: Path) -> dict[str, dict[str, Any]]:
                 raise ValueError(f"retained FAILED {name}; use a new namespace, never retry")
             complete[name] = row["value"]
         elif row["event"] == "DISPATCH_REFUSED":
-            raise ResourceAdmissionError(
+            refusal = (
+                StorageObservationError
+                if row["value"].get("failure_scope") == "GLOBAL_STORAGE_OBSERVATION"
+                else ResourceAdmissionError
+            )
+            raise refusal(
                 "retained post-evidence dispatch refusal; use a new namespace, no replay: "
                 + str(row["value"].get("error"))
             )
@@ -525,47 +535,143 @@ class ResourceLimitError(ResourceAdmissionError):
     """Global capacity/RAM refusal; never an optional backend capability failure."""
 
 
-def tree_usage(
-    roots: list[Path], *, max_entries: int | None = None, timeout_seconds: float | None = None
-) -> dict[str, Any]:
-    """Global inode dedup across overlapping roots and uv hardlink cache/envs.
+class _IncompleteStorageObservation(StorageObservationError):
+    """Private lower bound for strict bounded resampling, never a usable baseline."""
 
-    POSIX allocation uses st_blocks (512-byte units), including directory blocks.
-    Other platforms conservatively use logical bytes and explicitly label that
-    fallback; no claim of NTFS compressed/sparse allocation measurement is made.
-    Symlinks are not followed. Races/disappearing files fail closed, not undercount.
+    def __init__(self, usage: dict[str, Any]) -> None:
+        super().__init__("storage observation incomplete: enumerated descendants disappeared")
+        self.usage = usage
+
+
+def _storage_root_stats(roots: list[Path]) -> dict[Path, tuple[int, int]]:
+    identities = {}
+    for root in roots:
+        try:
+            info = root.stat()
+        except OSError as exc:
+            raise StorageObservationError(
+                f"required storage root unavailable: {root}: {exc}"
+            ) from exc
+        identities[root] = (info.st_dev, info.st_ino)
+    return identities
+
+
+def _verify_storage_roots(identities: dict[Path, tuple[int, int]]) -> None:
+    if _storage_root_stats(list(identities)) != identities:
+        raise StorageObservationError("required storage root identity changed during inspection")
+
+
+def tree_usage(
+    roots: list[Path],
+    *,
+    max_entries: int | None = None,
+    timeout_seconds: float | None = None,
+    allow_transient_disappearance: bool = False,
+) -> dict[str, Any]:
+    """Deduplicated allocation; only explicit active installs may use lower bounds.
+
+    POSIX st_blocks includes directory allocation; other platforms use a labelled
+    logical fallback (not an NTFS compressed/sparse allocation measurement).
+    Classify each entry using its single lstat, never follow descendant symlinks.
+    Only FileNotFoundError for an already enumerated descendant is transient;
+    root loss/replacement, permissions and all other observation errors fail closed.
+    A strict incomplete sample raises, so it cannot become a partial baseline.
     """
     deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
+    root_stats = _storage_root_stats(roots)
     seen: set[tuple[int, int] | str] = set()
-    logical, allocated, files = 0, 0, 0
+    missing: list[dict[str, Any]] = []
+    missing_count = 0
+    reappeared = False
+    logical, allocated, files, inspected = 0, 0, 0, 0
     allocation_known = True
+
+    def check_bound(queued: int = 0) -> None:
+        if (max_entries is not None and inspected + queued >= max_entries) or (
+            deadline is not None and time.monotonic() >= deadline
+        ):
+            raise StorageObservationError(
+                "storage inspection bound exceeded; no partial total claimed"
+            )
+
+    def disappeared(path: Path, operation: str, exc: FileNotFoundError, descendant: bool) -> None:
+        nonlocal missing_count, reappeared
+        if not descendant:
+            raise StorageObservationError(
+                f"required storage root unavailable: {path}: {exc}"
+            ) from exc
+        if exc.errno != errno.ENOENT:
+            raise StorageObservationError(
+                f"unverified storage disappearance: {path}: {exc}"
+            ) from exc
+        confirmed_missing = False
+        try:
+            path.lstat()
+        except FileNotFoundError as confirmation:
+            if confirmation.errno != errno.ENOENT:
+                raise StorageObservationError(
+                    f"unverified storage disappearance: {path}: {confirmation}"
+                ) from confirmation
+            confirmed_missing = True
+        except OSError as confirmation:
+            raise StorageObservationError(
+                f"storage disappearance verification failed: {path}: {confirmation}"
+            ) from confirmation
+        reappeared |= not confirmed_missing
+        _verify_storage_roots(root_stats)
+        missing_count += 1
+        if len(missing) < 64:
+            missing.append(
+                {
+                    "path": str(path),
+                    "operation": operation,
+                    "errno": exc.errno,
+                    "winerror": getattr(exc, "winerror", None),
+                    "confirmed_missing": confirmed_missing,
+                }
+            )
+
     for root in roots:
-        if not root.exists():
-            continue
-        pending = [root]
+        pending = [(root, False)]
         while pending:
-            if (max_entries is not None and len(seen) >= max_entries) or (
-                deadline is not None and time.monotonic() >= deadline
-            ):
-                raise ValueError("storage inspection bound exceeded; no partial total claimed")
-            path = pending.pop()
-            stat = path.lstat()
-            key = (stat.st_dev, stat.st_ino) if stat.st_ino else str(path.absolute())
+            check_bound()
+            path, descendant = pending.pop()
+            inspected += 1
+            try:
+                info = path.lstat()
+            except FileNotFoundError as exc:
+                disappeared(path, "lstat", exc, descendant)
+                continue
+            except OSError as exc:
+                raise StorageObservationError(f"storage lstat failed: {path}: {exc}") from exc
+            key = (info.st_dev, info.st_ino) if info.st_ino else str(path.absolute())
             if key in seen:
                 continue
             seen.add(key)
-            if path.is_symlink():
+            if stat.S_ISLNK(info.st_mode):
                 continue
-            blocks = getattr(stat, "st_blocks", None)
+            blocks = getattr(info, "st_blocks", None)
             if blocks is None:
                 allocation_known = False
-            allocated += stat.st_size if blocks is None else blocks * 512
-            if path.is_dir():
-                pending.extend(path.iterdir())
-            elif path.is_file():
+            allocated += info.st_size if blocks is None else blocks * 512
+            if stat.S_ISDIR(info.st_mode):
+                try:
+                    for child in path.iterdir():
+                        check_bound(len(pending))
+                        pending.append((child, True))
+                except FileNotFoundError as exc:
+                    disappeared(path, "iterdir", exc, descendant)
+                except OSError as exc:
+                    raise StorageObservationError(
+                        f"storage enumeration failed: {path}: {exc}"
+                    ) from exc
+            elif stat.S_ISREG(info.st_mode):
                 files += 1
-                logical += stat.st_size
-    return {
+                logical += info.st_size
+    _verify_storage_roots(root_stats)
+    if deadline is not None and time.monotonic() >= deadline:
+        raise StorageObservationError("storage inspection bound exceeded; no partial total claimed")
+    usage = {
         "logical_bytes": logical,
         "allocated_bytes": allocated if allocation_known else None,
         "budget_bytes": allocated,
@@ -574,7 +680,15 @@ def tree_usage(
         else "logical fallback (allocation unavailable)",
         "files": files,
         "deduplication": "global (device,inode), overlapping roots and hardlinks counted once",
+        "complete": not missing_count,
+        "missing_observations": missing,
+        "missing_observation_count": missing_count,
+        "missing_observations_truncated": missing_count > len(missing),
+        "requires_resample": reappeared,
     }
+    if missing_count and (not allow_transient_disappearance or reappeared):
+        raise _IncompleteStorageObservation(usage)
+    return usage
 
 
 def tree_bytes(root: Path) -> int:
@@ -583,9 +697,13 @@ def tree_bytes(root: Path) -> int:
 
 
 def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, Any]:
+    """Take at most three samples; incomplete install samples are lower bounds only.
+
+    Set allow_transient_disappearance=True only in an active installer monitor's
+    copied limits. Admission, baselines and final checks must remain strict.
+    Every incomplete sample is retained even if a subsequent sample is complete.
+    """
     roots = [Path(p) for p in limits.get("accounting_roots", [run, media])]
-    usage = tree_usage(roots)
-    growth = max(0, usage["budget_bytes"] - limits.get("baseline_bytes", 0))
     reserve_roots = list(
         dict.fromkeys(
             [
@@ -596,19 +714,69 @@ def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, An
             ]
         )
     )
-    free_by_root = {str(p): shutil.disk_usage(p).free for p in reserve_roots}
-    space = min(free_by_root.values())
-    host = resources()
-    if growth > limits["growth_bytes"] or space < limits["reserve_bytes"]:
-        raise ResourceLimitError(
-            f"disk budget refused/crossed: growth={growth}, free={space}, "
-            f"basis={usage['budget_basis']}, scope={limits.get('budget_scope', 'run+media')}"
-        )
-    available = host["ram_available_bytes"]
-    if available is None or available < limits["memory_floor_bytes"]:
-        raise ResourceLimitError(f"guest RAM headroom unavailable/below floor: {available}")
+    required = _storage_root_stats(reserve_roots)
+    active = limits.get("allow_transient_disappearance") is True
+    incomplete_samples = []
+    max_observed_budget = 0
+    attempt = 1
+    while True:
+        try:
+            usage = tree_usage(roots, allow_transient_disappearance=active)
+        except _IncompleteStorageObservation as exc:
+            usage = exc.usage
+        if not usage["complete"]:
+            incomplete_samples.append(usage)
+        max_observed_budget = max(max_observed_budget, usage["budget_bytes"])
+        growth = max(0, max_observed_budget - limits.get("baseline_bytes", 0))
+        _verify_storage_roots(required)
+        try:
+            free_by_root = {str(p): shutil.disk_usage(p).free for p in reserve_roots}
+        except OSError as exc:
+            raise StorageObservationError(f"storage reserve observation failed: {exc}") from exc
+        space = min(free_by_root.values())
+        host = resources()
+        if growth > limits["growth_bytes"] or space < limits["reserve_bytes"]:
+            raise ResourceLimitError(
+                f"disk budget refused/crossed: growth={growth}, free={space}, "
+                f"basis={usage['budget_basis']}, scope={limits.get('budget_scope', 'run+media')}",
+                storage_observations=incomplete_samples,
+            )
+        available = host["ram_available_bytes"]
+        if available is None or available < limits["memory_floor_bytes"]:
+            raise ResourceLimitError(
+                f"guest RAM headroom unavailable/below floor: {available}",
+                storage_observations=incomplete_samples,
+            )
+        _verify_storage_roots(required)
+        if usage["complete"] or attempt == 3:
+            break
+        attempt += 1
+    campaign = None
     if limits.get("campaign_limits"):
-        check_budget(run, media, limits["campaign_limits"])
+        campaign_limits = {**limits["campaign_limits"], "allow_transient_disappearance": active}
+        campaign = check_budget(run, media, campaign_limits)
+    _verify_storage_roots(required)
+    if not usage["complete"] and (not active or usage["requires_resample"]):
+        raise StorageObservationError(
+            "storage observation incomplete after 3 samples; no total accepted",
+            storage_observations=incomplete_samples,
+        )
+    # Copy before adding history: an incomplete terminal sample is itself in the
+    # history and must not acquire a self-reference (monitor evidence is JSON).
+    usage = {
+        **usage,
+        "sampling_attempts": attempt,
+        "incomplete_samples": incomplete_samples,
+        "max_observed_budget_bytes": max_observed_budget,
+    }
+    if campaign is not None:
+        campaign_storage = campaign["storage"]
+        usage["campaign_storage"] = campaign_storage
+        usage["complete"] = usage["complete"] and campaign_storage["complete"]
+        usage["incomplete_samples"] = [
+            *incomplete_samples,
+            *({**sample, "scope": "campaign"} for sample in campaign_storage["incomplete_samples"]),
+        ]
     return {
         "growth_bytes": growth,
         "free_bytes": space,

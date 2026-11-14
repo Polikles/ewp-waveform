@@ -456,6 +456,15 @@ def report(
     ]
     if error:
         lines += [f"Failure / refusal: {clean(error, 1000)}", ""]
+    if status == "FAILED_STORAGE_OBSERVATION":
+        lines += [
+            "Storage accounting could not obtain a complete observation. This is an "
+            "infrastructure failure, not evidence of disk-capacity or budget exhaustion. "
+            "Dispatch is stopped; attempts and incomplete samples are retained. "
+            "A new bounded setup/preflight can be used after reconciliation; do not resume "
+            "or rewrite the failed run.",
+            "",
+        ]
     if config and config.get("cuda_error"):
         lines += [
             "Optional CUDA environment/setup failed; "
