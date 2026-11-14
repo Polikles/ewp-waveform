@@ -634,6 +634,7 @@ def invoke(
             not value.get("attempt_failures")
             and observed["returncode"] == 0
             and not observed["error"]
+            and observed["shutdown_verified"]
             and value.get("status") in ("SUCCEEDED", "SKIPPED", "NOT_SUPPORTED", "NOT_APPLICABLE")
         )
         if not good:
@@ -645,6 +646,15 @@ def invoke(
                 "argv": observed["argv"],
             }
         value["optional"] = optional
+        if not good:
+            value["failure_scope"] = (
+                "GLOBAL_PROCESS_OWNERSHIP"
+                if not observed["shutdown_verified"]
+                else "OPTIONAL_SCENARIO"
+                if optional
+                else "REQUIRED_SCENARIO"
+            )
+            value["independent_dispatch_allowed"] = bool(optional and observed["shutdown_verified"])
         if request.get("pair"):
             value["pair"] = request["pair"]
         value["execution_settings"] = {
@@ -733,6 +743,27 @@ def backend_passed(results: dict[str, Any], name: str) -> bool:
     item = value.get(name, {}) if isinstance(value, dict) else {}
     same_build = value.get("same_build_control", {}).get("status", "PASS")
     return same_build == "PASS" and item.get("status") in ("SUCCEEDED", "SUPPORTED", "PASS")
+
+
+def backend_failure_reason(results: dict[str, Any], name: str) -> str:
+    """Explain only the actual failed gate; sibling failures are not prerequisites."""
+    backends = results.get("backends", {})
+    item = backends.get(name, {}) if isinstance(backends, dict) else {}
+    control = backends.get("same_build_control", {}) if isinstance(backends, dict) else {}
+    if control and control.get("status") != "PASS":
+        return f"same_build_control {control.get('status', 'NOT_RUN')}: " + str(
+            control.get("explanation") or "selected FFmpeg/ffprobe identity not qualified"
+        )
+    details = [f"{name} independently {item.get('status', 'NOT_RUN')}"]
+    if item.get("explanation"):
+        details.append(str(item["explanation"]))
+    for key, case in item.get("cases", {}).items():
+        if isinstance(case, dict) and case.get("status") != "PASS":
+            details.append(
+                f"{key}: {case.get('status', 'NOT_RUN')}: "
+                + str(case.get("explanation") or case.get("error") or "qualification gate failed")
+            )
+    return "; ".join(details)
 
 
 def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -894,7 +925,7 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
                 else:
                     skipped(
                         label,
-                        f"{backend} independently not qualified; inspect backend-qualification",
+                        backend_failure_reason(qualification, backend),
                     )
         codec = {"operation": "codec", "workload": w, "reference": cpu["output"]}
         if backend_passed(qualification, "ffv1") and not config["smoke"]:
@@ -908,7 +939,12 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
             # Retain a native lossless MKV even without a GPU encoder. It aliases
             # the existing CPU MOV for NLE comparison after exact RGBA proof.
             step(w["id"] + "-ffv1-cpu", {**codec, "gpu": False}, optional=True)
-            skipped(w["id"] + "-ffv1-gpu", "FFV1 GPU independently not qualified")
+            skipped(
+                w["id"] + "-ffv1-gpu",
+                "CPU smoke only; GPU not requested"
+                if config["smoke"]
+                else backend_failure_reason(qualification, "ffv1"),
+            )
         finish = {"operation": "cuda", "workload": w}
         numpy_ok = (
             finishing["numpy"].get("status") == "SUCCEEDED"
