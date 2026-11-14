@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "observation_date": "2026-11-14",
+  "provenance": "Explicit operator-supplied observations; target reports/diagnostic JSON not authenticated locally by this record",
+  "visual_acceptance": {
+    "accepted": ["supplied four-second existing CPU/FFmpeg preview", "supplied four-second native Windows Vulkan ProRes preview", "supplied four-second WSL CUDA FIR preview"],
+    "background_frames_inspected": ["dark", "light", "checker"],
+    "cuda_note": "subtly different finishing preserves intended appearance",
+    "view_equality": "CPU and GPU-ProRes MP4 viewing copies are byte-identical for each of three backgrounds against recorded artifact hashes; no MOV-master byte identity established",
+    "scope_exclusions": ["future changed outputs", "full episodes", "experimental native Resolve Studio import/alpha/playback"],
+    "unchanged_artifact_reassessment_required": false
+  },
+  "timings": [
+    {"workload":"speech", "environment":"WSL", "control":"NumPy FIR", "candidate":"CUDA FIR", "control_seconds":16.416, "candidate_seconds":4.285, "scope":"same FIR algorithm, medians of two counterbalanced observations per side"},
+    {"workload":"speech", "environment":"Windows", "control":"CPU", "candidate":"added Vulkan transfer", "control_seconds":4.948, "candidate_seconds":5.444, "scope":"application-service render"},
+    {"workload":"speech", "environment":"Windows", "control":"CPU", "candidate":"Vulkan ProRes", "control_seconds":5.159, "candidate_seconds":5.519, "scope":"application-service render including conversion/upload"},
+    {"workload":"speech", "environment":"Windows", "control":"CPU FFV1", "candidate":"Vulkan FFV1", "control_seconds":0.465, "candidate_seconds":33.620, "scope":"shared-master decode/conversion/encode/container, NOT full rendering"}
+  ],
+  "matched_raster_ffmpeg_controls": {"WSL_seconds":2.898,"Windows_seconds":5.068,"scope":"separate algorithm controls; not isolated OS-performance comparison"},
+  "production32": {"WSL_service_seconds":26.873749,"Windows_service_seconds":30.631964,"frames":1920,"fps":60,"jobs":2,"chunks":2,"decoded_RGBA8_equal":true,"WSL_ffmpeg":"8.0.1","Windows_ffmpeg":"n9.0.2-39-g7adfbe40dc","exclusions":["external verification","MP4 generation"]},
+  "cuda_attribution_speech240": {"pipeline_seconds":4.285765,"compute_events_seconds_approx":0.0899,"compute_stage_wall_seconds_approx":0.1645,"host_output_preparation_seconds_approx":1.1534,"finishing_call_wall_seconds_approx":1.6270,"semantics":"overlapping scopes and different clocks; do not sum into a partition"},
+  "verification_cost": {"Windows_Vulkan_ProRes_seconds_approx":18,"Windows_CPU_seconds_approx":2.3,"scope":"four-second output external verification, excluded from service times; not rendering cost"},
+  "qualification": {"native_Windows":["transfer passed","ProRes passed","FFV1 passed","blur1400x280 centered passed","blur64x32 returned zero against nonzero oracle FAILED","blur padded diagnostic FAILED"],"WSL":["CUDA FIR preparation reuse works","Vulkan/Dozen independently failing"],"blur_performance_admission":"BLOCKED until correct implementation or explicitly bounded supported domain with edge tests"},
+  "latest_reports": ["report-b495abcc212e.md plus full diagnostics JSON", "report-8c077dbfb765.md plus full diagnostics JSON"],
+  "full_reference": {"duration_seconds":395.6785,"frames":23741,"width":1400,"height":280,"fps":60,"historical_VM1_service_seconds":304.734380,"scope":"retained VM.1 source/environment, not a fresh later-candidate timing","dark_master_sha256":"00652a1b5255b8c1cbe0bc82381bd151f7e56d2b3aecfe87683d25ed3d79da78","original_audio_sha256":"e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b"},
+  "experimental_native_resolve_studio": "PENDING"
+}
