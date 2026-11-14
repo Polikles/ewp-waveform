@@ -51,15 +51,17 @@ def require_process_safe(result: dict[str, Any]) -> None:
         raise ProcessOwnershipError(
             "bootstrap process-tree shutdown UNVERIFIED; no further dispatch"
         )
-    if result.get("storage_observation_failed"):
-        raise StorageObservationError(
-            "bootstrap global storage observation failed: "
-            + str(result.get("storage_observation_errors", result.get("error")))
-        )
     if result.get("resource_refused"):
         raise ResourceAdmissionError(
             "bootstrap global resource refusal: "
             + str(result.get("resource_errors", result.get("error")))
+            + "; storage reconciliation: "
+            + str(result.get("storage_observation_errors", []))
+        )
+    if result.get("storage_observation_failed"):
+        raise StorageObservationError(
+            "bootstrap global storage observation failed: "
+            + str(result.get("storage_observation_errors", result.get("error")))
         )
     if result.get("monitor_failed"):
         raise MonitorFailureError(

@@ -547,7 +547,14 @@ def _storage_root_stats(roots: list[Path]) -> dict[Path, tuple[int, int]]:
     identities = {}
     for root in roots:
         try:
+            entry = root.lstat()
+            if stat.S_ISLNK(entry.st_mode):
+                raise StorageObservationError(
+                    f"required storage root must not be a symlink: {root}"
+                )
             info = root.stat()
+            if (entry.st_dev, entry.st_ino) != (info.st_dev, info.st_ino):
+                raise StorageObservationError(f"required storage root identity changed: {root}")
         except OSError as exc:
             raise StorageObservationError(
                 f"required storage root unavailable: {root}: {exc}"
@@ -697,6 +704,23 @@ def tree_bytes(root: Path) -> int:
 
 
 def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, Any]:
+    """Preserve every collected incomplete sample even when a later check fails."""
+    incomplete_samples: list[dict[str, Any]] = []
+    try:
+        return _check_budget(run, media, limits, incomplete_samples)
+    except (StorageObservationError, ResourceAdmissionError) as exc:
+        # Nested campaigns and resource errors may already carry their own
+        # observations. Keep both scopes without duplicating this check's history.
+        exc.storage_observations = [
+            *incomplete_samples,
+            *(sample for sample in exc.storage_observations if sample not in incomplete_samples),
+        ]
+        raise
+
+
+def _check_budget(
+    run: Path, media: Path, limits: dict[str, Any], incomplete_samples: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Take at most three samples; incomplete install samples are lower bounds only.
 
     Set allow_transient_disappearance=True only in an active installer monitor's
@@ -716,7 +740,6 @@ def check_budget(run: Path, media: Path, limits: dict[str, Any]) -> dict[str, An
     )
     required = _storage_root_stats(reserve_roots)
     active = limits.get("allow_transient_disappearance") is True
-    incomplete_samples = []
     max_observed_budget = 0
     attempt = 1
     while True:

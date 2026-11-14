@@ -570,3 +570,71 @@ def test_confirmed_windows_path_not_found_preserves_winerror(
     assert usage["missing_observations"][0]["winerror"] == 3
     assert usage["missing_observations"][0]["confirmed_missing"] is True
     assert calls == 2
+
+
+@pytest.mark.parametrize("later_fault", ["reserve", "root", "resample", "campaign"])
+def test_incomplete_history_survives_later_observation_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, later_fault: str
+) -> None:
+    root = tmp_path / "managed"
+    root.mkdir()
+    disappear_repeatedly(monkeypatch, root)
+    original = state.tree_usage
+    samples = 0
+
+    def sample(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal samples
+        samples += 1
+        if later_fault == "resample" and samples == 2:
+            raise StorageObservationError("later sample I/O failure")
+        if later_fault == "campaign" and args[0] == [tmp_path, tmp_path]:
+            raise StorageObservationError("nested campaign permission failure")
+        result = original(*args, **kwargs)
+        if later_fault == "root":
+            root.rename(tmp_path / "lost-root")
+        return result
+
+    def reserve(path: Path) -> Any:
+        raise PermissionError(errno.EACCES, "later reserve permission failure", str(path))
+
+    monkeypatch.setattr(state, "tree_usage", sample)
+    if later_fault == "reserve":
+        monkeypatch.setattr(shutil, "disk_usage", reserve)
+    policy = limits_for(root, active=True)
+    if later_fault == "campaign":
+        policy["campaign_limits"] = limits_for(tmp_path)
+        policy["campaign_limits"].pop("accounting_roots")
+    live, _ = deps.installation_monitors(tmp_path, tmp_path, policy, tmp_path / "evidence")
+    with pytest.raises(StorageObservationError) as error:
+        live()
+    assert error.value.storage_observations
+    assert error.value.storage_observations[0]["missing_observations"][0]["confirmed_missing"]
+    event = json.loads((tmp_path / "evidence/storage-samples.jsonl").read_text())
+    assert event["incomplete_samples"] == error.value.storage_observations
+
+
+@pytest.mark.parametrize("replace_during_scan", [False, True])
+def test_required_root_symlink_never_claims_complete_zero_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replace_during_scan: bool
+) -> None:
+    root = tmp_path / "managed"
+    root.mkdir()
+    (root / "payload").write_bytes(b"x" * 32768)
+    original = state.tree_usage
+
+    def replace() -> None:
+        retained = tmp_path / "retained"
+        root.rename(retained)
+        root.symlink_to(retained, target_is_directory=True)
+
+    def sample(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        result = original(*args, **kwargs)
+        replace()
+        return result
+
+    if replace_during_scan:
+        monkeypatch.setattr(state, "tree_usage", sample)
+    else:
+        replace()
+    with pytest.raises(StorageObservationError, match="required storage root"):
+        state.check_budget(tmp_path, tmp_path, limits_for(root, active=True))

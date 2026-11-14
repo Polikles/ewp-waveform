@@ -140,3 +140,24 @@ def test_failed_reconciliation_retains_incomplete_samples(tmp_path: Path, resour
     rows = (tmp_path / "command/storage-observations.jsonl").read_text().splitlines()
     assert all(json.loads(row)["incomplete_samples"] == observations for row in rows)
     assert state.load(tmp_path / "command/result.json") == result
+
+
+def test_observed_resource_refusal_keeps_precedence_over_later_storage_failure(
+    tmp_path: Path,
+) -> None:
+    samples = 0
+
+    def monitor() -> None:
+        nonlocal samples
+        samples += 1
+        if samples == 1:
+            raise process.ResourceAdmissionError("real limit exceeded")
+        raise process.StorageObservationError("later reconciliation I/O failure")
+
+    result = process.run_command(
+        [sys.executable, "-c", "pass"], tmp_path / "command", monitor=monitor
+    )
+    assert result["resource_refused"] and result["storage_observation_failed"]
+    assert result["failure_scope"] == "GLOBAL_RESOURCE_ADMISSION"
+    with pytest.raises(process.ResourceAdmissionError, match="later reconciliation I/O failure"):
+        require_process_safe(result)
