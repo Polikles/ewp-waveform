@@ -8,8 +8,10 @@ Subprocess contract (JSON report, exit 0 success / 2 unavailable or failed):
 Render backends: numpy, torch-cpu, cuda, transfer-cuda, ffmpeg. CUDA options use
 --device cuda:0. --reference other.mov adds decoded comparative metrics, NOT an
 appearance acceptance gate. --preview preview.mp4 creates a separately timed view.
---ffmpeg/--ffprobe pin executable paths (also recorded by hash). Only batch one is
-implemented. Source bounds mandatory, <=32s; original production raster only.
+--ffmpeg/--ffprobe pin executable paths (also recorded by hash). Torch finishing
+accepts --output-mode host-reference|host-reuse|device-rgba|device-alpha8,
+--batch-size 1..16 (also geometry-screened), and --timing-mode diagnostic|ordinary.
+Other backends retain their batch-one diagnostic control. Bounds mandatory, <=32s.
 Cold external process E2E must be measured by the invoking runner: Python startup
 and package/module import precede main() and cannot honestly be measured here.
 """
@@ -26,19 +28,41 @@ import sys
 import time
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict
+from itertools import islice
 from pathlib import Path
 from typing import Any, cast
 
 from ewp_waveform.ffmpeg.torch_finish import (
     ALGORITHM,
+    OUTPUT_MODES,
+    TIMING_MODES,
     FinishSpec,
     TorchFinisher,
     numpy_finish,
     qualify,
     validate_backend_device,
+    validate_execution_options,
 )
 
 BACKENDS = ("numpy", "torch-cpu", "cuda", "transfer-cuda", "ffmpeg")
+
+
+def _torch_stream(
+    frames: Iterable[bytes], worker: TorchFinisher, pix_fmt: str, counters: dict[str, Any]
+) -> Iterator[bytes]:
+    """Consume every borrowed output before the next batch; preserve a partial tail."""
+    source = iter(frames)
+    while batch := list(islice(source, worker.batch_size)):
+        started = time.perf_counter()
+        outputs = worker.finish_batch(batch, pix_fmt)
+        elapsed = time.perf_counter() - started
+        counters["finishing_wall_seconds"] += elapsed
+        counters["batch_calls"].append({"frames": len(batch), "wall_seconds": elapsed})
+        if worker.batch_size == 1:
+            counters["frame_calls"].append(elapsed)
+        # Serialization is outside the finishing-call timer, as in the old control.
+        for output in outputs:
+            yield output.tobytes()
 
 
 def _hash(path: Path) -> str:
@@ -69,6 +93,9 @@ def render_experiment(
     reference: Path | None = None,
     preview: Path | None = None,
     visual_overrides: dict[str, Any] | None = None,
+    output_mode: str = "host-reference",
+    batch_size: int = 1,
+    timing_mode: str = "diagnostic",
 ) -> dict[str, Any]:
     """Fresh original-input bounded production pipeline, custom finishing seam only.
 
@@ -80,6 +107,13 @@ def render_experiment(
     if backend not in BACKENDS:
         raise ValueError("unknown finishing backend")
     validate_backend_device(backend, device)
+    validate_execution_options(output_mode, batch_size, timing_mode)
+    if backend not in ("torch-cpu", "cuda") and (output_mode, batch_size, timing_mode) != (
+        "host-reference",
+        1,
+        "diagnostic",
+    ):
+        raise ValueError("execution controls require torch-cpu or cuda finishing")
     if not all(math.isfinite(v) for v in (start, duration)) or start < 0 or not 0 < duration <= 32:
         raise ValueError("explicit finite start>=0 and 0<duration<=32 seconds required")
     source, output = source.resolve(), output.resolve()
@@ -153,11 +187,27 @@ def render_experiment(
         )
         # Qualification is explicit setup, never hidden in a throughput interval.
         qstart = time.perf_counter()
-        qualification = qualify(backend, device=device) if backend != "ffmpeg" else None
+        qualification = (
+            qualify(
+                backend,
+                device=device,
+                output_mode=output_mode,
+                batch_size=batch_size,
+                timing_mode=timing_mode,
+            )
+            if backend != "ffmpeg"
+            else None
+        )
         qualification_seconds = time.perf_counter() - qstart
         wstart = time.perf_counter()
         worker = (
-            TorchFinisher(spec, "cpu" if backend == "torch-cpu" else device)
+            TorchFinisher(
+                spec,
+                "cpu" if backend == "torch-cpu" else device,
+                output_mode=output_mode,
+                batch_size=batch_size,
+                timing_mode=timing_mode,
+            )
             if backend in ("torch-cpu", "cuda", "transfer-cuda")
             else None
         )
@@ -173,6 +223,7 @@ def render_experiment(
             "original_bytes": 0,
             "finishing_wall_seconds": 0.0,
             "frame_calls": [],
+            "batch_calls": [],
             "numpy_phases": [],
         }
 
@@ -196,11 +247,20 @@ def render_experiment(
                     raise ValueError("original production raster geometry drift")
                 pix_fmt = kwargs["pix_fmt"]
 
-                def observed() -> Iterator[bytes]:
+                def tracked() -> Iterator[bytes]:
                     for frame in frames:
                         original_digest.update(frame)
                         counters["original_bytes"] += len(frame)
                         counters["frames"] += 1
+                        yield frame
+
+                def observed() -> Iterator[bytes]:
+                    if worker is not None and backend in ("torch-cpu", "cuda"):
+                        for data in _torch_stream(tracked(), worker, pix_fmt, counters):
+                            finished_digest.update(data)
+                            yield data
+                        return
+                    for frame in tracked():
                         started = time.perf_counter()
                         phases: dict[str, float] = {}
                         if backend == "ffmpeg":
@@ -212,8 +272,6 @@ def render_experiment(
                             result = numpy_finish(
                                 worker.transfer(frame, pix_fmt), spec, phases=phases
                             )
-                        elif worker is not None:
-                            result = worker.finish(frame, pix_fmt)
                         else:
                             result = numpy_finish(frame, spec, pix_fmt, phases=phases)
                         elapsed = time.perf_counter() - started
@@ -312,7 +370,19 @@ def render_experiment(
         result_payload = {
             "status": "SUCCEEDED",
             "backend": backend,
-            "batch_size": 1,
+            "batch_size": batch_size,
+            "output_mode": output_mode,
+            "timing_mode": timing_mode,
+            "measurement_class": (
+                "diagnostic-synchronized-not-ordinary-throughput"
+                if timing_mode == "diagnostic"
+                else "ordinary-completed-calls"
+            ),
+            "finishing_timer": (
+                "completed finish_batch including input conversion, upload/compute/download/"
+                "RGBA assembly; excludes raster generation, tobytes and encoder feed; "
+                "batch_calls are batch spans, never invented per-frame samples"
+            ),
             "algorithm": "production-ffmpeg-recursive-gblur" if backend == "ffmpeg" else ALGORITHM,
             "scope": "BOUNDED_ORIGINAL_PRODUCTION_RASTER_EXPERIMENT_NOT_STOCK_SERVICE",
             "comparison": "FIR CPU vs FIR GPU isolates backend; FIR vs FFmpeg changes algorithm",
@@ -386,6 +456,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=("qualify", "render"))
     parser.add_argument("--backend", choices=BACKENDS, default="numpy")
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--output-mode", choices=OUTPUT_MODES, default="host-reference")
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--timing-mode", choices=TIMING_MODES, default="diagnostic")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--start", type=float)
@@ -401,7 +474,13 @@ def main(argv: list[str] | None = None) -> int:
     started = time.perf_counter()
     try:
         if args.action == "qualify":
-            result = qualify(args.backend, device=args.device)
+            result = qualify(
+                args.backend,
+                device=args.device,
+                output_mode=args.output_mode,
+                batch_size=args.batch_size,
+                timing_mode=args.timing_mode,
+            )
         else:
             if any(v is None for v in (args.source, args.start, args.duration, args.output)):
                 raise ValueError("render requires --source --start --duration --output")
@@ -416,12 +495,18 @@ def main(argv: list[str] | None = None) -> int:
                 ffprobe=args.ffprobe,
                 reference=args.reference,
                 preview=args.preview,
+                output_mode=args.output_mode,
+                batch_size=args.batch_size,
+                timing_mode=args.timing_mode,
             )
         code = 0
     except (Exception, KeyboardInterrupt) as exc:
         result = {
             "status": "FAILED_OR_UNAVAILABLE",
             "backend": args.backend,
+            "output_mode": args.output_mode,
+            "batch_size": args.batch_size,
+            "timing_mode": args.timing_mode,
             "gpu_qualified": False,
             "error_type": type(exc).__name__,
             "error": str(exc),

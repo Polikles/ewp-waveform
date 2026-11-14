@@ -13,7 +13,7 @@ import importlib
 import math
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -145,6 +145,72 @@ def rgba_from_alpha(alpha: F32, spec: FinishSpec) -> U8:
     return output
 
 
+OUTPUT_MODES = ("host-reference", "host-reuse", "device-rgba", "device-alpha8")
+TIMING_MODES = ("diagnostic", "ordinary")
+MAX_BATCH_SIZE = 16
+
+
+def validate_execution_options(output_mode: str, batch_size: int, timing_mode: str) -> None:
+    """Validate experimental controls before optional imports or filesystem writes."""
+    if output_mode not in OUTPUT_MODES or timing_mode not in TIMING_MODES:
+        raise ValueError("unknown FIR output_mode or timing_mode")
+    if type(batch_size) is not int or not 1 <= batch_size <= MAX_BATCH_SIZE:
+        raise ValueError(f"batch_size must be an integer in [1, {MAX_BATCH_SIZE}]")
+
+
+class HostRGBAAssembler:
+    """Exact float32 half-up quantization with reusable scratch and a straight-RGBA LUT.
+
+    Results are borrowed until the next assemble/from_quantized call. The LUT sets
+    hidden RGB to zero; visible RGB is the unpremultiplied spec.color even at alpha 1.
+    Buffer capacity is fixed; partial batches use only their live prefix.
+    """
+
+    def __init__(self, spec: FinishSpec, batch_size: int = 1) -> None:
+        validate_execution_options("host-reuse", batch_size, "ordinary")
+        shape = (batch_size, spec.height, spec.width)
+        self.scratch = np.empty(shape, dtype=np.float32)
+        self.quantized = np.empty(shape, dtype=np.uint8)
+        # np.take otherwise casts uint8 indices to a newly allocated intp plane
+        # on every call. Retain that index plane as well as quantization scratch.
+        self.indices = np.empty(shape, dtype=np.intp)
+        self.output = np.empty((*shape, 4), dtype=np.uint8)
+        self.table = np.empty((256, 4), dtype=np.uint8)
+        self.table[:, :3] = spec.color
+        self.table[:, 3] = np.arange(256, dtype=np.uint8)
+        self.table[0] = 0
+
+    def _count(self, values: F32 | U8) -> int:
+        if (
+            values.ndim != 3
+            or values.shape[1:] != self.scratch.shape[1:]
+            or not 1 <= len(values) <= len(self.scratch)
+        ):
+            raise ValueError("alpha batch shape exceeds fixed assembly capacity")
+        return len(values)
+
+    def assemble(self, alpha: F32) -> U8:
+        n = self._count(alpha)
+        if alpha.dtype != np.float32:
+            raise ValueError("reusable assembly requires float32 alpha")
+        scratch, quantized = self.scratch[:n], self.quantized[:n]
+        np.clip(alpha, 0, 1, out=scratch)
+        np.multiply(scratch, np.float32(255), out=scratch)
+        np.add(scratch, np.float32(0.5), out=scratch)
+        np.floor(scratch, out=scratch)
+        np.copyto(quantized, scratch, casting="unsafe")
+        return self.from_quantized(quantized)
+
+    def from_quantized(self, quantized: U8) -> U8:
+        n = self._count(quantized)
+        if quantized.dtype != np.uint8:
+            raise ValueError("quantized alpha must be uint8")
+        # mode=clip avoids np.take's mandatory output buffering for mode=raise.
+        np.copyto(self.indices[:n], quantized)
+        np.take(self.table, self.indices[:n], axis=0, out=self.output[:n], mode="clip")
+        return self.output[:n]
+
+
 def numpy_finish(
     frame: bytes | U8,
     spec: FinishSpec,
@@ -171,19 +237,42 @@ def numpy_finish(
 
 
 class TorchFinisher:
-    """Persistent batch-one eager worker. Construction/import/context cost is explicit.
+    """Opt-in bounded eager batches; no compile, warmup or global Torch settings.
 
-    Each call synchronizes every measured CUDA phase; event and wall times are
-    deliberately serialized, not a claim about a pipelined asynchronous route.
-    No torch.compile, hidden warm-up, global Torch backend settings or encoding.
+    host-reference preserves the allocating float-alpha host control. host-reuse
+    selects exact reusable host assembly. device-rgba quantizes/assembles on the
+    selected device, downloading RGBA8 (still 4 bytes/pixel); device-alpha8 downloads
+    just quantized alpha (1 byte/pixel), then uses the reusable host LUT.
+
+    Diagnostic timing serializes phases with CUDA events. Ordinary timing records
+    only completed call wall/CPU spans, with no events or per-phase explicit sync.
+    Transfers remain blocking; this is not a synchronization-free CUDA pipeline.
+    No asynchronous overlap/pinned-memory claim. Batch outputs from reusable modes
+    are borrowed until the next finish call; consume/copy before reusing this worker.
     """
 
-    def __init__(self, spec: FinishSpec, device: str = "cuda:0") -> None:
+    def __init__(
+        self,
+        spec: FinishSpec,
+        device: str = "cuda:0",
+        *,
+        output_mode: str = "host-reference",
+        batch_size: int = 1,
+        timing_mode: str = "diagnostic",
+    ) -> None:
+        validate_execution_options(output_mode, batch_size, timing_mode)
         if device != "cpu" and not (device.startswith("cuda:") and device[5:].isdigit()):
             raise ValueError("explicit cpu or cuda:N device required")
+        # Conservative admission screen, not a guarantee of CUDA library workspace.
+        # Production 1400x280 fits; oversized geometry/capacity refuses before imports.
+        if batch_size * (math.prod(spec.input_shape) + spec.width * spec.height) * 64 > 256 << 20:
+            raise ValueError("batch geometry exceeds 256 MiB conservative working-set screen")
         self.spec = spec
         self.device = device
         self.cuda = device.startswith("cuda:")
+        self.output_mode = output_mode
+        self.batch_size = batch_size
+        self.timing_mode = timing_mode
         self.timings: list[dict[str, Any]] = []
         started = time.perf_counter()
         self.torch: Any = importlib.import_module("torch")
@@ -197,8 +286,22 @@ class TorchFinisher:
         started = time.perf_counter()
         self.kernel = torch.from_numpy(gaussian_kernel(spec.sigma)).to(device)
         self.line = torch.from_numpy(horizon_coverage(spec)).to(device)
-        self.reflection = torch.ones((spec.height, 1), device=device)
+        self.reflection = torch.ones((spec.height, 1), device=device, dtype=torch.float32)
         self.reflection[spec.height // 2 + 1 :] = spec.reflection
+        self.host_input = np.empty((batch_size, *spec.input_shape), dtype=np.uint8)
+        self.assembler = (
+            HostRGBAAssembler(spec, batch_size)
+            if output_mode in ("host-reuse", "device-alpha8")
+            else None
+        )
+        # Allocate the small device LUT only for the assembly candidate.
+        self.table: Any = None
+        if output_mode == "device-rgba":
+            table = np.empty((256, 4), dtype=np.uint8)
+            table[:, :3] = spec.color
+            table[:, 3] = np.arange(256, dtype=np.uint8)
+            table[0] = 0
+            self.table = torch.from_numpy(table).to(device)
         self._sync()
         self.setup_seconds = time.perf_counter() - started
 
@@ -207,9 +310,11 @@ class TorchFinisher:
             self.torch.cuda.synchronize(self.device)
 
     def _phase(self, name: str, operation: Callable[[], Any], row: dict[str, Any]) -> Any:
+        if self.timing_mode == "ordinary":
+            return operation()
         self._sync()
         a = b = None
-        if self.cuda:
+        if self.cuda and not name.startswith("host_"):
             with self.torch.cuda.device(self.device):
                 a = self.torch.cuda.Event(enable_timing=True)
                 b = self.torch.cuda.Event(enable_timing=True)
@@ -227,11 +332,11 @@ class TorchFinisher:
     def _alpha(self, values: Any) -> Any:
         torch, spec = self.torch, self.spec
         h, _ = spec.input_shape
-        body = values.reshape(h, -1, spec.supersample).mean(dim=2) / 255
+        body = values.reshape(len(values), h, -1, spec.supersample).mean(dim=3) / 255
         if spec.sigma:
             functional = torch.nn.functional
             r = self.kernel.numel() // 2
-            image = body[None, None]
+            image = body[:, None]
             horizontal = functional.conv2d(
                 functional.pad(image, (r, r, 0, 0), mode="replicate"),
                 self.kernel.reshape(1, 1, 1, -1),
@@ -239,45 +344,119 @@ class TorchFinisher:
             halo = functional.conv2d(
                 functional.pad(horizontal, (0, 0, r, r), mode="replicate"),
                 self.kernel.reshape(1, 1, -1, 1),
-            )[0, 0]
+            )[:, 0]
             body = body + halo * (1 - body)
         p = spec.overscan
-        alpha = body[p : p + spec.height, p : p + spec.width] * self.reflection
+        alpha = body[:, p : p + spec.height, p : p + spec.width] * self.reflection
         return (self.line + alpha * (1 - self.line)).clamp(0, 1)
 
-    def finish_alpha(self, mask: U8) -> F32:
+    def _quantize(self, alpha: Any) -> Any:
+        # Same separate float32 operations/half-up rule as the independent oracle.
+        return self.torch.floor(alpha.clamp(0, 1) * 255 + 0.5).to(self.torch.uint8)
+
+    def _run_batch(
+        self, frames: Sequence[bytes | U8], pix_fmt: str, *, alpha_only: bool = False
+    ) -> F32 | U8:
+        n = len(frames)
+        if not 1 <= n <= self.batch_size:
+            raise ValueError("nonempty batch must not exceed configured batch_size")
+        mode = "float-alpha-only" if alpha_only else self.output_mode
+        download_bpp = 1 if mode == "device-alpha8" else 4
         row: dict[str, Any] = {
             "ordinal": len(self.timings),
-            "kind": "finish",
-            "upload_bytes": math.prod(self.spec.input_shape),
-            "download_bytes": self.spec.height * self.spec.width * 4,
+            "kind": "finish-alpha" if alpha_only else "finish",
+            "batch_frames": n,
+            "batch_capacity": self.batch_size,
+            "output_mode": mode,
+            "timing_mode": self.timing_mode,
+            "upload_bytes": n * math.prod(self.spec.input_shape),
+            "download_bytes": n * self.spec.height * self.spec.width * download_bpp,
             "upload_dtype": "uint8",
-            "download_dtype": "float32-alpha",
+            "download_dtype": {
+                "device-rgba": "uint8-rgba",
+                "device-alpha8": "uint8-alpha",
+            }.get(mode, "float32-alpha"),
+            "transfer_scope": "tensor payload; CPU worker makes no host/device transfers",
         }
+        row["host_to_device_bytes"] = row["upload_bytes"] if self.cuda else 0
+        row["device_to_host_bytes"] = row["download_bytes"] if self.cuda else 0
         started, cpu = time.perf_counter(), time.process_time()
-        host = self.torch.from_numpy(input_mask(mask, self.spec).copy())
-        row["host_input_conversion_wall_seconds"] = time.perf_counter() - started
-        row["host_input_conversion_process_cpu_seconds"] = time.process_time() - cpu
+
+        def prepare() -> Any:
+            for i, frame in enumerate(frames):
+                np.copyto(self.host_input[i], input_mask(frame, self.spec, pix_fmt))
+            return self.torch.from_numpy(self.host_input[:n])
+
+        host = self._phase("host_input_conversion", prepare, row)
         with self.torch.inference_mode():
             uploaded = self._phase("upload", lambda: host.to(self.device), row)
             values = self._phase("device_conversion", lambda: uploaded.float(), row)
             alpha = self._phase("compute", lambda: self._alpha(values), row)
+            if alpha.dtype != self.torch.float32 or tuple(alpha.shape) != (
+                n,
+                self.spec.height,
+                self.spec.width,
+            ):
+                raise ValueError("compute must return float32 BxHxW alpha")
             if self.cuda and not (uploaded.is_cuda and values.is_cuda and alpha.is_cuda):
                 raise ValueError("CUDA finishing unexpectedly produced host tensors; no fallback")
-            result = self._phase("download", lambda: alpha.cpu().numpy(), row)
+            payload = alpha
+            if mode in ("device-rgba", "device-alpha8"):
+                payload = self._phase("device_quantization", lambda: self._quantize(alpha), row)
+                if mode == "device-rgba":
+                    quantized = payload
+                    payload = self._phase(
+                        "device_assembly", lambda: self.table[quantized.long()], row
+                    )
+            if self.cuda and not payload.is_cuda:
+                raise ValueError("CUDA output unexpectedly remained on host; no fallback")
+            expected_dtype = (
+                self.torch.uint8 if mode in ("device-rgba", "device-alpha8") else self.torch.float32
+            )
+            if payload.dtype != expected_dtype or (
+                payload.numel() * payload.element_size() != row["download_bytes"]
+            ):
+                raise ValueError("output tensor dtype/size differs from declared transfer payload")
+            result = self._phase("download", lambda: payload.cpu().numpy(), row)
+        if mode in ("host-reference", "host-reuse", "device-alpha8"):
+
+            def assemble() -> U8:
+                if mode == "host-reference":
+                    return rgba_from_alpha(result, self.spec)
+                assert self.assembler is not None
+                if mode == "host-reuse":
+                    return self.assembler.assemble(result)
+                return self.assembler.from_quantized(result)
+
+            result = self._phase("host_output_conversion", assemble, row)
+        if self.timing_mode == "ordinary":
+            # Exactly one explicit completion boundary per ordinary call. Blocking
+            # .cpu() above already makes its download visible before host assembly.
+            self._sync()
+        row["call_wall_seconds"] = time.perf_counter() - started
+        row["call_process_cpu_seconds"] = time.process_time() - cpu
         self.timings.append(row)
-        return np.asarray(result, dtype=np.float32)
+        return result  # type: ignore[no-any-return]
+
+    def finish_alpha(self, mask: U8) -> F32:
+        """Independent float-alpha diagnostic, irrespective of selected output path."""
+        return np.asarray(self._run_batch([mask], "gray", alpha_only=True)[0], dtype=np.float32)
+
+    def finish_batch(self, frames: Sequence[bytes | U8], pix_fmt: str = "gray") -> U8:
+        """Return ordered BxHxWx4; reusable modes borrow storage until next finish."""
+        return np.asarray(self._run_batch(frames, pix_fmt), dtype=np.uint8)
 
     def finish(self, frame: bytes | U8, pix_fmt: str = "gray") -> U8:
-        alpha = self.finish_alpha(input_mask(frame, self.spec, pix_fmt))
-        started, cpu = time.perf_counter(), time.process_time()
-        output = rgba_from_alpha(alpha, self.spec)
-        self.timings[-1]["host_output_conversion_wall_seconds"] = time.perf_counter() - started
-        self.timings[-1]["host_output_conversion_process_cpu_seconds"] = time.process_time() - cpu
-        return output
+        return np.asarray(self.finish_batch([frame], pix_fmt)[0], dtype=np.uint8)
 
     def transfer(self, frame: bytes | U8, pix_fmt: str = "gray") -> U8:
         """Identical uint8 mask roundtrip, with NO device finishing computation."""
+        if (self.output_mode, self.batch_size, self.timing_mode) != (
+            "host-reference",
+            1,
+            "diagnostic",
+        ):
+            raise ValueError("transfer-only control retains batch-one diagnostic defaults")
         row: dict[str, Any] = {
             "ordinal": len(self.timings),
             "kind": "transfer-only",
@@ -320,7 +499,25 @@ class TorchFinisher:
                 "may occur on first calls and remains included in qualification/cold process costs"
             ),
             "warmup": "NONE; first call retained as ordinal 0",
-            "phase_scope": "synchronized serialized batch-one; wall and CUDA events non-additive",
+            "output_mode": self.output_mode,
+            "batch_size": self.batch_size,
+            "timing_mode": self.timing_mode,
+            "output_ownership": (
+                "borrowed until next finish call"
+                if self.output_mode in ("host-reuse", "device-alpha8")
+                else "owned output"
+            ),
+            "phase_scope": (
+                "diagnostic synchronized serialized phases; wall and CUDA events non-additive"
+                if self.timing_mode == "diagnostic"
+                else "ordinary completed call wall/CPU only; one explicit completion sync; "
+                "blocking transfers; no CUDA events"
+            ),
+            "call_timer": (
+                "after batch metadata/validation, before host input preparation through "
+                "completed download and optional host assembly; ends before timing-row append; "
+                "excludes tobytes/encoder feed"
+            ),
             "calls": self.timings,
         }
 
@@ -344,7 +541,14 @@ def correctness_cases(spec: FinishSpec) -> dict[str, U8]:
     }
 
 
-def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]:
+def qualify(
+    backend: str = "numpy",
+    *,
+    device: str = "cuda:0",
+    output_mode: str = "host-reference",
+    batch_size: int = 1,
+    timing_mode: str = "diagnostic",
+) -> dict[str, Any]:
     """Real upload/compute/download and independent oracle checks at both geometries.
 
     Raises on failure; a missing dependency/device is NOT a successful qualification.
@@ -354,6 +558,13 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
     if backend not in ("numpy", "torch-cpu", "cuda", "transfer-cuda"):
         raise ValueError("qualification backend must be numpy/torch-cpu/cuda/transfer-cuda")
     validate_backend_device(backend, device)
+    validate_execution_options(output_mode, batch_size, timing_mode)
+    if backend not in ("torch-cpu", "cuda") and (output_mode, batch_size, timing_mode) != (
+        "host-reference",
+        1,
+        "diagnostic",
+    ):
+        raise ValueError("execution controls require torch-cpu or cuda finishing")
     rows: list[dict[str, Any]] = []
     gpu_workers: list[bool] = []
     for width, height in ((64, 32), (1400, 280)):
@@ -361,13 +572,28 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
         worker = (
             None
             if backend == "numpy"
-            else TorchFinisher(spec, "cpu" if backend == "torch-cpu" else device)
+            else TorchFinisher(
+                spec,
+                "cpu" if backend == "torch-cpu" else device,
+                output_mode=output_mode,
+                batch_size=batch_size,
+                timing_mode=timing_mode,
+            )
         )
         if backend in ("cuda", "transfer-cuda"):
             if worker is None or not worker.cuda:
                 raise ValueError("CUDA qualification requires an actual CUDA worker")
             gpu_workers.append(worker.cuda)
-        for name, mask in correctness_cases(spec).items():
+        cases = correctness_cases(spec)
+        outputs: dict[str, U8] = {}
+        if worker is not None and backend != "transfer-cuda":
+            names = list(cases)
+            for offset in range(0, len(names), batch_size):
+                group = names[offset : offset + batch_size]
+                batch = worker.finish_batch([cases[name] for name in group])
+                for name, image in zip(group, batch, strict=True):
+                    outputs[name] = image.copy()  # Reusable output expires on the next batch.
+        for name, mask in cases.items():
             if backend == "transfer-cuda":
                 assert worker is not None
                 actual_mask = worker.transfer(mask)
@@ -386,7 +612,10 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
             actual = numpy_alpha(mask, spec) if worker is None else worker.finish_alpha(mask)
             if actual.shape != expected.shape or not np.isfinite(actual).all():
                 raise ValueError(f"{backend} nonfinite or malformed alpha: {name}")
-            rgba, reference = rgba_from_alpha(actual, spec), rgba_from_alpha(expected, spec)
+            rgba = rgba_from_alpha(actual, spec) if worker is None else outputs[name]
+            reference = rgba_from_alpha(expected, spec)
+            if rgba.shape != reference.shape:
+                raise ValueError(f"{backend} malformed batched RGBA: {name}")
             float_error = float(np.max(np.abs(actual - expected)))
             byte_error = int(
                 np.max(np.abs(rgba[..., 3].astype(np.int16) - reference[..., 3].astype(np.int16)))
@@ -429,6 +658,9 @@ def qualify(backend: str = "numpy", *, device: str = "cuda:0") -> dict[str, Any]
     return {
         "passed": True,
         "backend": backend,
+        "output_mode": output_mode,
+        "batch_size": batch_size,
+        "timing_mode": timing_mode,
         "algorithm": ALGORITHM,
         "gpu_qualified": backend == "cuda" and len(gpu_workers) == 2 and all(gpu_workers),
         "transfer_qualified": backend == "transfer-cuda"
