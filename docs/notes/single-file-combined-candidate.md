@@ -62,7 +62,8 @@ WSL, current-code CPU worker-policy/LUT plus independently qualified CUDA combin
 python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize-single-file --cuda --max-growth-gib 6
 ```
 
-Omit `--cuda` for CPU only. The CPU shortlist is serial GEQ/LUT4s, then independent
+Omit `--cuda` for CPU only. The CPU shortlist includes direct GEQ/LUT4s (native Windows repair coverage),
+serial-service GEQ/LUT4s, then independent
 jobs2/jobs1 GEQ32 and serial GEQ/LUT32. No old-source/new-source comparison is
 performed. Failed LUT qualification or a failed optional LUT short does not
 suppress the independently admitted GEQ jobs-policy or CUDA checks. Six-frame
@@ -100,12 +101,12 @@ separate odd-geometry test covers nonzero finishing blur.
 
 The maintained runner's focused CPU smoke completed with four validated native
 six-frame renders and separate deduplicated views. This is functional execution,
-not an original-input or service32 timing result. Reporter integration must retain
-the five new named pair declarations; the strict reporter intentionally refuses
+not an original-input or service32 timing result. The integrated reporter retains
+the six named pair declarations; the strict reporter intentionally refuses
 undeclared control changes rather than inventing pair statistics.
 
 Repository-wide lint/type checks, unit/regression and integration gates passed.
 The selected optional-CPU suite passed76 checks. Native CUDA qualification,
 combined4s/32s timing, source-scale GPU behavior, native Windows execution and
-Resolve Studio import/alpha/playback remain pending. No full media was regenerated
+Resolve Studio import/alpha/playback remain pending. No full CUDA media was regenerated
 and no accepted baseline/preview retention hold was released.

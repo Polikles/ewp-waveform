@@ -271,8 +271,16 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         (finish_lut or torch_finish or request.get("reference_lossless"))
         and request.get("reference")
     ):
-        valid["lossless_against_preencode"] = False
         valid["lossless_against_reference_master"] = True
+    # Master equality is not a comparison against finished pre-encode bytes.
+    # Keep an unavailable proof distinct from a failed numerical comparison.
+    valid["lossless_against_preencode"] = None
+    valid["preencode_losslessness_proof"] = {
+        "status": "NOT_PERFORMED",
+        "reason": "service comparison verifies a reference master, not an independent "
+        "finished pre-encode RGBA oracle",
+        "codec_contract": "lossy ProRes",
+    }
     return {
         "status": "SUCCEEDED",
         "actual_action": "PROCESS",

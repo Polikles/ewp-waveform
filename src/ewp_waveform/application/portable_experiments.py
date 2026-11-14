@@ -1596,7 +1596,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--cuda-combined",
         action="store_true",
-        help="only matched serial FIR service short: host-reference vs RGBA8/batch2/ordinary",
+        help="only matched serial FIR service short: retained host-reuse vs RGBA8/batch2/ordinary",
     )
     p.add_argument(
         "--cuda-combined-service32",

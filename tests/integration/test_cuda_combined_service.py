@@ -150,6 +150,8 @@ def test_actual_cpu_service_combined_partial_tail_matches_control(
                 expected_finished_rgba_sha256=results[0]["finished_rgba_sha256"],
             )
         result = dispatch(request)
+        assert result["validation"]["lossless_against_preencode"] is None
+        assert result["validation"]["preencode_losslessness_proof"]["status"] == "NOT_PERFORMED"
         results.append(result)
         assert result["status"] == "SUCCEEDED"
         assert result["route"] == "EXPLICIT_SERIAL_FIR_SERVICE_EXPERIMENT"
