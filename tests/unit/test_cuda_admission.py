@@ -40,7 +40,7 @@ def test_transfer_qualification_is_compute_free(monkeypatch: Any) -> None:
     class TransferOnly:
         cuda = True
 
-        def __init__(self, *args: Any) -> None:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
         def transfer(self, mask: Any) -> Any:
@@ -62,6 +62,8 @@ def test_transfer_qualification_is_compute_free(monkeypatch: Any) -> None:
 @pytest.mark.parametrize("backend", ["cuda", "transfer-cuda"])
 def test_cuda_claim_requires_actual_cuda_worker(backend: str, monkeypatch: Any) -> None:
     # Admission-control stand-in only, not hardware execution evidence.
-    monkeypatch.setattr(finish, "TorchFinisher", lambda *args: SimpleNamespace(cuda=False))
+    monkeypatch.setattr(
+        finish, "TorchFinisher", lambda *args, **kwargs: SimpleNamespace(cuda=False)
+    )
     with pytest.raises(ValueError, match="actual CUDA worker"):
         finish.qualify(backend, device="cuda:0")

@@ -340,7 +340,16 @@ def qualify_finish(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.ffmpeg.torch_finish import qualify
 
     backend = request["backend"]
-    value = {"status": "SUCCEEDED", **qualify(backend, device="cuda:0")}
+    value = {
+        "status": "SUCCEEDED",
+        **qualify(
+            backend,
+            device="cuda:0",
+            output_mode=request.get("output_mode", "host-reference"),
+            batch_size=request.get("batch_size", 1),
+            timing_mode=request.get("timing_mode", "diagnostic"),
+        ),
+    }
     if backend in ("cuda", "transfer-cuda"):
         check_cuda_device(value, request["expected_device"])
     if backend == "transfer-cuda":
@@ -372,8 +381,8 @@ def make_views(request: dict[str, Any]) -> dict[str, Any]:
         request["ffprobe"],
         comparison,
         output,
-        width=1400,
-        height=280,
+        width=request.get("width", 1400),
+        height=request.get("height", 280),
         frames=request["workload"]["frames"],
         log=Path(request["evidence"]) / "commands.jsonl",
     )
@@ -414,6 +423,10 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
         }
     if operation == "views":
         return make_views(request)
+    if operation == "compact":
+        from ewp_waveform.application.portable_optimization_extras import compact_render
+
+        return compact_render(request)
     if operation == "qualify-finish":
         return qualify_finish(request)
     if operation == "audio-plan":
@@ -461,6 +474,9 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
                 ffprobe=request["ffprobe"],
                 visual_overrides=request["visual_overrides"],
                 reference=Path(request["reference"]) if request.get("reference") else None,
+                output_mode=request.get("output_mode", "host-reference"),
+                batch_size=request.get("batch_size", 1),
+                timing_mode=request.get("timing_mode", "diagnostic"),
             ),
         )
         return {

@@ -122,7 +122,7 @@ def test_compute_free_transfer_gate_never_calls_finishing(monkeypatch: pytest.Mo
     class Transfer:
         cuda = True  # Explicit admission-control stand-in, not hardware execution.
 
-        def __init__(self, spec: Any, device: str):
+        def __init__(self, spec: Any, device: str, **kwargs: Any):
             self.calls = 0
 
         def transfer(self, mask: Any) -> Any:

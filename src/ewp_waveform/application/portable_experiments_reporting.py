@@ -128,6 +128,19 @@ def diagnostic_bundle(
     )
     if snapshots:
         snapshot = snapshots[0]
+        measurements = snapshot.with_name(
+            snapshot.name.replace("report-", "measurements-", 1).replace(
+                "-diagnostics.json", ".json"
+            )
+        )
+        if measurements.is_file():
+            # Essential totals/settings precede duplicated logs and raw call rows.
+            if measurements.stat().st_size > cap:
+                raise ValueError(
+                    "critical measurements exceed diagnostic packet cap; full file retained: "
+                    + str(measurements)
+                )
+            candidates.append((measurements, measurements.relative_to(run).as_posix(), cap, True))
         candidates.extend(
             (p, p.relative_to(run).as_posix(), 256 * 1024, False)
             for p in (
@@ -417,6 +430,39 @@ def report(
         "promotion": "NOT_APPROVED",
     }
     save(path.with_suffix(".json"), value)
+    from ewp_waveform.application.portable_experiments_metrics import compact_metrics
+
+    save(
+        path.with_name("measurements-" + token + ".json"),
+        {
+            "status": status,
+            "error": error,
+            "results": compact_metrics(results),
+            "pair_statistics": pairs,
+            "result_use": value["result_use"],
+            "config": compact_metrics(
+                {
+                    k: v
+                    for k, v in (config or {}).items()
+                    if k
+                    in {
+                        "source",
+                        "python",
+                        "cuda_python",
+                        "selected",
+                        "installed",
+                        "audio",
+                        "limits",
+                        "repeats",
+                        "optimization",
+                        "visual_overrides",
+                    }
+                }
+            ),
+            "scope": "critical compact comparison data; "
+            "ordered raw calls/commands remain in full JSON",
+        },
+    )
     compact_path = path.with_name(path.stem + "-diagnostics.json")
     save(compact_path, _compact_diagnostics(value, path.with_suffix(".json").as_uri()))
     commands = {

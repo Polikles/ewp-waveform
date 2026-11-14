@@ -879,6 +879,7 @@ def freeze(
             "filter_threads": args.optimize_filter_threads,
             "async_depth": args.optimize_async_depth,
             "ffv1_gpu": args.optimize_ffv1_gpu,
+            "compact": getattr(args, "optimize_compact", False),
         },
         "repeat_scope": "speech shortlist (or six-frame smoke); sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
@@ -1255,6 +1256,9 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
             from ewp_waveform.application.portable_experiments_optimize import campaign
 
             campaign(config, workloads, step, skipped, qualification)
+            from ewp_waveform.application.portable_optimization_extras import extras
+
+            extras(config, workloads, step, skipped)
         return make_result_views(results, step)
     # Always admit the independent CPU oracle in the selected interpreter. Torch
     # qualification is opt-in and each backend is an isolated bounded subprocess.
@@ -1537,6 +1541,8 @@ def make_result_views(results: dict[str, Any], step: Any) -> dict[str, Any]:
                 "workload": result["workload"],
                 "reuse_views": views.get(key) if digest else None,
                 "comparison_mov": result.get("comparison_mov"),
+                "width": valid.get("stream", {}).get("width", 1400),
+                "height": valid.get("stream", {}).get("height", 280),
             },
             optional=True,
         )
@@ -1552,6 +1558,11 @@ def parser() -> argparse.ArgumentParser:
         "--optimize",
         action="store_true",
         help="small speech-only direct CPU FFV1/thread campaign; not the historical matrix",
+    )
+    p.add_argument(
+        "--optimize-compact",
+        action="store_true",
+        help="separate fixed speech crop/output and guarded early-domain pairs; appearance pending",
     )
     p.add_argument(
         "--optimize-encoder-threads",
@@ -1727,6 +1738,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.optimize and (args.full or args.reference_only):
         p.error("--optimize is a bounded shortlist, never --full/--reference-only")
     optimization_flags = {
+        "--optimize-compact",
         "--optimize-encoder-threads",
         "--optimize-filter-threads",
         "--optimize-async-depth",
@@ -1752,6 +1764,7 @@ def main(argv: list[str] | None = None) -> int:
         for option in (
             "--audio",
             "--optimize",
+            "--optimize-compact",
             "--optimize-encoder-threads",
             "--optimize-filter-threads",
             "--optimize-async-depth",
