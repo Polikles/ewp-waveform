@@ -543,15 +543,15 @@ def frame_metrics(original: bytes, padded: bytes, width: int, height: int) -> di
         # Byte equality proves every error/composite term zero, including hidden
         # RGB. Retain the exact original ROI denominators without full int32 RGB
         # conversions, checker allocation or three redundant composite passes.
-        aa = np.frombuffer(original, dtype=np.uint8).reshape(height, width, 4)[:, :, 3]
+        alpha_equal = np.frombuffer(original, dtype=np.uint8).reshape(height, width, 4)[:, :, 3]
         return {
-            "union_count": int(np.count_nonzero(aa)),
+            "union_count": int(np.count_nonzero(alpha_equal)),
             "alpha_error": 0,
             "rgb_error": 0,
             "edge_error": 0,
-            "edge_n": int(np.count_nonzero((aa > 0) & (aa < 255))),
+            "edge_n": int(np.count_nonzero((alpha_equal > 0) & (alpha_equal < 255))),
             "halo_error": 0,
-            "halo_n": int(np.count_nonzero((aa > 0) & (aa < 32))),
+            "halo_n": int(np.count_nonzero((alpha_equal > 0) & (alpha_equal < 32))),
             "081018": 0,
             "F0F0F0": 0,
             "checkerboard": 0,

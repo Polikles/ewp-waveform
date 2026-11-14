@@ -273,7 +273,14 @@ def encode_rgba_stream(
             if isinstance(experiment, SuiteEncoding)
             else experiment_argv(argv, experiment)
         )
-    completed = run_argv_stdin(argv, frames, phases=phases)
+    stderr_path = (
+        experiment.command_log.with_suffix(".service.stderr")
+        if experiment is not None and experiment.command_log is not None
+        else None
+    )
+    completed = run_argv_stdin(
+        argv, frames, phases=phases, **({"stderr_path": stderr_path} if stderr_path else {})
+    )
     if experiment is not None:
         from ewp_waveform.ffmpeg.experiment_suite import SuiteEncoding, selected_device
 

@@ -293,11 +293,15 @@ def campaign(
             )
             if cpu.get("status") == "SUCCEEDED":
                 service["reference"] = cpu["output"]
-            pair(
-                "opt-prores-async",
-                {**service, "variant": "PRORES-GPU", "async_depth": 1},
-                {**service, "variant": "PRORES-GPU", "async_depth": depth},
-                "same qualified Vulkan ProRes service; only async_depth changes",
-            )
+                pair(
+                    "opt-prores-async",
+                    {**service, "variant": "PRORES-GPU", "async_depth": 1},
+                    {**service, "variant": "PRORES-GPU", "async_depth": depth},
+                    "same qualified Vulkan ProRes service; only async_depth changes",
+                )
+            else:
+                skipped(
+                    "opt-prores-async", "matched CPU oracle failed; dependent async screen not run"
+                )
         else:
             skipped("opt-prores-async", backend_failure_reason(qualification, "prores"))

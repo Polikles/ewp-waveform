@@ -348,6 +348,23 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
             for key in ("timer", "route", "workload", "execution_settings"):
                 if not a.get(key) or a.get(key) != b.get(key):
                     reason = "unmatched " + key
+            ac, bc = a.get("experimental_controls", {}), b.get("experimental_controls", {})
+            changed_controls = {k for k in ac.keys() | bc.keys() if ac.get(k) != bc.get(k)}
+            allowed_controls = {
+                "opt-fir-host-reuse": {"output_mode"},
+                "opt-fir-device-rgba": {"output_mode"},
+                "opt-fir-device-alpha8": {"output_mode"},
+                "opt-fir-batch2": {"batch_size"},
+                "opt-fir-ordinary": {"timing_mode"},
+                "opt-crop-output": {"control"},
+                "opt-crop-working": {"control"},
+                "opt-direct-ffv1": {"codec"},
+                "opt-ffv1-encoder": {"encoder_threads"},
+                "opt-prores-filter": {"filter_threads"},
+                "opt-prores-async": {"async_depth"},
+            }.get(group, set())
+            if changed_controls - allowed_controls:
+                reason = "undeclared experimental control changes"
             frames = a.get("validation", {}).get("frames")
             if (
                 type(frames) is not int

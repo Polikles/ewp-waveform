@@ -6,6 +6,7 @@ import contextlib
 import json
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Iterable, Iterator
@@ -69,6 +70,7 @@ def run_argv_stdin(
     chunks: Iterable[bytes],
     *,
     phases: Any | None = None,
+    stderr_path: Path | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Feed binary chunks to stdin.
 
@@ -121,6 +123,16 @@ def run_argv_stdin(
         t_out.join()
         t_err.join()
         proc.wait()
+        if stderr_path is not None:
+            # The generator may have raised: retain the drained child bytes in
+            # cleanup rather than relying on a CompletedProcess being returned.
+            original_error = sys.exception()
+            try:
+                stderr_path.write_bytes(b"".join(stderr_parts))
+            except OSError as evidence_error:
+                if original_error is None:
+                    raise
+                original_error.add_note(f"child stderr persistence failed: {evidence_error}")
         if phases is not None:
             phases.add("ffmpeg_wait", time.perf_counter() - t_close)
             phases.extras["rgba_bytes"] = rgba_bytes

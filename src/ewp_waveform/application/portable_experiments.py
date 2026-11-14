@@ -1019,6 +1019,21 @@ def invoke(
             key: request.get(key) for key in ("ffmpeg", "ffprobe", "visual_overrides", "workload")
         }
         value["execution_settings"]["python"] = python or config["python"]
+        value["experimental_controls"] = {
+            key: request.get(key)
+            for key in (
+                "output_mode",
+                "batch_size",
+                "timing_mode",
+                "codec",
+                "encoder_threads",
+                "filter_threads",
+                "async_depth",
+                "control",
+                "crop",
+                "margin",
+            )
+        }
         value["experimental_settings"] = {
             key: request.get(key)
             for key in ("codec", "variant", "encoder_threads", "filter_threads", "async_depth")
