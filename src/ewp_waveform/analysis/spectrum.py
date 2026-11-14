@@ -436,7 +436,15 @@ def upsample_bands(
     knots = [max(0.0, float(v)) for v in bands]
     slopes = pchip_slopes(knots)
     denom = max(width - 1, 1)
-    xs = [remap_band_index(x / denom, n_bands=n, pivot=pivot) for x in range(width)]
+    if pivot is None and type(width) is int and width < 2**53:
+        # Stationary X: all x/denom lie in [0, 1], so remap's clamps are
+        # identities. Keep division THEN multiplication in binary64, not a
+        # precombined scale or linspace (which can round differently).
+        positions = np.arange(width, dtype=np.float64) / float(denom)
+        positions *= float(max(n - 1, 1))
+        xs: Sequence[float] | Float64 = positions
+    else:
+        xs = [remap_band_index(x / denom, n_bands=n, pivot=pivot) for x in range(width)]
     return _float_list(pchip_eval_many(knots, slopes, xs, unit=False))
 
 
