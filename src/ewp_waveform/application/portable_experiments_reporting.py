@@ -116,6 +116,8 @@ def diagnostic_bundle(
     controls, outputs, arrays, caches and other media directories are never scanned.
     """
     cap, total = 2 * 1024**2, 0
+    payload_cap = cap - 128 * 1024  # The same reserved scope budget governs admission/packing.
+    critical_name: str | None = None
     members: list[str] = []
     omissions: list[dict[str, Any]] = []
     candidates: list[tuple[Path, str, int, bool]] = []
@@ -135,12 +137,13 @@ def diagnostic_bundle(
         )
         if measurements.is_file():
             # Essential totals/settings precede duplicated logs and raw call rows.
-            if measurements.stat().st_size > cap:
+            if measurements.stat().st_size > payload_cap:
                 raise ValueError(
                     "critical measurements exceed diagnostic packet cap; full file retained: "
                     + str(measurements)
                 )
-            candidates.append((measurements, measurements.relative_to(run).as_posix(), cap, True))
+            critical_name = measurements.relative_to(run).as_posix()
+            candidates.append((measurements, critical_name, payload_cap, True))
         candidates.extend(
             (p, p.relative_to(run).as_posix(), 256 * 1024, False)
             for p in (
@@ -194,10 +197,14 @@ def diagnostic_bundle(
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path, name, limit, intact_json in candidates:
             if name in seen or path.is_symlink() or not path.is_file():
+                if name == critical_name and name not in members:
+                    raise ValueError("critical measurements unavailable; full report retained")
                 continue
             seen.add(name)
             size = path.stat().st_size
             if intact_json and size > limit:
+                if name == critical_name:
+                    raise ValueError("critical measurements exceed diagnostic payload budget")
                 omissions.append(
                     {
                         "path": name,
@@ -264,7 +271,9 @@ def diagnostic_bundle(
                         )
                         if path.suffix in (".json", ".jsonl"):
                             name += ".excerpt.txt"
-            if total + len(data) > cap - 128 * 1024:
+            if total + len(data) > payload_cap:
+                if name == critical_name:
+                    raise ValueError("critical measurements cannot fit diagnostic payload budget")
                 omissions.append(
                     {
                         "path": name,
@@ -277,6 +286,8 @@ def diagnostic_bundle(
             archive.writestr(name, data)
             total += len(data)
             members.append(name)
+        if critical_name is not None and critical_name not in members:
+            raise ValueError("critical measurements missing from diagnostic packet")
         manifest: dict[str, Any] = {
             "scope": "text only; latest semantic report and complete device JSON <=512KiB "
             "prioritized; long embedded logs structurally excerpted; no native media",
