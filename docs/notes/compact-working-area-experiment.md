@@ -14,10 +14,14 @@ from ewp_waveform.ffmpeg.working_area import WorkingArea
 # Example geometry only, NOT an appearance-approved production crop.
 area = WorkingArea(Crop(100, 60, 1200, 160, 1400, 280), margin=48)
 result = render_working_area(
-    source=Path("original.wav"), start=2.0, duration=0.1,
+    source=Path("original.wav"),
+    start=2.0,
+    duration=0.1,
     output=Path("fresh-observation/out.mov"),
-    area=area, control="EARLY-AREA",
-    ffmpeg="/selected/tools/ffmpeg", ffprobe="/selected/tools/ffprobe",
+    area=area,
+    control="EARLY-AREA",
+    ffmpeg="/selected/tools/ffmpeg",
+    ffprobe="/selected/tools/ffprobe",
     visual_overrides={"reflection_opacity": 0.37},
 )
 ```
