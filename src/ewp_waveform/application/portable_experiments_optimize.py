@@ -28,8 +28,8 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
 
     w = request["workload"]
     codec = request.get("codec", "ffv1")
-    if codec not in ("ffv1", "prores") or not 0 < w["duration"] <= 4:
-        raise ValueError("direct pipeline requires prores/ffv1 and explicit duration <=4s")
+    if codec not in ("ffv1", "prores") or not 0 < w["duration"] <= 32:
+        raise ValueError("direct pipeline requires prores/ffv1 and explicit duration <=32s")
     root, evidence = Path(request["media"]), Path(request["evidence"])
     root.mkdir(parents=True, exist_ok=False)
     performance = performance_file(root)
@@ -50,6 +50,13 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("direct pipeline requires exactly one fresh PROCESS")
     plan = plans[0]
     assert plan.media is not None
+    # The experimental output hook is serial. A32s direct pair is not the stock
+    # production32 pool2 route; keep both codec sides on this same explicit policy.
+    perf = perf.model_copy(deep=True)
+    perf.processing["jobs"] = 1
+    clip_start, clip_duration = rendering._clip_bounds(plan.media, w["start"], w["duration"])
+    if plan.job.fps != 60 or max(1, round(clip_duration * plan.job.fps)) != w["frames"]:
+        raise ValueError("frozen direct workload differs from effective clipped timeline")
     appearance = resolve_fixed_axis_appearance(preset)
     output = root / ("native.mkv" if codec == "ffv1" else "native.mov")
     spec = SuiteEncoding(
@@ -106,8 +113,8 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
             spectrum_contour=False,
             ribbon_ss=appearance.ribbon_ss,
             source_sha=source["sha256"],
-            clip_start=w["start"],
-            clip_duration=w["duration"],
+            clip_start=clip_start,
+            clip_duration=clip_duration,
             expected_frames=w["frames"],
             work=root / "work",
             producing_mov=True,
@@ -172,6 +179,7 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         "visual": "PENDING",
         "studio": "PENDING",
         "analysis_cache_policy": "disabled identically on both direct-pipeline sides",
+        "execution_policy": "explicit serial jobs1;32s direct pairs are not stock pool2 production32",
         "claim": "direct native output; no master decode; no Resolve support or speedup claim",
     }
 

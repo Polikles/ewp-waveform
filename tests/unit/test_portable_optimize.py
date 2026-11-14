@@ -148,8 +148,8 @@ def test_optimize_refuses_full_and_unscoped_settings() -> None:
 
 
 def test_direct_duration_refusal_precedes_media_creation(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="duration <=4s"):
-        direct_render({"workload": {"duration": 5}, "media": str(tmp_path / "not-created")})
+    with pytest.raises(ValueError, match="duration <=32s"):
+        direct_render({"workload": {"duration": 33}, "media": str(tmp_path / "not-created")})
     assert not (tmp_path / "not-created").exists()
 
 
