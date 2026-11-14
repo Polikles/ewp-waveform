@@ -15,7 +15,7 @@ def test_mixed_vulkan_outcomes_keep_qualified_scenarios_independent(
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
     skips: dict[str, str] = {}
-    qualification = {
+    qualification: dict[str, Any] = {
         "status": "FAILED",
         "attempt_failures": ["blur"],
         "backends": {

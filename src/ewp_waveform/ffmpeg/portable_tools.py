@@ -30,8 +30,11 @@ def read_lock() -> dict[str, Any]:
 
 
 def _sha(path: Path) -> str:
+    digest = hashlib.sha256()
     with path.open("rb") as source:
-        return hashlib.file_digest(source, "sha256").hexdigest()
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def _download(url: str, target: Path, maximum: int) -> int:

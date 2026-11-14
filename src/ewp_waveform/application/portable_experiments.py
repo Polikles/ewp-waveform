@@ -420,13 +420,19 @@ def choose_tools(
     if args.prepare_ffmpeg:
         setup = run / "tool-acquisition"
         setup.mkdir()
-        request = {
+        from ewp_waveform.application.portable_experiments_dependencies import prepared_ffmpeg_root
+
+        tool_root = prepared_ffmpeg_root(
+            args.output_root.expanduser().resolve(),
+            args._managed_root
+            / "ffmpeg"
+            / identity(ROOT / "src/ewp_waveform/ffmpeg/portable_ffmpeg_lock.json")["sha256"],
+            discovery,
+        )
+        request: dict[str, Any] = {
             "operation": "prepare-tools",
-            "media": str(
-                args._managed_root
-                / "ffmpeg"
-                / identity(ROOT / "src/ewp_waveform/ffmpeg/portable_ffmpeg_lock.json")["sha256"]
-            ),
+            "media": str(tool_root),
+            "allow_download": tool_root.is_relative_to(args._managed_root),
             "result_path": str(setup / "value.json"),
         }
         save(setup / "request.json", request)
@@ -487,6 +493,29 @@ def make_smoke_audio(path: Path) -> None:
                 for i in range(4800)
             )
         )
+
+
+def prerequisite_admission(args: argparse.Namespace) -> None:
+    """Cheap required-tool discovery before inventory or dependency acquisition."""
+    from ewp_waveform.application.portable_experiments_dependencies import (
+        missing_git,
+        tool_advice,
+    )
+
+    rerun = getattr(args, "_rerun", [str(DRIVER), *sys.argv[1:]])
+    if not shutil.which("git") and (ROOT / ".git").exists():
+        raise ValueError(missing_git(rerun))
+    if args.prepare_ffmpeg and os.name != "nt":
+        raise ValueError(
+            "--prepare-ffmpeg installs native Windows executables, not Linux/WSL tools. "
+            "Remove --prepare-ffmpeg on this platform.\n"
+            + tool_advice([token for token in rerun if token != "--prepare-ffmpeg"])
+        )
+    if not args.prepare_ffmpeg and not args.setup_only:
+        ffmpeg = str(args.ffmpeg) if args.ffmpeg else shutil.which("ffmpeg")
+        ffprobe = str(args.ffprobe) if args.ffprobe else shutil.which("ffprobe")
+        if not ffmpeg or not ffprobe or not all(Path(p).is_file() for p in (ffmpeg, ffprobe)):
+            raise ValueError(tool_advice(rerun))
 
 
 def dependency_policy(args: argparse.Namespace, run: Path, media: Path) -> dict[str, Any]:
@@ -560,6 +589,8 @@ def dependency_action(args: argparse.Namespace) -> int:
     outside_git([run])
     run.mkdir(parents=True, exist_ok=False)
     try:
+        if not args.verify_environment:
+            prerequisite_admission(args)
         if args.verify_environment:
             python = args.verify_environment.expanduser().absolute()
             environment = probe_python(python, run / "environment", optional=args.cuda)
@@ -662,6 +693,15 @@ def freeze(
         )
     if args.audio:
         outside_git([run, media], audio)
+    installed = selected = tool_acquisition = None
+    if not args.prepare_ffmpeg:
+        installed, selected, tool_acquisition = choose_tools(
+            args, original, run, media, Path(sys.executable)
+        )
+        if selected is None:
+            from ewp_waveform.application.portable_experiments_dependencies import tool_advice
+
+            raise ValueError(tool_advice(getattr(args, "_rerun", [str(DRIVER), *sys.argv[1:]])))
     preparation = dependency_policy(args, run, media)
     python, environment = select_python(
         args.python,
@@ -674,7 +714,8 @@ def freeze(
     )
     if (args.ffmpeg is None) != (args.ffprobe is None):
         raise ValueError("--ffmpeg and --ffprobe must be supplied together")
-    installed, selected, tool_acquisition = choose_tools(args, original, run, media, python)
+    if args.prepare_ffmpeg:
+        installed, selected, tool_acquisition = choose_tools(args, original, run, media, python)
     if selected is None:
         raise ValueError(
             "no usable FFmpeg/ffprobe pair; native Windows may opt into --prepare-ffmpeg"
@@ -1489,6 +1530,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--cpu-smoke cannot authorize a full render")
     if (args.cuda_python or args.install_cuda) and not args.cuda:
         p.error("--cuda-python/--install-cuda require explicit --cuda")
+    if (args.ffmpeg is None) != (args.ffprobe is None):
+        p.error("--ffmpeg and --ffprobe must be supplied together before setup")
     if args.ffmpeg and args.prepare_ffmpeg:
         p.error("--prepare-ffmpeg cannot be combined with explicit --ffmpeg/--ffprobe")
     if args.cuda_python and args.install_cuda:
@@ -1557,6 +1600,8 @@ def main(argv: list[str] | None = None) -> int:
     report_root = run
     namespace_admitted = False
     try:
+        if not args.resume:
+            prerequisite_admission(args)
         outside_git([run])
         namespace_admitted = True
         if args.resume:
@@ -1682,5 +1727,7 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         code = 1
+    if error:
+        print(f"Startup/execution stopped: {error}", flush=True)
     print(f"Run: {run}\nStatus: {status}\nMain report: {path}")
     return code

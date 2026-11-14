@@ -86,6 +86,74 @@ def missing_uv(rerun: list[str], *, windows: bool | None = None) -> str:
     )
 
 
+def linux_package_command(package: str) -> str:
+    """Choose the package manager from the observed release, not a guessed WSL version."""
+    release = Path("/etc/os-release")
+    fields = (
+        dict(
+            line.split("=", 1)
+            for line in release.read_text().splitlines()
+            if "=" in line and not line.startswith("#")
+        )
+        if release.is_file()
+        else {}
+    )
+    family = (fields.get("ID", "") + " " + fields.get("ID_LIKE", "")).replace('"', "").split()
+    if any(name in family for name in ("debian", "ubuntu")):
+        return f"sudo apt-get update && sudo apt-get install -y {package}"
+    if any(name in family for name in ("fedora", "rhel", "centos")):
+        return "sudo dnf install -y " + ("ffmpeg-free" if package == "ffmpeg" else package)
+    if "arch" in family:
+        return f"sudo pacman -S --needed {package}"
+    raise ValueError(
+        "unsupported Linux package-manager platform; detected os-release "
+        + str(fields.get("ID", "unavailable"))
+        + "; use --prepare-ffmpeg on native Windows, or supply existing --ffmpeg/--ffprobe paths"
+    )
+
+
+def rerun_text(rerun: list[str], *, windows: bool) -> str:
+    invocation = (["py", "-3"] if windows else [sys.executable]) + rerun
+    return ("& " if windows else "") + command_text(invocation, windows=windows)
+
+
+def tool_advice(rerun: list[str], *, windows: bool | None = None) -> str:
+    windows = os.name == "nt" if windows is None else windows
+    if windows:
+        command = rerun if "--prepare-ffmpeg" in rerun else [*rerun, "--prepare-ffmpeg"]
+        return (
+            "FFmpeg/ffprobe are missing or incompatible; both are required for audio probing, "
+            "CPU controls and output validation. Explicitly prepare the pinned isolated "
+            "Windows pair using the same runner (no system tool replacement).\n"
+            "No new terminal is needed. Exact installation and continuation command:\n"
+            + rerun_text(command, windows=True)
+        )
+    return (
+        "FFmpeg/ffprobe are missing or incompatible; both are required for audio probing, "
+        "CPU controls and output validation. Install the distro package:\n"
+        + linux_package_command("ffmpeg")
+        + "\nNo new terminal is needed. Exact command afterward:\n"
+        + rerun_text(rerun, windows=False)
+    )
+
+
+def missing_git(rerun: list[str], *, windows: bool | None = None) -> str:
+    windows = os.name == "nt" if windows is None else windows
+    command = "winget install --id Git.Git -e" if windows else linux_package_command("git")
+    return (
+        "Git is missing or incompatible; it is required to authenticate the checkout "
+        "revision and detect uncommitted source before expensive preparation.\n"
+        + command
+        + (
+            "\nOpen a new terminal and return to the checkout."
+            if windows
+            else "\nNo new terminal is needed."
+        )
+        + "\nExact command afterward:\n"
+        + rerun_text(rerun, windows=windows)
+    )
+
+
 def request_key(root: Path, backend: str) -> dict[str, Any]:
     locks = {"uv.lock": sha(root / "uv.lock"), "pyproject.toml": sha(root / "pyproject.toml")}
     if backend == "cu128":
@@ -161,7 +229,14 @@ def discover_environment(
     """
     name = "cuda-env" if backend == "cu128" else "python-env"
     relative = "Scripts/python.exe" if os.name == "nt" else "bin/python"
-    candidates = sorted(evidence.parent.glob(f"run-*/{name}/{relative}"), reverse=True)[:8]
+    candidates = list(evidence.parent.glob(f"run-*/{name}/{relative}"))
+    attempts = store / "attempts" / digest(request_key(root, backend))
+    candidates.extend(attempts.glob(f"*/env/{relative}"))
+    candidates = sorted(
+        (p for p in candidates if p.is_file()),
+        key=lambda p: p.parents[1].stat().st_mtime_ns,
+        reverse=True,
+    )[:8]
     for index, python in enumerate(candidates):
         if not python.is_file():
             continue
@@ -186,6 +261,29 @@ def prepared_environment(
     return reuse_environment(store, root, backend, evidence, probe) or discover_environment(
         store, root, backend, evidence, probe
     )
+
+
+def prepared_ffmpeg_root(
+    output_root: Path, managed_root: Path, problems: list[dict[str, Any]]
+) -> Path:
+    """Reverify legacy run-local tools in place; no copies or old receipt edits."""
+    from ewp_waveform.ffmpeg.portable_tools import read_lock, verify_install
+
+    lock = read_lock()
+    if (managed_root / lock["archive_root"]).exists():
+        return managed_root  # Worker rechecks it; never repair a changed managed payload.
+    candidates = list(output_root.glob("run-*/ffmpeg-tools/" + lock["archive_root"]))
+    candidates = sorted(candidates, key=lambda p: p.stat().st_mtime_ns, reverse=True)[:8]
+    for directory in candidates:
+        try:
+            verify_install(directory, lock)
+        except (ValueError, OSError) as exc:
+            problems.append(
+                {"role": "retained pinned FFmpeg", "path": str(directory), "error": str(exc)}
+            )
+            continue
+        return directory.parent
+    return managed_root
 
 
 def setup_limits(store: Path, max_gib: float, reserve_gib: float) -> dict[str, Any]:

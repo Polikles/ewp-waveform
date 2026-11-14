@@ -10,6 +10,14 @@
   keyed dependency preparations and pinned FFmpeg across campaigns, including
   independent verification of environments retained by failed runs. Preserve all
   attempts and production defaults; no native Windows/CUDA qualification implied.
+- Preserve optional-failure isolation through damaged worker evidence and qualify
+  matched NumPy controls in the interpreter that actually runs each comparison.
+  Global resource/ownership refusals remain explicit no-further-dispatch gates.
+- Retain complete compact diagnostic structure despite large stderr, distinguish
+  inventory observations from qualification checks, and explain per-case failures.
+- Add per-frame/spatial Vulkan blur metrics and a diagnostic-only padded boundary
+  control without changing reference pixels or tolerances. The reported RTX tiny
+  mismatch remains pending target diagnosis; a production-size pass does not hide it.
 
 ## [0.6.0] - 2026-11-13
 

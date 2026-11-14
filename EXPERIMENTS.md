@@ -118,11 +118,14 @@ seconds), use the default output root, including old runs and managed storage:
 py -3 scripts/run_experiments.py --inspect-storage
 ```
 
-Or measure explicit overlapping roots **together** (not separate totals):
+For WSL the same inspection uses its own output root, not the Windows path:
 
-```powershell
-py -3 scripts/run_experiments.py --inspect-storage "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9" "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9\cuda-env"
+```bash
+python3 scripts/run_experiments.py --inspect-storage
 ```
+
+Advanced placement: append multiple roots to measure their union with global
+hardlink/overlap deduplication, rather than adding separate totals.
 
 A bound/refusal never claims a partial total. The reported14,062,545,214-byte
 supervisor growth versus roughly7.09GB filesystem-free delta has **not** been
@@ -140,9 +143,10 @@ the complete committed tool-lock hash and EXE/DLL verified on every acquisition
 request. Neither case reuses old render timings or bypasses hardware qualification.
 
 `--cuda --install-cuda` first checks the verified registry, then automatically
-probes up to the eight newest legacy `OUTPUT_ROOT/run-*/cuda-env` candidates,
-including environments left by failed campaigns. Runtime setup similarly checks
-legacy `python-env` candidates. Only a successful independent dependency probe
+probes up to the eight newest retained candidates: legacy
+`OUTPUT_ROOT/run-*/cuda-env` and matching managed setup-attempt environments,
+including preparations left by failed campaigns. Runtime setup similarly checks
+legacy `python-env` and matching managed attempts. Only a successful independent dependency probe
 registers a preparation; a failed/changed environment is not synced or repaired.
 Use the same output/managed root across campaigns. Failed run events, setup
 attempts and source evidence remain intact; new campaign IDs stay separate.
@@ -154,23 +158,12 @@ CUDA installation**, use (no audio or rendering):
 python3 scripts/run_experiments.py --setup-only --cuda
 ```
 
-`--cuda` alone also reuses a verified preparation during a new campaign.
-For an explicitly selected Windows preparation (only if that failed run actually
-contains this interpreter), independently verify/register without installation:
-
-```powershell
-py -3 scripts/run_experiments.py --verify-environment "C:\Users\DS\.local\state\ewp-portable-experiments\run-20261114T103852Z-57bacab9\cuda-env\Scripts\python.exe" --cuda --register-environment
-```
-
-For WSL, select its actual retained `cuda-env/bin/python`, not the Windows path:
-
-```bash
-python3 scripts/run_experiments.py --verify-environment "$HOME/.local/state/ewp-portable-experiments/RETAINED_RUN/cuda-env/bin/python" --cuda --register-environment
-```
-
-`RETAINED_RUN` must be the actual WSL run ID. This host cannot inspect the user's
-Windows/WSL filesystem or assert that either environment currently exists.
-Alternatively a new campaign can select any verified placement explicitly using
+`--cuda` alone also reuses a verified preparation during a new campaign. Normally
+no environment paths need to be supplied. For a nonstandard existing placement,
+`--verify-environment PATH --cuda --register-environment` performs the same
+independent verification/registration without CUDA installation. Use the actual
+platform's interpreter, never a Windows interpreter from WSL or vice versa.
+Alternatively a new campaign can select an explicit placement using
 `--cuda --cuda-python PATH` (never combine with `--install-cuda`). Dependency-only
 verification writes a new `dependency-check-*` report outside the old run and
 establishes **no CUDA device/runtime success**. A CPU-only Torch environment is not
@@ -297,6 +290,42 @@ because this driver or a report changed. Full-source confirmation follows useful
 qualified short candidates and explicit resource admission. The portable historic
 VM reference remains measured source `81afcb46c339587b53700ef47c03f0e4361047ac`,
 not a later wrapper commit.
+
+## 64×32 blur failures and independent backend results
+
+The operator's November 14, 2026 native Windows preflight selected the RTX 3090:
+transfer, ProRes, FFV1 and same-build checks passed; NumPy finishing succeeded.
+Blur's aggregate failed, but its 1400×280 case passed (maximum code error1,
+mean0.0010102040816326531; unchanged limits maximum2 and mean0.6).
+Those are reported target observations, not a remeasurement by this checkout.
+
+The finite-kernel reference was independently checked against a scalar sum and
+actual software-Vulkan execution at both sizes. No reference arithmetic defect
+was demonstrated. The pinned shader uses storage-image reads without clamping tap
+coordinates; with radius48, the64×32 probe crosses boundaries everywhere. This is
+a source-level boundary hazard, **not proof of the actual RTX driver behavior**.
+The target's64×32 output is still needed to distinguish implementation/driver
+boundary behavior from other target-specific problems.
+
+The runner keeps every geometry's verdict and now records per-frame/spatial
+metrics, byte lengths, differences and tolerances. A failed64×32 numerical check
+also runs one bounded160×128 padded/cropped diagnostic. A passing diagnostic does
+not replace the original result, relax limits, or qualify an unpadded workload.
+Any real failing requested geometry still blocks blur. Independently passing
+transfer/ProRes/FFV1 and finishing routes remain eligible; they are not suppressed
+because blur's aggregate failed. A global resource or unverified process-ownership
+condition is a separate explicit stop, never labelled an optional backend failure.
+
+To collect the new target diagnostics using existing valid preparation, start a
+new bounded preflight (do not resume or edit the old failed run):
+
+```powershell
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --preflight-only
+```
+
+The same selected build is reverified/reused when available. The existing legacy
+run-local FFmpeg preparation is also eligible for verified reuse; no new download
+is required when its complete pinned payload is valid.
 
 ## Review output and acceptance
 

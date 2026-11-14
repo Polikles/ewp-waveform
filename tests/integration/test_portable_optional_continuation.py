@@ -61,7 +61,9 @@ def test_real_cpu_continues_after_owned_optional_request_failure(
         assert terminal[name]["validation"]["passed"]
         assert terminal[name]["validation"]["frames"] == 6
     (report,) = (
-        p for p in (root / "reports").glob("report-*.json") if not p.name.endswith("-commands.json")
+        p
+        for p in (root / "reports").glob("report-*.json")
+        if not p.name.endswith(("-commands.json", "-diagnostics.json"))
     )
     assert json.loads(report.read_text())["status"] == "COMPLETE_WITH_OPTIONAL_FAILURES"
     assert terminal["smoke-fir-algorithm"]["status"] == "SKIPPED"

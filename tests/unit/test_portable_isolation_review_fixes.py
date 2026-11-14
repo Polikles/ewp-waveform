@@ -189,7 +189,7 @@ def test_main_preserves_global_refusal_classification(
     reports = [
         p
         for p in tmp_path.glob("run-*/reports/report-*.json")
-        if not p.name.endswith("-commands.json")
+        if not p.name.endswith(("-commands.json", "-diagnostics.json"))
     ]
     assert len(reports) == 1
     assert json.loads(reports[0].read_text())["status"] == status

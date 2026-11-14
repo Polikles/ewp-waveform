@@ -392,7 +392,9 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
         tools = importlib.import_module("ewp_waveform.ffmpeg.portable_tools")
         return {
             "status": "SUCCEEDED",
-            "acquisition": tools.acquire_windows(Path(request["media"]), allow_download=True),
+            "acquisition": tools.acquire_windows(
+                Path(request["media"]), allow_download=request.get("allow_download", True)
+            ),
         }
     if operation == "views":
         return make_views(request)
