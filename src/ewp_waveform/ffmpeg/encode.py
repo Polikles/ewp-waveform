@@ -360,17 +360,37 @@ def _encode_ribbon_lut(
     sidecar = prores_path.with_suffix(".ribbon-lut.json")
     started = time.perf_counter()
     root: Path | None = None
+    failure: BaseException | None = None
+
+    def retain_text(path: Path, primary: BaseException | None) -> str | None:
+        try:
+            if not path.is_file():
+                return None
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            note = f"LUT diagnostic read failed: {path}: {error}"
+            record.setdefault("diagnostic_errors", []).append(note)
+            if primary is not None:
+                primary.add_note(note)
+                return None
+            raise
+
     try:
         with TemporaryDirectory(prefix=".ribbon-lut-", dir=prores_path.parent) as directory:
             root = Path(directory)
             before = time.perf_counter()
             try:
                 qualification = qualify_ribbon_lut(argv[0], root / "qualification")
-            except Exception:
-                record["qualification_diagnostics"] = {
-                    str(path.relative_to(root)): path.read_text(encoding="utf-8", errors="replace")
-                    for path in (root / "qualification").glob("*.stderr")
-                }
+            except Exception as primary:
+                try:
+                    record["qualification_diagnostics"] = {
+                        str(path.relative_to(root)): retain_text(path, primary)
+                        for path in (root / "qualification").glob("*.stderr")
+                    }
+                except OSError as error:
+                    note = f"LUT qualification diagnostic enumeration failed: {error}"
+                    record.setdefault("diagnostic_errors", []).append(note)
+                    primary.add_note(note)
                 raise
             finally:
                 record["qualification_seconds"] = time.perf_counter() - before
@@ -395,9 +415,9 @@ def _encode_ribbon_lut(
             stderr_path = root / "encode.stderr"
             try:
                 completed = run_argv_stdin(command, frames, phases=phases, stderr_path=stderr_path)
-            finally:
-                if stderr_path.is_file():
-                    record["stderr"] = stderr_path.read_text(encoding="utf-8", errors="replace")
+            except BaseException as primary:
+                record["stderr"] = retain_text(stderr_path, primary)
+                raise
             record["returncode"] = completed.returncode
             record["stderr"] = completed.stderr.decode("utf-8", errors="replace")
             if completed.returncode:
@@ -405,16 +425,28 @@ def _encode_ribbon_lut(
             record["status"] = "succeeded"
     except (ValueError, subprocess.SubprocessError) as exc:
         record.update(status="failed", error=f"{type(exc).__name__}: {exc}")
-        raise EncodeError(f"ribbon LUT refused: {exc}") from exc
+        failure = EncodeError(f"ribbon LUT refused: {exc}")
+        raise failure from exc
     except BaseException as exc:
+        failure = exc
         record.update(status="failed", error=f"{type(exc).__name__}: {exc}")
         raise
     finally:
         record["service_encode_seconds_including_setup"] = time.perf_counter() - started
         record["temporary_masks_removed"] = root is None or not root.exists()
-        sidecar.write_text(json.dumps(record, indent=2), encoding="utf-8")
         if phases is not None:
             phases.extras["ribbon_finish_lut"] = record
+        try:
+            sidecar.write_text(json.dumps(record, indent=2), encoding="utf-8")
+        except OSError as error:
+            note = f"LUT diagnostic persistence failed: {error}"
+            record["diagnostic_persistence_error"] = note
+            if failure is not None:
+                failure.add_note(note)
+            else:
+                # Successful encoding is not successful evidence publication.
+                record.update(status="failed", error=note)
+                raise
 
 
 def _dual_output_argv(
