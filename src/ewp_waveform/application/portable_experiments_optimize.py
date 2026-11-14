@@ -59,11 +59,28 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("frozen direct workload differs from effective clipped timeline")
     appearance = resolve_fixed_axis_appearance(preset)
     output = root / ("native.mkv" if codec == "ffv1" else "native.mov")
+    prepared_lut = None
+    preparation_seconds = 0.0
+    if request.get("finish_lut"):
+        from ewp_waveform.ffmpeg.ribbon_lut import prepare_ribbon_lut, probe_geq_sampling
+
+        prep_started = time.perf_counter()
+        if appearance.ribbon_finish is None:
+            raise ValueError("LUT finishing requires the production ribbon finish")
+        prepared_lut = prepare_ribbon_lut(
+            root / "ribbon-classes.pgm",
+            width=preset.canvas.width,
+            height=preset.canvas.height,
+            finish=appearance.ribbon_finish,
+            sampling=probe_geq_sampling(request["ffmpeg"]),
+        )
+        preparation_seconds = time.perf_counter() - prep_started
     spec = SuiteEncoding(
         "FFV1-DIRECT" if codec == "ffv1" else "CPU-CONTROL",
         log,
         encoder_threads=request.get("encoder_threads"),
         filter_threads=request.get("filter_threads"),
+        ribbon_lut=prepared_lut,
     )
     digest = hashlib.sha256()
     raster_count = 0
@@ -157,12 +174,15 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         "status": "SUCCEEDED",
         "actual_action": "PROCESS",
         "throughput_fresh": True,
-        "wall_seconds": wall,
-        "render_fps": valid["frames"] / wall,
-        "real_time_factor": wall / (valid["frames"] / 60),
+        "wall_seconds": wall + preparation_seconds,
+        "pipeline_wall_seconds": wall,
+        "finishing_preparation_seconds": preparation_seconds,
+        "render_fps": valid["frames"] / (wall + preparation_seconds),
+        "real_time_factor": (wall + preparation_seconds) / (valid["frames"] / 60),
         "validation": valid,
         "external_verification_seconds": valid["validation_seconds"],
-        "timer": "perf_counter around run_fixed_pipeline including raster hash/feed/finish/encode; "
+        "timer": "selected finishing preparation plus perf_counter around run_fixed_pipeline "
+        "including raster hash/feed/finish/encode; "
         "excludes planning, imports, external validation and views; no service publication",
         "route": "EXPLICIT_SERIAL_PRODUCTION_FIXED_PIPELINE_NATIVE_NOT_SERVICE",
         "workload": w,
@@ -240,6 +260,17 @@ def campaign(
 
     # The stock API remains visible, but never divide its different wrapper wall
     # by the direct pipeline wall. Codec comparison uses identical wrappers.
+    lut = step("opt-lut-qualification", {"operation": "qualify-lut"}, optional=True)
+    if lut.get("status") == "SUCCEEDED" and lut.get("passed") is True:
+        pair(
+            "opt-prores-lut",
+            {**base, "codec": "prores"},
+            {**base, "codec": "prores", "finish_lut": True},
+            "same original production pipeline; only exact GEQ class-LUT finishing changes; "
+            "mask/probe preparation included",
+        )
+    else:
+        skipped("opt-prores-lut", "CPU LUT byte qualification failed; no candidate throughput")
     pair(
         "opt-direct-ffv1",
         {**base, "codec": "prores", "reference": stock["output"], "reference_lossless": True},

@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ewp_waveform.ffmpeg.ribbon_lut import PreparedRibbonLut
 
 
 def record_command(path: Path, argv: list[str], *, phase: str) -> None:
@@ -28,10 +31,13 @@ class SuiteEncoding:
     encoder_threads: int | None = None
     filter_threads: int | None = None
     async_depth: int | None = None
+    ribbon_lut: PreparedRibbonLut | None = None
 
     def __post_init__(self) -> None:
         if self.candidate not in (*ADAPTERS, "FFV1-DIRECT"):
             raise ValueError("unknown suite encoding adapter")
+        if self.ribbon_lut is not None and self.candidate not in ("CPU-CONTROL", "FFV1-DIRECT"):
+            raise ValueError("LUT finishing is a separate CPU-only experiment")
         for name in ("encoder_threads", "filter_threads"):
             value = getattr(self, name)
             if value is not None and (type(value) is not int or not 0 <= value <= 32):
@@ -62,6 +68,7 @@ class SuiteEncoding:
             "filter_complex_threads": self.filter_threads,
             "async_depth": (self.async_depth or 1) if self.candidate == "PRORES-GPU" else None,
             "thread_scope": "requested FFmpeg options, not observed runtime thread counts",
+            "ribbon_lut": self.ribbon_lut.record() if self.ribbon_lut else None,
         }
 
     @property
@@ -139,6 +146,10 @@ def service_argv(argv: list[str], spec: SuiteEncoding) -> list[str]:
         out[1:1] = device_args(spec.device)
     key = "-loglevel" if "-loglevel" in out else "-v"
     out[out.index(key) + 1] = "verbose"
+    if spec.ribbon_lut is not None:
+        from ewp_waveform.ffmpeg.ribbon_lut import ribbon_lut_argv
+
+        out = ribbon_lut_argv(out, spec.ribbon_lut)
     record_command(spec.command_log, out, phase="suite-service-encode")
     return out
 

@@ -320,3 +320,97 @@ def ribbon_lut_argv(argv: list[str], prepared: PreparedRibbonLut) -> list[str]:
     fi = out.index("-filter_complex")
     out[fi:fi] = ["-f", "image2", "-pattern_type", "none", "-i", str(prepared.mask_path)]
     return out
+
+
+def qualify_ribbon_lut(ffmpeg: str, root: Path) -> dict[str, object]:
+    """Bounded actual byte gate: every code/class, spatial edges and primary EOF.
+
+    Includes the production horizontal extent arithmetic and production vertical
+    coordinate arithmetic in separate thin geometries, without full-size media.
+    A requested original-input candidate still requires its matched MOV oracle.
+    """
+    import hashlib
+    import json
+
+    root.mkdir(parents=True, exist_ok=False)
+    sampling = probe_geq_sampling(ffmpeg)
+    finish: Finish = (0.45, True, 1.0, 0.96, 0.55)
+    records: list[dict[str, object]] = []
+    for width, height in ((32, 32), (1400, 5), (8, 280)):
+        size = width * height
+        raster = b"".join(bytes([code]) * size for code in range(256))
+        raster += bytes((i * 37 + 11) % 256 for i in range(size)) + bytes(size)
+        prepared = prepare_ribbon_lut(
+            root / f"classes-{width}x{height}.pgm",
+            width=width,
+            height=height,
+            finish=finish,
+            sampling=sampling,
+        )
+        graph = ribbon_graph(
+            width=width,
+            height=height,
+            overscan=0,
+            supersample=1,
+            pix_fmt="gray",
+            color="#C7E6EC",
+            glow=0,
+            finish=finish,
+        )
+        argv = [
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "gray",
+            "-s",
+            f"{width}x{height}",
+            "-r",
+            "60",
+            "-i",
+            "pipe:0",
+            "-filter_complex",
+            graph,
+            "-map",
+            "[vout]",
+            "-frames:v",
+            "258",
+            "-c:v",
+            "rawvideo",
+            "-pix_fmt",
+            "rgba",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+        ]
+        hashes = []
+        for label, command in (("control", argv), ("candidate", ribbon_lut_argv(argv, prepared))):
+            result = subprocess.run(
+                command, input=raster, capture_output=True, timeout=60, check=False
+            )
+            (root / f"{width}x{height}-{label}.stderr").write_bytes(result.stderr)
+            if result.returncode or result.stderr or len(result.stdout) != 258 * size * 4:
+                raise ValueError("LUT actual byte oracle failed execution/count/diagnostics")
+            hashes.append(hashlib.sha256(result.stdout).hexdigest())
+            records.append(
+                {
+                    "geometry": [width, height],
+                    "label": label,
+                    "argv": command,
+                    "frames": 258,
+                    "rgba_sha256": hashes[-1],
+                    "bytes": len(result.stdout),
+                }
+            )
+        if hashes[0] != hashes[1]:
+            raise ValueError("LUT actual byte oracle mismatch; no tolerance or fallback")
+    value: dict[str, object] = {
+        "passed": True,
+        "sampling": sampling.mode,
+        "cases": records,
+        "scope": "actual CPU FFmpeg byte oracle; not render performance or Vulkan qualification",
+    }
+    (root / "qualification.json").write_text(json.dumps(value, indent=2))
+    return value

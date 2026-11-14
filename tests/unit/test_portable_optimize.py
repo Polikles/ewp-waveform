@@ -80,7 +80,12 @@ def test_campaign_shortlist_counterbalance_and_singular_variables() -> None:
 
     def step(name: str, request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         calls.append((name, request))
-        return {"status": "SUCCEEDED", "output": "native.mov", "original_raster_sha256": "raster"}
+        return {
+            "status": "SUCCEEDED",
+            "passed": True,
+            "output": "native.mov",
+            "original_raster_sha256": "raster",
+        }
 
     def skipped(name: str, reason: str) -> None:
         raise AssertionError((name, reason))
@@ -96,7 +101,13 @@ def test_campaign_shortlist_counterbalance_and_singular_variables() -> None:
         {"backends": {"prores": {"status": "PASS"}, "blur": {"status": "FAILED"}}},
     )
     assert calls[0][0] == "opt-stock-service"
-    for label in ("opt-direct-ffv1", "opt-ffv1-encoder", "opt-prores-filter", "opt-prores-async"):
+    for label in (
+        "opt-direct-ffv1",
+        "opt-ffv1-encoder",
+        "opt-prores-filter",
+        "opt-prores-async",
+        "opt-prores-lut",
+    ):
         pair = [(n, r) for n, r in calls if n.startswith(label + "-r")]
         assert [r["pair"]["side"] for _, r in pair] == list("ABBA")
     encoder = [r for n, r in calls if n.startswith("opt-ffv1-encoder")]
@@ -106,7 +117,7 @@ def test_campaign_shortlist_counterbalance_and_singular_variables() -> None:
     assert all(r["codec"] == "prores" for r in filters)
     asyncs = [r for n, r in calls if n.startswith("opt-prores-async")]
     assert [r["async_depth"] for r in asyncs] == [1, 4, 4, 1]
-    assert all(r["workload"] == w for _, r in calls)
+    assert all(r["workload"] == w for _, r in calls if r["operation"] != "qualify-lut")
 
 
 def test_execute_optimization_does_not_rerun_historical_matrix(
@@ -118,7 +129,12 @@ def test_execute_optimization_does_not_rerun_historical_matrix(
         calls.append(name)
         if name == "audio-plan":
             return {"workloads": [{"id": "smoke", "duration": 0.1, "frames": 6}]}
-        return {"status": "SUCCEEDED", "output": "native.mkv", "original_raster_sha256": "r"}
+        return {
+            "status": "SUCCEEDED",
+            "passed": True,
+            "output": "native.mkv",
+            "original_raster_sha256": "r",
+        }
 
     monkeypatch.setattr(app, "invoke", invoke)
     monkeypatch.setattr(app, "skip", lambda *args: {"status": "SKIPPED"})
@@ -131,7 +147,7 @@ def test_execute_optimization_does_not_rerun_historical_matrix(
         "repeats": 2,
     }
     app.execute(config, {})
-    assert len([n for n in calls if n.startswith("opt-")]) == 13
+    assert len([n for n in calls if n.startswith("opt-")]) == 18
     assert not any("qualify" in n or "production32" in n or "fir" in n for n in calls)
 
 
@@ -159,7 +175,12 @@ def test_codec_prefix_screen_is_independent_and_bounded() -> None:
 
     def step(name: str, request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         calls.append((name, request))
-        return {"status": "SUCCEEDED", "output": "native.mov", "original_raster_sha256": "r"}
+        return {
+            "status": "SUCCEEDED",
+            "passed": True,
+            "output": "native.mov",
+            "original_raster_sha256": "r",
+        }
 
     skipped = []
     campaign(

@@ -427,6 +427,13 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
         from ewp_waveform.application.portable_optimization_extras import compact_render
 
         return compact_render(request)
+    if operation == "qualify-lut":
+        from ewp_waveform.ffmpeg.ribbon_lut import qualify_ribbon_lut
+
+        return {
+            "status": "SUCCEEDED",
+            **qualify_ribbon_lut(request["ffmpeg"], Path(request["media"])),
+        }
     if operation == "qualify-finish":
         return qualify_finish(request)
     if operation == "audio-plan":
