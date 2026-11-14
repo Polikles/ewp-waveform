@@ -3,6 +3,30 @@
 The canonical operator commands remain in `EXPERIMENTS.md`. This note describes
 experimental factors, not production-default promotion or GUI development.
 
+## Exact CPU finishing
+
+The class-mask `lut2` experiment replaces only GEQ's static reflection/horizon
+arithmetic. Existing recursive blur, blend, color/alpha assembly, raster, encoding
+and output geometry remain unchanged. The selected executable is probed for actual
+last-row/column sampling. No assumption that GEQ clamps to the penultimate sample
+is allowed. Actual every-code, spatial-edge and final-frame byte gates precede the
+maintained LUT screen; unsupported geometry or an oracle failure refuses it.
+
+VM.1 original speech, stock FFmpeg8.0.1, same direct ProRes wrapper, AB/BA n2:
+GEQ median3.006364s versus LUT2.446602s,18.619% less render/preparation wall. Each
+candidate includes its selected-executable probe and mask preparation (~.022s).
+Every complete MOV has identical SHA256; no new visual approval is needed for
+those unchanged bytes. This is not yet a full-source or pool2 service speedup.
+The new ordinary-service opt-in and fresh full confirmation are being qualified.
+
+Keep tool identities separate: the maintained first13/21-cell CPU campaigns used
+the discovered Hermes FFmpeg9.0.1, whereas task-local attribution, scratch/row,
+verification and LUT cells explicitly selected /usr/bin/FFmpeg8.0.1. The speech
+raster and decoded ProRes hashes match across those tools, but container hashes
+differ. Matched pairs use one frozen build; no cross-build or historical time is
+a speedup denominator. The supplied WSL/Windows timings remain operator
+observations, not VM.1 executions.
+
 ## Direct encoding and thread controls
 
 The CPU shortlist uses original audio analysis, interval-local normalization and
