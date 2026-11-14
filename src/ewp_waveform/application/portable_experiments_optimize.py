@@ -167,9 +167,17 @@ def direct_render(request: dict[str, Any]) -> dict[str, Any]:
         reference=Path(request["reference"]) if request.get("reference") else None,
         lossless=request.get("reference_lossless", False),
     )
-    # The reference may be a lossy MOV, never assert losslessness against it.
-    valid["lossless_against_preencode"] = False
-    valid["lossless_against_reference_master"] = bool(request.get("reference_lossless"))
+    # No pre-encode finished RGBA buffer is captured by this direct route.
+    # A lossy MOV contrast (or equality to another master) cannot prove that.
+    valid["lossless_against_preencode"] = None
+    valid["preencode_losslessness_proof"] = {
+        "status": "NOT_PERFORMED",
+        "reason": "direct route does not retain an independent finished pre-encode RGBA oracle",
+        "codec_contract": "lossless RGB-alpha" if codec == "ffv1" else "lossy ProRes",
+    }
+    valid["lossless_against_reference_master"] = (
+        True if request.get("reference") and request.get("reference_lossless") else None
+    )
     return {
         "status": "SUCCEEDED",
         "actual_action": "PROCESS",

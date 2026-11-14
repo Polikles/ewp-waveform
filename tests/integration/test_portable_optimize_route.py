@@ -60,6 +60,7 @@ def test_direct_ffv1_and_individual_filter_controls(
         ("mkv", "ffv1", {}),
         ("encoder", "ffv1", {"encoder_threads": 2}),
         ("filter", "prores", {"filter_threads": 1}),
+        ("mov-lut", "prores", {"finish_lut": True}),
     ):
         evidence = tmp_path / name
         evidence.mkdir()
@@ -81,6 +82,11 @@ def test_direct_ffv1_and_individual_filter_controls(
         results[name] = result
         assert result["validation"]["passed"]
         assert result["validation"]["frames"] == 12
+        assert result["validation"]["lossless_against_preencode"] is None
+        assert result["validation"]["preencode_losslessness_proof"]["status"] == "NOT_PERFORMED"
+        assert result["validation"]["lossless_against_reference_master"] is (
+            True if control else None
+        )
         assert result["phase_metrics"]["counts"]["ffmpeg_feed"] == 12
         commands = [
             json.loads(line) for line in (evidence / "commands.jsonl").read_text().splitlines()
@@ -97,6 +103,10 @@ def test_direct_ffv1_and_individual_filter_controls(
     assert (
         results["mov"]["validation"]["decoded_rgba_sha256"]
         == results["filter"]["validation"]["decoded_rgba_sha256"]
+    )
+    assert (
+        results["mov"]["validation"]["decoded_rgba_sha256"]
+        == results["mov-lut"]["validation"]["decoded_rgba_sha256"]
     )
     evidence = tmp_path / "prefix"
     evidence.mkdir()

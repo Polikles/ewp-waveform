@@ -67,9 +67,42 @@ separate assessments. The small and padded Vulkan blur failures remain blocking.
 
 `measurements-*.json` preserves compact complete critical phase/settings/transfer
 measurements and precedes verbose/raw diagnostics in the2MiB ZIP. Oversized critical
-exports refuse packaging explicitly instead of silently dropping comparison data;
-raw ordered call records remain in the full report JSON. Service/pipeline time,
-cold worker envelopes, external verification and MP4 generation remain separate.
+exports refuse **packaging**, not rendering: usable Markdown, the full report JSON
+and the separate critical measurements JSON remain authoritative and linked. The
+report records `packaging.status` independently of the original render status/error;
+a partial/failed ZIP is never advertised as a usable packet. Packet snapshots are
+captured before the final packaging outcome; consult the final on-disk report.
+Raw ordered call records remain in the full report JSON where originally captured.
+Service/pipeline time, cold worker envelopes, external verification and MP4
+generation remain separate.
+
+For report-only recovery from retained full report, diagnostic or measurements
+JSON (up to64MiB), without environment setup, media access, rendering or resume:
+
+```bash
+python scripts/regenerate_experiment_report.py --records /path/to/measurements-ID.json --output /path/to/new-report-recovery
+```
+
+The output directory must be new. Originals/failures are untouched, recovered
+records are labelled REUSED/not revalidated, and source path/hash plus an exact
+`retained-records.json` copy are retained.
+Compact/excerpted records cannot reconstruct absent raw calls, commands or logs.
+This also works with native Windows paths/`py` in the same checkout.
+
+Direct LUT's selected-tool guard accepts alternate path spellings only when the
+host filesystem confirms they identify the same file (for example `.exe`/`.EXE`
+on Windows); it never trusts a matching basename, case-folded path or copied bytes.
+Single-input/output and exact finishing-geometry guards remain strict. Linux
+identity-predicate replay is not native Windows qualification.
+
+For direct native FFV1, `lossless_against_preencode: null` with
+`preencode_losslessness_proof.status: NOT_PERFORMED` means that invocation did not
+capture an independent finished pre-encode RGBA oracle—not that FFV1 failed a
+losslessness comparison. The lossless codec contract, decoded structural validation,
+lossy MOV contrast and exact reference-master comparisons are distinct. A tiny
+software-FFmpeg regression compares the same finished masks through raw RGBA and
+FFV1/decode, including hidden RGB and fractional alpha; it does not retroactively
+prove any retained full/direct run or establish native Windows/NLE acceptance.
 
 ## Missing uv / bootstrap Python 3.14 (first native Windows run)
 

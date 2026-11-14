@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 import zipfile
@@ -436,6 +437,7 @@ def report(
     *,
     reused: bool = False,
     fresh_names: set[str] | None = None,
+    retained_source: dict[str, Any] | None = None,
 ) -> Path:
     folder = run / "reports"
     folder.mkdir(parents=True, exist_ok=True)
@@ -460,12 +462,15 @@ def report(
         "visual": "PENDING",
         "studio": "PENDING",
         "promotion": "NOT_APPROVED",
+        "retained_source": retained_source,
+        "packaging": {"status": "PENDING"},
     }
     save(path.with_suffix(".json"), value)
     from ewp_waveform.application.portable_experiments_metrics import compact_metrics
 
+    measurements_path = path.with_name("measurements-" + token + ".json")
     save(
-        path.with_name("measurements-" + token + ".json"),
+        measurements_path,
         {
             "status": status,
             "error": error,
@@ -491,8 +496,13 @@ def report(
                     }
                 }
             ),
-            "scope": "critical compact comparison data; "
-            "ordered raw calls/commands remain in full JSON",
+            "scope": (
+                "critical compact comparison data derived from retained records; "
+                "absent raw calls/commands are not recovered"
+                if retained_source is not None
+                else "critical compact comparison data; "
+                "ordered raw calls/commands remain in full JSON"
+            ),
         },
     )
     compact_path = path.with_name(path.stem + "-diagnostics.json")
@@ -585,11 +595,11 @@ def report(
         ]
     if config:
         lines += [
-            f"Selected Python: `{config['python']}`",
+            f"Selected Python: `{config.get('python', 'not retained')}`",
             "",
-            f"Source content SHA-256: `{config['source']['sha256']}`",
+            f"Source content SHA-256: `{config.get('source', {}).get('sha256', 'not retained')}`",
             "",
-            f"Media: `{config['media']}` (excluded from diagnostic bundle).",
+            f"Media: `{config.get('media', 'not retained')}` (excluded from diagnostic bundle).",
             "",
             f"Frozen --repeats: **{config.get('repeats', 2)}**; AB/BA on speech shortlist "
             "(six frames in smoke), plus explicitly selected serial service32. "
@@ -600,7 +610,7 @@ def report(
                 "preflight only; no waveform rendering or throughput measurements."
                 if config.get("preflight_only")
                 else "CPU six-frame usability validation; no full/pool2/GPU claims."
-                if config["smoke"]
+                if config.get("smoke")
                 else "short-first production recipe."
             ),
             "",
@@ -806,6 +816,8 @@ def report(
     ]
     navigation: dict[str, dict[str, Any]] = {}
     for name, result in results.items():
+        if retained_source is not None:
+            continue  # Report-only recovery never opens/hashes historical media.
         if result.get("status") != "SUCCEEDED":
             continue
         if result.get("output"):
@@ -835,8 +847,11 @@ def report(
         "## Appendix / exact evidence",
         "",
         f"- [Compact complete semantics / bounded diagnostic excerpts]({compact_path.as_uri()})",
+        f"- [Authoritative critical measurements (separate file)]({measurements_path.as_uri()})",
         f"- [Structured report / settings / diagnostics]({path.with_suffix('.json').as_uri()})",
-        f"- [Exact worker and FFmpeg argv, exit status and stderr]({appendix.as_uri()})",
+        f"- [Worker and FFmpeg evidence present in supplied records]({appendix.as_uri()})"
+        if retained_source is not None
+        else f"- [Exact worker and FFmpeg argv, exit status and stderr]({appendix.as_uri()})",
         "- Original environment, runtime fingerprints and setup receipts are in structured config; "
         "all per-step request/result/command logs remain under the retained run.",
         "- Historical WSL and VM.1 references are operator context, not local remeasurement: "
@@ -844,11 +859,105 @@ def report(
         "",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    bundle = diagnostic_bundle(
-        run,
-        folder / ("diagnostics-" + token + ".zip"),
-        media=Path(config["media"]) if config else None,
-    )
+    destination = folder / ("diagnostics-" + token + ".zip")
+    try:
+        bundle = diagnostic_bundle(
+            run,
+            destination,
+            media=Path(config["media"])
+            if config and config.get("media") and retained_source is None
+            else None,
+        )
+    except Exception as exc:
+        # Packaging is not rendering. Preserve the original status/error/results,
+        # authoritative exports, and any partial packet; never relabel success.
+        packaging = {
+            "status": "REFUSED" if isinstance(exc, ValueError) else "FAILED",
+            "error": f"{type(exc).__name__}: {exc}",
+            "attempted_path": str(destination),
+            "partial_packet_may_exist": destination.exists(),
+        }
+    else:
+        packaging = {"status": "SUCCEEDED", **bundle}
+    value["packaging"] = packaging
+    # Atomically finalize only this invocation's newly allocated exports. A failed
+    # outcome write must not destroy the already retained authoritative records.
+    export_errors = []
+    for target, payload in (
+        (path.with_suffix(".json"), value),
+        (compact_path, _compact_diagnostics(value, path.with_suffix(".json").as_uri())),
+    ):
+        pending = target.with_suffix(target.suffix + ".pending")
+        try:
+            save(pending, payload)
+            pending.replace(target)
+        except (OSError, ValueError) as exc:
+            export_errors.append(f"Packaging outcome export failed for {target}: {exc}")
     with path.open("a", encoding="utf-8") as stream:
-        stream.write(f"\nSmall text-only diagnostics: `{bundle['path']}`. No media included.\n")
+        stream.write("\n## Diagnostic packaging\n\n")
+        stream.write(f"Status: **{packaging['status']}** (separate from render status).\n\n")
+        for message in export_errors:
+            stream.write(message + "\n\n")
+        if packaging["status"] == "SUCCEEDED":
+            stream.write(
+                f"Small text-only diagnostics: `{packaging['path']}`. No media included.\n"
+            )
+        else:
+            stream.write(str(packaging["error"]) + "\n\n")
+            stream.write(
+                "No usable packet claimed. Markdown and separate full/critical JSON "
+                "exports remain available; rendering results are unchanged.\n"
+            )
+        if retained_source is not None:
+            stream.write(
+                "\nReport-only recovery: no setup, rendering, environment verification "
+                "or historical media access. Retained records are not revalidated.\n"
+            )
+            stream.write("\nRetained source: `" + json.dumps(retained_source) + "`\n")
     return path
+
+
+def regenerate_report(records: Path, output: Path) -> Path:
+    """Export retained full/diagnostic/critical records without resume or rendering.
+
+    Originals remain untouched. The fresh output namespace and 64MiB input cap
+    bound this text-only recovery; compact input is never advertised as raw logs.
+    """
+    cap = 64 * 1024**2
+    if records.stat().st_size > cap:
+        raise ValueError("retained report exceeds 64MiB recovery input cap")
+    with records.open("rb") as stream:
+        original = stream.read(cap + 1)
+    if len(original) > cap:
+        raise ValueError("retained report exceeds 64MiB recovery input cap")
+    value = json.loads(original)
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get("status"), str)
+        or not isinstance(value.get("results"), dict)
+        or not all(isinstance(r, dict) for r in value["results"].values())
+        or not isinstance(value.get("config"), (dict, type(None)))
+    ):
+        raise ValueError("requires retained report status/results/config records")
+    provenance = {
+        "path": str(records.resolve()),
+        "sha256": hashlib.sha256(original).hexdigest(),
+        "bytes": len(original),
+        "retained_copy": str((output / "retained-records.json").resolve()),
+        "scope": "retained records only; compact/excerpted input cannot recover absent raw logs",
+        "original_result_use": value.get("result_use"),
+        "original_packaging": value.get("packaging"),
+    }
+    output.mkdir(parents=True, exist_ok=False)
+    with (output / "retained-records.json").open("xb") as stream:
+        stream.write(original)
+    return report(
+        output.resolve(),
+        value["status"],
+        value.get("error"),
+        value.get("config"),
+        value["results"],
+        reused=True,
+        fresh_names=set(),
+        retained_source=provenance,
+    )

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Retain usable experiment Markdown and separate full/critical JSON when the bounded
+  diagnostic packet refuses oversize data; record packaging independently from
+  render outcomes. Add read-only report regeneration from retained records.
+- Accept direct ribbon-LUT executable aliases only on verified filesystem identity,
+  preserving command/geometry guards. Mark unperformed direct pre-encode lossless
+  proofs as unknown, distinct from failed comparisons and reference-master equality.
+
 - Add the opt-in `ribbon-lut` CPU ProRes execution profile, preserving the exact
   ribbon finish through runtime-qualified LUT tables, including spawn workers.
   Qualify per encode inside service wall, retain worker diagnostics in results,

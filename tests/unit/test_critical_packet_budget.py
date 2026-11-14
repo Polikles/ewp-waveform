@@ -37,8 +37,13 @@ def test_report_to_packet_refuses_oversized_critical_export_without_truncation(
     tmp_path: Path,
 ) -> None:
     value = {"fixture": {"status": "SUCCEEDED", "phase_evidence": "x" * (PAYLOAD_CAP + 1)}}
-    with pytest.raises(ValueError, match="critical measurements"):
-        report(tmp_path, "COMPLETE", None, None, value)
+    path = report(tmp_path, "COMPLETE", None, None, value)
+    full = json.loads(path.with_suffix(".json").read_text())
+    assert full["status"] == "COMPLETE" and full["error"] is None
+    assert full["results"] == value
+    assert full["packaging"]["status"] == "REFUSED"
+    assert "critical measurements" in full["packaging"]["error"]
+    assert "Status: **REFUSED** (separate from render status)" in path.read_text()
     measurements = list((tmp_path / "reports").glob("measurements-*.json"))
     assert len(measurements) == 1
     assert json.loads(measurements[0].read_text())["results"] == value

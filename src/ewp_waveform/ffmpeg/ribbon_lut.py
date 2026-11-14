@@ -36,6 +36,20 @@ class GeqSampling:
     mode: Literal["identity", "smear"]
 
 
+def _same_executable(actual: str, qualified: str) -> bool:
+    """Accept exact spelling or filesystem identity, never basename/case guesses.
+
+    Windows PATH resolution may emit .EXE for a selected .exe. samefile checks
+    the actual file on that host; a Linux simulation cannot qualify Windows.
+    """
+    if actual == qualified:
+        return True
+    try:
+        return Path(actual).samefile(qualified)
+    except OSError:
+        return False
+
+
 def probe_geq_sampling(ffmpeg: str) -> GeqSampling:
     """Real nonuniform corner witness; no timestamp/thread/performance claims."""
     source = bytes(range(30))
@@ -281,7 +295,7 @@ def ribbon_lut_argv(argv: list[str], prepared: PreparedRibbonLut) -> list[str]:
     out = list(argv)
     if (
         not out
-        or out[0] != prepared.sampling.ffmpeg
+        or not _same_executable(out[0], prepared.sampling.ffmpeg)
         or out.count("-i") != 1
         or out.count("-filter_complex") != 1
         or out.count("-map") != 1
