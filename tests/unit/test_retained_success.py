@@ -608,3 +608,87 @@ def test_valid_cli_is_stdlib_only_and_writes_separate_report(tmp_path: Path) -> 
     persisted = json.loads((tmp_path / "new/authentication.json").read_text())
     assert persisted["original_status"] == "FAILED"
     assert persisted["new_renders"] == persisted["new_decodes"] == 0
+
+
+def reseal_terminal(run: Path, rows: list[dict[str, Any]], index: int) -> None:
+    """Consistently freeze only new synthetic fixtures, never historical records."""
+    value = rows[index]["value"]
+    root = run / "steps" / rows[index]["name"]
+    raw = json.loads((root / "value.json").read_text())
+    write(root / "value.json", {key: value[key] for key in raw})
+    write(root / "process/result.json", value["command"])
+    rows[index]["artifacts"] = [ident(Path(a["path"])) for a in rows[index]["artifacts"]]
+    rewrite_events(run, rows)
+
+
+@pytest.mark.parametrize("operation", ["direct", "service"])
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [("render", 100000.0), ("worker", 0.0), ("worker", -1.0),
+     ("worker", True), ("worker", "3"), ("cold_alias", 100000.0)],
+)
+def test_contained_render_timer_must_agree_with_worker(
+    tmp_path: Path, operation: str, field: str, bad: Any
+) -> None:
+    run, _, _ = fixture_run(tmp_path, operation=operation)
+    rows = events(run)
+    value = rows[3]["value"]
+    if field == "render":
+        value["wall_seconds"] = bad
+    elif field == "worker":
+        value["command"]["wall_seconds"] = bad
+    else:
+        value["cold_process_wall_seconds"] = bad
+    reseal_terminal(run, rows, 3)
+    before = snapshot(tmp_path)
+    report = recovery.authenticate(run)
+    assert rows[3]["name"] not in report["qualified"]
+    group = value["pair"]["id"]
+    stats = next(s for s in report["pair_statistics"] if s["id"] == group)
+    assert stats["recovered_paired_n"] == 1
+    assert stats["orders"] == ["BA"]
+    assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("operation", ["direct", "service"])
+@pytest.mark.parametrize("inside", [True, False])
+def test_timer_rounding_allowance_is_absolute_and_bounded(
+    tmp_path: Path, operation: str, inside: bool
+) -> None:
+    run, _, _ = fixture_run(tmp_path, operation=operation)
+    rows = events(run)
+    rows[3]["value"]["wall_seconds"] = 3.0 + recovery.TIMER_CONTAINMENT_TOLERANCE_SECONDS * (
+        0.5 if inside else 2.0
+    )
+    reseal_terminal(run, rows, 3)
+    report = recovery.authenticate(run)
+    assert (rows[3]["name"] in report["qualified"]) is inside
+
+
+@pytest.mark.parametrize("operation", ["direct", "service"])
+def test_exact_rgba_reference_requires_matching_alpha_evidence(
+    tmp_path: Path, operation: str
+) -> None:
+    run, _, _ = fixture_run(tmp_path, operation=operation)
+    rows = events(run)
+    rows[3]["value"]["validation"]["decoded_alpha_sha256"] = "e" * 64
+    reseal_terminal(run, rows, 3)
+    before = snapshot(tmp_path)
+    report = recovery.authenticate(run)
+    assert rows[3]["name"] not in report["qualified"]
+    assert any("alpha mismatch" in r["reason"] for r in report["ineligible"])
+    stats = next(s for s in report["pair_statistics"] if s["id"] == rows[3]["value"]["pair"]["id"])
+    assert stats["recovered_paired_n"] == 1
+    assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("operation", ["direct", "service"])
+def test_pair_admission_also_reconciles_alpha(tmp_path: Path, operation: str) -> None:
+    run, _, _ = fixture_run(tmp_path, operation=operation)
+    report = recovery.authenticate(run)
+    name = events(run)[3]["name"]
+    report["qualified"][name]["value"]["validation"]["decoded_alpha_sha256"] = "e" * 64
+    stats = recovery._statistics(report["qualified"], report["config"])
+    group = report["qualified"][name]["value"]["pair"]["id"]
+    assert next(s for s in stats if s["id"] == group)["recovered_paired_n"] == 1
+

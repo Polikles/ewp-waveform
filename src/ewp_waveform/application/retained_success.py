@@ -52,6 +52,9 @@ SERVICE_TIMER = (
     "inside render and production validation/publication included"
 )
 MAX_JSON_BYTES = 64 * 1024 * 1024
+# Render/service spans are contained in the separately frozen cold worker span.
+# Allow only 1ms absolute clock/serialization rounding, never a relative allowance.
+TIMER_CONTAINMENT_TOLERANCE_SECONDS = 0.001
 
 
 def _require(condition: bool, reason: str) -> None:
@@ -371,6 +374,20 @@ def _measurement(request: dict[str, Any], value: dict[str, Any], config: dict[st
         and value["wall_seconds"] > 0,
         "invalid historical wall time",
     )
+    worker_wall = value["command"]["wall_seconds"]
+    _require(
+        type(worker_wall) in (int, float)
+        and math.isfinite(worker_wall)
+        and worker_wall > 0
+        and value["wall_seconds"] <= worker_wall + TIMER_CONTAINMENT_TOLERANCE_SECONDS,
+        "historical render wall exceeds/contradicts frozen worker envelope",
+    )
+    if "cold_process_wall_seconds" in value:
+        _require(
+            type(value["cold_process_wall_seconds"]) in (int, float)
+            and value["cold_process_wall_seconds"] == worker_wall,
+            "cold worker timer disagrees with frozen process result",
+        )
     _require(
         valid["fps"] == valid["stream"]["avg_frame_rate"] == "60/1"
         and valid["stream"]["codec_name"] == "prores"
@@ -557,8 +574,10 @@ def _statistics(qualified: dict[str, Any], config: dict[str, Any]) -> list[dict[
                 _require(
                     av["validation"]["frames"] == bv["validation"]["frames"]
                     and av["validation"]["decoded_rgba_sha256"]
-                    == bv["validation"]["decoded_rgba_sha256"],
-                    "unmatched validated output",
+                    == bv["validation"]["decoded_rgba_sha256"]
+                    and av["validation"]["decoded_alpha_sha256"]
+                    == bv["validation"]["decoded_alpha_sha256"],
+                    "unmatched validated output/alpha",
                 )
                 for side, v in (("A", av), ("B", bv)):
                     samples[side].append(v["wall_seconds"])
@@ -673,8 +692,10 @@ def authenticate(run: Path, diagnostics: Path | None = None) -> dict[str, Any]:
                         and request.get("reference_lossless") is True
                         and value["validation"].get("lossless_against_reference_master") is True
                         and reference["value"]["validation"]["decoded_rgba_sha256"]
-                        == value["validation"]["decoded_rgba_sha256"],
-                        "reference validation/provenance mismatch",
+                        == value["validation"]["decoded_rgba_sha256"]
+                        and reference["value"]["validation"]["decoded_alpha_sha256"]
+                        == value["validation"]["decoded_alpha_sha256"],
+                        "reference validation/provenance/alpha mismatch",
                     )
                     if request["operation"] == "direct":
                         _require(

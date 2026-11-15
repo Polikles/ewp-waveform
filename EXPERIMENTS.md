@@ -174,8 +174,11 @@ hashchain, unique request/terminal joins, process exit/shutdown, frozen validati
 frame ordering/reference provenance and indexed artifact hashes, then writes only
 a separate authentication report and conservative eligible paired statistics.
 It reuses the historical validation of authenticated identical bytes; it is not
-fresh timing/pixels or signed third-party attestation. Missing/changed evidence
-remains ineligible. Do not remove owner.lock, rewrite the old report, or use
+fresh timing/pixels or signed third-party attestation. Contained render/service
+walls must fit the frozen positive worker envelope (only1ms absolute rounding
+allowance); exact-RGBA references and pairs must also agree on alpha hashes.
+Contradictory or missing/changed evidence remains ineligible. Do not remove
+owner.lock, rewrite the old report, or use
 `--resume` to bypass the failure. Optional `--diagnostics` requires an unexcerpted
 full original report, not the supplied transformed diagnostic export.
 
