@@ -1,0 +1,53 @@
+schema_version = 1
+name = "iuris-ribbon-refined-production"
+description = "Exact selected mapping-7 production look; explicit artistic noise, not a new renderer."
+
+[canvas]
+width = 1400
+height = 280
+fps = 60
+
+[waveform]
+background_mode = "dark-background"
+color_mode = "custom"
+style = "filled"
+domain = "frequency"
+color = "#C7E6EC"
+amplitude = 0.82
+stroke_width = 1.0
+center_line = true
+reflection_opacity = 0.45
+center_line_extent = 0.96
+center_line_opacity = 0.55
+
+[signal]
+fixed_axis_profile = "filled-ribbon-v2"
+detail_level = "balanced"
+scale = "sqrt"
+smoothing = 0.06
+visual_noise = 0.35
+idle_activity = 0.0
+noise_rate = 0.8
+noise_seed = 1729
+
+[signal.normalization]
+mode = "auto"
+soft_clip = true
+
+[signal.frequency]
+range = "auto"
+
+[effects.glow]
+enabled = true
+level = "high"
+color = "#C7E6EC"
+
+[effects.particles]
+enabled = false
+
+[palette]
+steel_blue = "#3D5D73"
+periwinkle_blue = "#6E7BA7"
+slate_teal = "#2F474F"
+pale_cyan = "#C7E6EC"
+soft_yellow = "#F2C558"

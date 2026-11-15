@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add `scripts/render_refined_ribbon.py`, a reuse-only, no-activation Windows/WSL
+  helper for one ordinary full-file CPU serial/LUT render, separate from experimental
+  `--full`/CUDA campaigns. Commit the explicit selected refined-ribbon visual
+  variant and application config; retain the existing `ribbon-lut` execution policy.
+  Use fresh nonoverwriting output/work/log roots, existing verified Python/tools,
+  bounded process-tree supervision and read-back of validated publication. Cover
+  tiny actual ordinary-CLI output, fractional alpha, source preservation and refusal;
+  no new full render, Windows/GPU qualification or universal speedup is implied.
+
 - Reduce exact stationary interpolation-coordinate work and raster floating coverage
   to interval boundaries, retaining output/appearance identity, multitap reductions
   and exotic/nonfinite fallbacks. Current combined32s service gain is modest;

@@ -602,3 +602,88 @@ variants and experimental native Resolve behavior still need qualification. Choo
 the eventual platform from actual cold end-to-end timings, usable transparency,
 Resolve compatibility, operational friction and maintenance cost. VM.1 CPU tests,
 static Windows tests and mocked devices do not establish native Windows/GPU success.
+
+## Ordinary full-file Windows CPU render (no experiment campaign)
+
+For actual asset production from the current checkout, use the prepared-runtime,
+reuse-only helper. In PowerShell, with no environment activation:
+
+```powershell
+py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
+```
+
+This runs exactly one ordinary `python -m ewp_waveform render` through the shared
+application service, with normal validation and publication. It renders the entire
+supplied file, not a preview, matrix, benchmark, CUDA adapter or experimental
+`run_experiments.py --full`. It never invokes pip/uv, downloads dependencies/tools,
+repairs an environment, activates a shell or changes global PATH. The bootstrap
+selects the project's existing locked Python3.12 `.venv`, otherwise independently
+reverifies retained runtime preparations in the same default store used above.
+On Windows it prefers the previously prepared hash-verified pinned FFmpeg pair;
+otherwise it uses an existing same-directory PATH pair. The chosen tools are
+hashed, version-checked and placed first on the **child-only** PATH, and each MOV
+encode still performs the actual bounded CPU GEQ/LUT qualification.
+Missing/changed preparation fails without installing or silently falling back to
+another finishing algorithm. Use `--python PATH`, paired `--ffmpeg PATH
+--ffprobe PATH`, or `--preparations-root PATH` / `--managed-root PATH` when your
+existing preparations are elsewhere; none of these options authorizes acquisition.
+
+Committed settings are separated by domain:
+
+- `presets/iuris-ribbon-refined-production.toml`: a distinctly named saved variant,
+  leaving the stock preset unchanged. Mapping7 / filled-ribbon-v2,1400×280/60fps,
+  balanced, custom `#C7E6EC`, amplitude0.82, stroke1px, high glow(sigma16),
+  smoothing0.06, visual_noise0.35/rate0.8/seed1729, idle0,
+  reflection0.45, horizon enabled/extent0.96/opacity0.55. Current ordinary resolution
+  retains physical-SS2 (3000×380 gray intermediate including overscan). The explicit
+  custom color freezes cyan independently of the foreground auto-color policy.
+- `performance/ribbon-lut.toml`: existing CPU serial/jobs1, automatic encoder threads
+  (`ffmpeg_threads=0`), qualified LUT, nonpersistent workdirs. The helper copies this
+  profile and changes **only** its work root to the fresh output namespace.
+- `examples/production/refined-ribbon.toml`: explicit application defaults/grouping
+  and ProRes-only selection, preventing accidental inherited PNG/dual-output settings.
+
+The asset is silent, transparent, straight-alpha ProRes4444 MOV, not a composited
+video. The new saved-preset name has its own render identity/output filename;
+this command does not overwrite or relabel any historical accepted master.
+The supplied source identity remains SHA256
+`e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b`,
+395.6785seconds/23,741frames at60fps. The helper accepts one file, records its actual
+hash, and verifies its bytes/mtime unchanged; it does not assume every supplied
+file is that original.
+
+By default a timestamp+random ID creates a fresh
+`~/Videos/ewp-waveform/ID/` with `output/`, private `work/`/`tmp/`, resolved
+`performance.toml`, and `logs/`. The helper prints the root before encoding and
+prints the MOV and result JSON paths after reading the publication back. Logs
+retain exact CLI argv, selected runtime/tool/config identities, ordinary CLI
+stdout/stderr, qualification in the production result, source immutability and
+resource checks. `--output-root PATH` must name a **new** directory; an existing
+root is refused without modifications, never resumed/forced/overwritten.
+`--evidence-root PATH` optionally separates logs from media and must also be new.
+Generated data must be outside the product checkout (ignored external ops storage
+is permitted). Failed attempts remain intact; choose another fresh root.
+
+Defaults allow8GiB new output/work/log growth, require10GiB free reserve and permit
+up to24hours (`--max-growth-gib`, `--reserve-gib`, `--timeout-seconds`). Sampled
+process-tree supervision includes preparation verification, encoding, publication
+and final evidence writes. These limits are not kernel disk quotas or a full-file
+size/runtime promise; inspect actual target capacity before starting. There is
+no new full-source render or performance claim for this helper. Its actual VM.1
+smoke is one synthetic0.1s/six-frame **ordinary full-file** render at the committed
+production geometry, with qualified LUT, decoded fractional alpha, silent stream,
+schema-valid publication, cleanup, source immutability and collision refusal.
+Linux execution and Windows selection mocks do not qualify native Windows/NLE.
+The supplied Windows four-second service LUT result was slower than GEQ; prior
+32s pipeline and per-encode qualification timings do not establish full speedup.
+
+The **separate**, existing focused Windows CUDA experiment command is:
+
+```powershell
+py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
+```
+
+It is not the production helper and is pending the current bootstrap/CUDA repair
+and target execution. It authorizes bounded short/32s tests, not full CUDA rendering;
+no successful CUDA repair, hardware run or speedup is claimed by this addition.
+Historical notes and retained full-reference acceptance remain unchanged.
