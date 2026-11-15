@@ -955,6 +955,11 @@ def regenerate_report(records: Path, output: Path) -> Path:
         or not isinstance(value.get("results"), dict)
         or not all(isinstance(r, dict) for r in value["results"].values())
         or not isinstance(value.get("config"), (dict, type(None)))
+        or not isinstance(value.get("failure"), (dict, type(None)))
+        or (
+            isinstance(value.get("failure"), dict)
+            and not isinstance(value["failure"].get("interpreter", {}), dict)
+        )
     ):
         raise ValueError("requires retained report status/results/config records")
     provenance = {
@@ -978,4 +983,5 @@ def regenerate_report(records: Path, output: Path) -> Path:
         reused=True,
         fresh_names=set(),
         retained_source=provenance,
+        failure=value.get("failure"),
     )

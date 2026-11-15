@@ -42,8 +42,14 @@ def test_recovery_is_read_only_and_never_renders_or_opens_media(
 ) -> None:
     records = tmp_path / (kind + ".json")
     original = {
-        "status": "COMPLETE_WITH_OPTIONAL_FAILURES",
-        "error": None,
+        "status": "FAILED",
+        "error": "ModuleNotFoundError: No module named 'numpy'",
+        "failure": {
+            "stage": "campaign:cuda-combined",
+            "interpreter": {"executable": "retained-bootstrap", "version": "retained-version"},
+            "traceback": "full retained traceback\n" * 400,
+            "failing_frame": {"filename": "retained.py", "lineno": 11},
+        },
         "config": {"python": "retained-python", "source": {"sha256": "retained"}},
         "results": {
             "bad-lut": {"status": "FAILED", "error": "original guard"},
@@ -69,6 +75,11 @@ def test_recovery_is_read_only_and_never_renders_or_opens_media(
     full = json.loads(path.with_suffix(".json").read_text())
     assert full["results"] == original["results"]
     assert full["status"] == original["status"]
+    assert full["error"] == original["error"]
+    assert full["failure"] == original["failure"]
+    measurements = next((output / "reports").glob("measurements-*.json"))
+    assert json.loads(measurements.read_text())["failure"] == original["failure"]
+    assert "retained-bootstrap" in path.read_text()
     assert not full["fresh_measurements_this_invocation"]
     assert set(full["result_use"].values()) == {"REUSED"}
     assert full["retained_source"]["sha256"] == real_sha(records)
@@ -82,6 +93,17 @@ def test_recovery_is_read_only_and_never_renders_or_opens_media(
 def test_recovery_rejects_invalid_input_before_creating_output(tmp_path: Path) -> None:
     records = tmp_path / "bad.json"
     records.write_text('{"status":"COMPLETE","results":[]}')
+    with pytest.raises(ValueError, match="retained report"):
+        reporting.regenerate_report(records, tmp_path / "not-created")
+    assert not (tmp_path / "not-created").exists()
+
+
+@pytest.mark.parametrize("failure", [[], "damaged", {"interpreter": []}, {"interpreter": None}])
+def test_recovery_rejects_malformed_failure_before_creating_output(
+    tmp_path: Path, failure: Any
+) -> None:
+    records = tmp_path / "bad-failure.json"
+    records.write_text(json.dumps({"status": "FAILED", "results": {}, "failure": failure}))
     with pytest.raises(ValueError, match="retained report"):
         reporting.regenerate_report(records, tmp_path / "not-created")
     assert not (tmp_path / "not-created").exists()
