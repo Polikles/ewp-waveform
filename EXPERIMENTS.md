@@ -7,13 +7,23 @@ operator already has GUI graphic references.
 
 ## Current one-file commands
 
-From a clean updated `Polikles/ewp-waveform` checkout, the remaining WSL experiment
-uses the existing runner and verified preparations, without repeating the sixteen
-completed CPU renders:
+The supplied November15 Windows production MOV **imported and displayed correctly
+in Resolve Studio**, per the direct user. The separate WSL RTX3090 combined-CUDA
+control campaign is **COMPLETE**; do not rerun it as the next task.
+[Curated evidence and exact acceptance limits](docs/notes/refined-ribbon-target-evidence-20261115.md)
+retain the reported settings, source JSON hashes and results. Windows producing
+commit/whole-MOV hash remain unknown; acceptance is import/display only.
+
+The next intended WSL comparison uses the existing runner/preparations. **New
+`--compare-cpu-cuda` implementation and parent verification are pending in this
+record; use this recipe only after the checked implementation is integrated.**
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --compare-cpu-cuda --max-growth-gib 6
 ```
+
+[Current CPU/CUDA scope](#current-cpucuda-service-comparison-scope--2026-11-15)
+is eight bounded serial service observations, not another broad matrix or full run.
 
 For a usable complete CPU/ProRes asset on native Windows, in PowerShell:
 
@@ -36,19 +46,68 @@ The driver discovers/selects the locked Python3.12 project environment; if it is
 missing it uses available `uv` for frozen isolated project setup. It does not
 silently modify a global Python installation or borrow an STT/WhisperX environment.
 A missing prerequisite is an actionable report, not an implicit driver installer.
-The WSL command reuses the already verified CUDA preparation; it does not opt into
-a CUDA download. Only append `--install-cuda` if a new private preparation is
-actually needed. Omit `--cuda` for the CPU shortlist. No Linux NVIDIA display
-driver, CUDA toolkit compiler or global Python dependency is installed.
+The WSL comparison reuses already verified CUDA preparation and does not opt into
+a CUDA download. Do not append `--install-cuda` or turn this narrow comparison into
+the earlier CPU shortlist. No Linux NVIDIA display driver, CUDA toolkit compiler
+or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
-## Optimization scope and reading the results
+## Current CPU/CUDA service comparison scope — 2026-11-15
+
+This is the new task scope, **implementation/checks pending parent verification**,
+not a completed CPU/CUDA performance claim. The exact intended command is at the
+top of this guide. It selects only two four-observation sequences:
+
+| Interval | Frames | Serial-service order | Observations |
+|---|---:|---|---:|
+| source[25,29) | 240 | CPU,CUDA,CUDA,CPU (ABBA) | 4 |
+| source[25,57) | 1,920 | CPU,CUDA,CUDA,CPU (ABBA) | 4 |
+
+Total: exactly8 actual `service.render` observations, n2/side/interval; prerequisite
+qualification and separate views/verification are additional stages, not extra
+render observations. CPU is the ordinary jobs1/serial qualified-LUT route with
+FFmpeg recursive blur. CUDA is the completed combined device-RGBA8/batch2/ordinary
+FIR candidate. Both sides must use the **same selected CUDA-capable Python and
+FFmpeg**, original input, complete effective appearance and encoder policy.
+Analysis cache is disabled identically, analysis/normalization is interval-local
+per interval, and source bounds/frame counts must be checked before rendering.
+This is an intentional **recursive CPU versus FIR CUDA algorithm/workflow contrast**,
+not a backend-only or cross-algorithm byte-equality experiment. Require independent
+structural/alpha/cadence/source checks and retain side-by-side appearance evidence;
+no cross-algorithm exact pixel oracle is imposed. Same-contract controls keep their
+existing exact checks. Ordinary production helper/appearance/defaults do not change.
+
+Measure startup/import/context inside each service, per-encode qualification,
+validation and publication. Report cold launch-through-exit separately from service;
+external strict checks, preplanning and views have separate scopes. Do not compare
+these timers with the supplied Windows89s job timestamps. Preserve verified
+preparation reuse, ownership/resource refusal and immutable failed-run evidence;
+no dependency acquisition or old CPU/CUDA control campaign replay is requested.
+Do not append `--optimize`, `--optimize-single-file`, `--cuda-combined`, `--full`,
+`--reference-only` or unrelated backend flags to the current command.
+
+A full control/candidate comparison is **deferred and conditional** on useful,
+visually close short results and separately admitted full-source budgets. Reserve
+control, candidate and simultaneous work/evidence headroom explicitly; the6GiB
+short limit is not permission or sufficient sizing for a full pair. No new full
+flag or fixed speedup threshold is promised. Native experimental Resolve acceptance
+remains independent. A later convenient one-command procedure for several selected
+mono recordings is backlog only: two existing mono tracks produce two independent
+assets, not speaker separation, composition, a scheduler or GPU-throughput matrix.
+GUI and other styles remain outside this task.
+
+## Historical optimization campaigns and reading the results
+
+The recipes in this section are retained replay/reference interfaces, **not the
+current next command**. Closed supplied campaigns must not be repeated just to
+replace evidence. [November15 target evidence](docs/notes/refined-ribbon-target-evidence-20261115.md)
+additively supersedes former unmeasured/native-target-pending statements below.
 
 [Exact CPU work reduction and retained negative experiments](docs/notes/single-file-cpu-work-reduction.md)
 records the current incremental VM.1 evidence. The short gains are not additive;
 the combined32s service reduction is modest, not another stock-to-LUT result.
 
-`--optimize-single-file` is the targeted next campaign on the **current source**,
+`--optimize-single-file` is the retained targeted campaign on its **selected source**,
 not an old-source/new-source comparison or another codec/filter matrix. It runs
 direct GEQ/LUT speech25..29s AB/BA (including the repaired Windows direct seam)
 and separate serial-service GEQ/LUT speech AB/BA, then independently compares
@@ -61,7 +120,7 @@ gate does not suppress GEQ worker-policy or independently qualified CUDA checks.
 Omit `--cuda` for the targeted CPU campaign. Existing verified preparations are
 reused through the same runner; no new CUDA installation is requested.
 
-For the narrowest WSL CUDA-only next command (no CPU/Vulkan/FFV1/compact matrix):
+Historical WSL CUDA-only control recipe (closed; not the next command):
 
 ```bash
 python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
@@ -69,8 +128,10 @@ python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Dam
 
 Omit `--cuda-combined-service32` for short-only. Both sides use actual jobs1
 `service.render`, unchanged source analysis/raster, CPU ProRes encoder and normal
-validation/publication. Control retains host-reuse/batch1/diagnostic; the **new,
-unmeasured combination** is device-RGBA8/batch2/ordinary. Import/context/setup and
+validation/publication. Control retains host-reuse/batch1/diagnostic; the combined
+device-RGBA8/batch2/ordinary candidate is now measured in the supplied
+[November15 COMPLETE campaign](docs/notes/refined-ribbon-target-evidence-20261115.md).
+Import/context/setup and
 per-encode qualification are inside service wall; external preplan, independent
 verification and views are separate, and cold launch-through-exit remains visible.
 These are not historical pipeline-only denominators or an additive combination of
@@ -725,11 +786,16 @@ up to24hours (`--max-growth-gib`, `--reserve-gib`, `--timeout-seconds`). Sampled
 process-tree supervision includes preparation verification, encoding, publication
 and final evidence writes. These limits are not kernel disk quotas or a full-file
 size/runtime promise; inspect actual target capacity before starting. There is
-no new full-source render or performance claim for this helper. Its actual VM.1
+no fresh local full-source performance claim for this documentation task. The
+[supplied November15 Windows production result](docs/notes/refined-ribbon-target-evidence-20261115.md)
+now establishes native full-file success and direct-user Resolve import/display
+acceptance only, with unknown producing commit/whole-MOV hash. Its89s result-job
+duration is not a launcher envelope or a CPU/CUDA denominator. The earlier VM.1
 smoke is one synthetic0.1s/six-frame **ordinary full-file** render at the committed
 production geometry, with qualified LUT, decoded fractional alpha, silent stream,
 schema-valid publication, cleanup, source immutability and collision refusal.
-Linux execution and Windows selection mocks do not qualify native Windows/NLE.
+Linux execution and Windows selection mocks alone do not qualify native Windows/NLE;
+the separate supplied observation above is the bounded target evidence.
 The path-policy regression also follows launcher argv through actual Typer render
 parsing and resolved service config under explicitly labelled platform simulations;
 it does not execute a Windows filesystem or renderer on the Linux host.
@@ -746,18 +812,20 @@ containers differ while decoded RGBA/alpha/composites agree. These are supplied
 Windows observations, not VM.1 target execution or a full-episode speedup. They
 supersede the earlier narrower Windows recommendation without rewriting it.
 
-A later one-command operator procedure for multiple input files is deferred;
-this helper remains single-file. No scheduler or throughput policy is added here.
+A later one-command operator procedure for multiple selected input files is backlog
+only; this helper remains single-file. Two existing speakers' mono recordings
+produce two independent assets; no diarization, scheduler or throughput policy.
 
-The **separate**, existing focused WSL CUDA experiment command is:
+The **separate historical** WSL combined-CUDA control recipe (closed, not NEXT) is:
 
 ```bash
 python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
 ```
 
-It is not the production helper. The dependency-light bootstrap repair is locally
-verified; native CUDA execution and application-level4/32s results remain target-only.
-This command authorizes bounded short/32s tests, not full CUDA rendering, and
-reuses verified preparation without requesting installation. No native CUDA success
-or speedup is claimed from CPU-Torch tests or simulated dispatch.
+It is not the production helper or the new CPU/CUDA comparison. The supplied
+[November15 target evidence](docs/notes/refined-ribbon-target-evidence-20261115.md)
+reports COMPLETE native CUDA qualification and application-service4/32s results;
+those outcomes are not inferred from CPU-Torch tests or simulated dispatch and are
+not fresh local target revalidation. Do not repeat the closed campaign. Use the
+current intended command at the top only after its new implementation is verified.
 Historical notes and retained full-reference acceptance remain unchanged.

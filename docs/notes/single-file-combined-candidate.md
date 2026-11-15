@@ -1,11 +1,24 @@
 # Single-file combined FIR candidate and focused target campaign
 
+## Additive target completion — 2026-11-15
+
+The supplied clean P4b306068 RTX3090 WSL campaign is now COMPLETE: both
+qualification gates passed; actual serial-service AB/BA medians,n2/side,
+4s4.351137→4.035875s and32s16.651205→13.418957s. This is a combined-CUDA
+candidate/control contrast, not CPU versus CUDA. See the
+[curated evidence and limits](refined-ribbon-target-evidence-20261115.md).
+The old commands below are historical/replay scope, not NEXT. The new narrow
+CPU/CUDA task is in the [canonical guide](../../EXPERIMENTS.md#current-cpucuda-service-comparison-scope--2026-11-15);
+its implementation/checks remain parent-pending. Earlier VM.1 exercises and
+dated target-pending statements below describe their original delivery stage.
+
 ## Scope and rationale
 
 The new opt-in candidate selects **device RGBA8 + within-file batch2 + ordinary
 completed-call timing** together. Earlier individually measured output, batch and
 timing comparisons are separate AB/BA pairs, not additive speedups. This combined
-candidate has no native CUDA performance result yet.
+candidate had no native CUDA performance result at this note's original delivery;
+the dated completion above supersedes that current-use status.
 
 These controls compose without changing the FIR algorithm:
 
@@ -54,7 +67,7 @@ pair. Incomplete/failed original-input shorts block dependent CUDA service32.
 Service32 is explicit jobs1/32s at25..57s, **not** stock pool2 production32 or a full
 source render. Technical equality does not establish native Resolve acceptance.
 
-## Narrow next commands
+## Historical focused commands (not the next task)
 
 WSL, current-code CPU worker-policy/LUT plus independently qualified CUDA combined:
 
@@ -106,7 +119,10 @@ the six named pair declarations; the strict reporter intentionally refuses
 undeclared control changes rather than inventing pair statistics.
 
 Repository-wide lint/type checks, unit/regression and integration gates passed.
-The selected optional-CPU suite passed76 checks. Native CUDA qualification,
-combined4s/32s timing, source-scale GPU behavior, native Windows execution and
-Resolve Studio import/alpha/playback remain pending. No full CUDA media was regenerated
+The selected optional-CPU suite passed76 checks. At that delivery stage native CUDA
+qualification, combined4s/32s timing, source-scale GPU behavior, native Windows
+execution and Resolve Studio import/alpha/playback remained pending. The dated
+completion/evidence above now supplies CUDA results and separately bounded ordinary
+Windows import/display acceptance, not experimental FIR NLE promotion or exhaustive
+playback. No full CUDA media was regenerated
 and no accepted baseline/preview retention hold was released.

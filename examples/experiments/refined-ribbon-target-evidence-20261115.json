@@ -1,0 +1,1806 @@
+{
+  "record_version": 1,
+  "date": "2026-11-15",
+  "kind": "curated supplied target evidence; not fresh execution",
+  "documentation_bases": {
+    "P": "72e01f4670669da87be886390712d036f604b88c",
+    "O": "6a827565235af2bd38c869d5788d60b882f1c4e6"
+  },
+  "sources": [
+    {
+      "name": "s0e00-Damian_iuris-ribbon-refined-production_results.json",
+      "bytes": 28821,
+      "sha256": "838def7bdabda9a7cb566dbcff767cd67817c141d2417c8bfa9fbe3558784ae1",
+      "read_scope": "complete file parsed locally; no media accessed"
+    },
+    {
+      "name": "report-0d35a5b92388-diagnostics.json",
+      "bytes": 11658952,
+      "sha256": "55bd33eeea0fc892b67d08f964c596f4641f269a1c62b0a5a841d93f24a21e6f",
+      "read_scope": "complete file parsed locally; no media accessed"
+    }
+  ],
+  "windows_production": {
+    "source_revision": null,
+    "source_revision_reason": "not present in supplied production result; current repair checkout is not inferred as the producing commit",
+    "tool": {
+      "name": "ewp-waveform",
+      "version": "0.6.0"
+    },
+    "job": {
+      "job_id": "s0e00-Damian-686199051c86",
+      "status": "SUCCEEDED",
+      "render_signature": "686199051c8642d6b786a9994b1c98e49625889524c65074bc54c605360f3ba8",
+      "seed": 0
+    },
+    "renderer": {
+      "name": "ffmpeg",
+      "version": "system",
+      "visual_contract_version": 13
+    },
+    "input": {
+      "sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+      "size_bytes": 37985180,
+      "duration_seconds": 395.6785,
+      "codec": "pcm_s16le",
+      "sample_rate": 48000,
+      "channels": 1,
+      "filename": "s0e00-Damian.wav"
+    },
+    "preset": {
+      "name": "iuris-ribbon-refined-production",
+      "source": "builtin"
+    },
+    "resolved_visual_config": {
+      "effective_preset": {
+        "schema_version": 1,
+        "name": "iuris-ribbon-refined-production",
+        "description": "Exact selected mapping-7 production look; explicit artistic noise, not a new renderer.",
+        "canvas": {
+          "width": 1400,
+          "height": 280,
+          "fps": 60.0
+        },
+        "waveform": {
+          "style": "filled",
+          "color": "#C7E6EC",
+          "amplitude": 0.82,
+          "stroke_width": 1.0,
+          "center_line": true,
+          "reflection_opacity": 0.45,
+          "center_line_extent": 0.96,
+          "center_line_opacity": 0.55,
+          "background_mode": "dark-background",
+          "color_mode": "custom",
+          "domain": "frequency",
+          "time_mode": null,
+          "window_seconds": 5.0
+        },
+        "signal": {
+          "visual_noise": 0.35,
+          "idle_activity": 0.0,
+          "noise_rate": 0.8,
+          "noise_seed": 1729,
+          "fixed_axis_profile": "filled-ribbon-v2",
+          "detail_level": "balanced",
+          "scale": "sqrt",
+          "smoothing": 0.06,
+          "normalization": {
+            "mode": "auto",
+            "soft_clip": true
+          },
+          "frequency": {
+            "range": "auto"
+          }
+        },
+        "effects": {
+          "glow": {
+            "enabled": true,
+            "level": "high",
+            "color": "#C7E6EC"
+          },
+          "particles": {
+            "enabled": false
+          }
+        },
+        "palette": {
+          "steel_blue": "#3D5D73",
+          "periwinkle_blue": "#6E7BA7",
+          "slate_teal": "#2F474F",
+          "pale_cyan": "#C7E6EC",
+          "soft_yellow": "#F2C558"
+        }
+      },
+      "fixed_axis_recipe": {
+        "version": 1,
+        "visual_geometry": "spectrum",
+        "profile": "filled-ribbon-v2",
+        "detail_level": "balanced",
+        "mapping_revision": 7,
+        "baseline_thickness": 1.0,
+        "visual_noise": 0.35,
+        "idle_activity": 0.0,
+        "noise_rate": 0.8,
+        "noise_seed": 1729,
+        "ribbon_appearance_revision": 1,
+        "reflection_opacity": 0.45,
+        "center_line": true,
+        "center_line_extent": 0.96,
+        "center_line_opacity": 0.55,
+        "foreground_appearance_revision": 1,
+        "background_mode": "dark-background",
+        "color_mode": "custom",
+        "foreground_color": "#C7E6EC",
+        "layout": "field_center_out",
+        "n_bands": 64,
+        "spatial_sigma": 3.15,
+        "spatial_filter": "gaussian",
+        "tilt_db_per_octave": 3.0,
+        "compress": 1.0,
+        "field_geometry": "ribbon",
+        "supersample": 2,
+        "aa_mode": "physical_ss",
+        "aa_taps": 1
+      },
+      "fps": 60.0,
+      "style": "filled",
+      "domain": "frequency",
+      "time_mode": null,
+      "color": "#C7E6EC",
+      "window_seconds": 5.0,
+      "classic_alternate_opacity": 0.25,
+      "envelope_oversample": 1,
+      "envelope_aa": "none",
+      "envelope_aa_support": 1.0,
+      "shutter_degrees": 0,
+      "shutter_mix": 0.25,
+      "envelope_motion_lpf": "sinc",
+      "envelope_motion_cutoff": 0.09107142857142857,
+      "glow": {
+        "enabled": true,
+        "level": "high",
+        "color": "#C7E6EC"
+      }
+    },
+    "resolved_performance_config": {
+      "profile": "ribbon-lut",
+      "chunk_seconds": 60,
+      "jobs": 1,
+      "ffmpeg_threads": 0,
+      "ribbon_finish_lut": true
+    },
+    "analysis": {
+      "chunk_count": 1,
+      "preroll_seconds": 0.0,
+      "postroll_seconds": 0.0,
+      "encode_workers": 1,
+      "visual_geometry": "spectrum",
+      "fmin_hz": 82.86407592029853,
+      "fmax_hz": 3844.8931227018525,
+      "frequency_range": "auto",
+      "spectrum_raster": "columns",
+      "spectrum_spatial_filter": "gaussian",
+      "spectrum_spatial_sigma": 3.15,
+      "spectrum_spatial_scale": 0.45,
+      "spectrum_n_bands": 64,
+      "spectrum_tilt_db_per_octave": 3.0,
+      "spectrum_compress": 1.0,
+      "spectrum_recenter": false,
+      "spectrum_edge_taper": 0.0,
+      "spectrum_layout": "field_center_out",
+      "spectrum_slot_sigma": 0.0,
+      "visual_pipeline": "analysis_field_ribbon",
+      "field_geometry": "ribbon",
+      "bar_width": 5.0,
+      "bar_gap": 7.0,
+      "visual_slots": 65,
+      "ribbon_supersample": 2,
+      "render_path": "mask_fast",
+      "render_pix_fmt": "gray",
+      "render_aa_mode": "physical_ss",
+      "ribbon_appearance": {
+        "version": 1,
+        "visual_geometry": "spectrum",
+        "profile": "filled-ribbon-v2",
+        "detail_level": "balanced",
+        "mapping_revision": 7,
+        "baseline_thickness": 1.0,
+        "visual_noise": 0.35,
+        "idle_activity": 0.0,
+        "noise_rate": 0.8,
+        "noise_seed": 1729,
+        "ribbon_appearance_revision": 1,
+        "reflection_opacity": 0.45,
+        "center_line": true,
+        "center_line_extent": 0.96,
+        "center_line_opacity": 0.55,
+        "foreground_appearance_revision": 1,
+        "background_mode": "dark-background",
+        "color_mode": "custom",
+        "foreground_color": "#C7E6EC",
+        "layout": "field_center_out",
+        "n_bands": 64,
+        "spatial_sigma": 3.15,
+        "spatial_filter": "gaussian",
+        "tilt_db_per_octave": 3.0,
+        "compress": 1.0,
+        "field_geometry": "ribbon",
+        "supersample": 2,
+        "aa_mode": "physical_ss",
+        "aa_taps": 1
+      }
+    },
+    "normalization": {
+      "mode": "auto",
+      "soft_clip": true,
+      "peak": 0.016299445951048236
+    },
+    "output": {
+      "filename": "s0e00-Damian_iuris-ribbon-refined-production_686199051c86.mov",
+      "format": "prores4444",
+      "whole_mov_sha256": null,
+      "bytes": null,
+      "silence": "ordinary silent visualization route; no independent local audio-stream probe",
+      "alpha_scope": "alpha-capable codec/pixel-format metadata plus bounded direct user Resolve import/display observation; no independent local complete content-alpha validation"
+    },
+    "validation_reported": {
+      "passed": true,
+      "codec": "prores",
+      "pix_fmt": "yuva444p12le",
+      "width": 1400,
+      "height": 280,
+      "frames": 23741,
+      "duration_seconds": 395.683333
+    },
+    "timestamps": {
+      "started_at": "2026-11-15T13:18:17Z",
+      "completed_at": "2026-11-15T13:19:46Z",
+      "duration_seconds": 89.0
+    },
+    "timing_scope": "89s result job timestamp duration, not bootstrap-to-exit or measured service/cold envelope; no Windows-vs-WSL performance comparison",
+    "performance": {
+      "seconds": {
+        "decode": 0.07300439999926311,
+        "pcm_load": 0.05876360000002023,
+        "frequency_span": 0.2444216999992932,
+        "spectral_analysis": 0.9266069000004791,
+        "peak_scan": 0.1825951000009809,
+        "visual_field": 33.35427599989998,
+        "raster": 39.831221600115896,
+        "generator": 74.35270360014147,
+        "ffmpeg_feed": 12.691321399879598,
+        "ffmpeg_wait": 0.08728759999939939
+      },
+      "counts": {
+        "decode": 1,
+        "pcm_load": 1,
+        "frequency_span": 1,
+        "spectral_analysis": 1,
+        "peak_scan": 1,
+        "visual_field": 23741,
+        "raster": 23741,
+        "generator": 23741,
+        "ffmpeg_feed": 23741,
+        "ffmpeg_wait": 1
+      },
+      "semantics": {
+        "clock": "perf_counter wall seconds",
+        "collection_scope": "calling parent process only; partial instrumentation",
+        "additive": false,
+        "generator": "next(iterator), including nested visual_field/raster work",
+        "ffmpeg_feed": "blocking stdin write/feed; not encoder CPU time",
+        "ffmpeg_wait": "stdin close, drain-thread joins and process wait",
+        "field_encode_parallel": "parent pool orchestration span; not worker breakdown",
+        "worker_phase_seconds": null,
+        "missing_phases": "unobserved, not zero; no complete wall-time partition"
+      }
+    },
+    "execution_observations": {
+      "clip_start_seconds": 0.0,
+      "effective_audio_seconds": 395.6785,
+      "expected_frames": 23741,
+      "analysis_cache": "miss",
+      "render_path": "mask_fast",
+      "raw_feed_pixel_format": "gray",
+      "bytes_per_frame": 1140000,
+      "ffmpeg_threads_argument": 0,
+      "ffmpeg_threads_option_role": "output_encoder",
+      "ffmpeg_threads_scope": "adapter-selected stream parameter; role follows unchanged option placement; 0 omits -threads; not an observed thread count or process/filter cap",
+      "raw_feed_bytes": 27064740000,
+      "raw_feed_bytes_scope": "sum of chunks whose blocking write returned; parent instrumented feeds only",
+      "fingerprint": {
+        "renderer": "ffmpeg",
+        "render_path": "mask_fast",
+        "visual_style": "filled",
+        "geometry": "ribbon",
+        "glow": true,
+        "particles": false,
+        "width": 1400,
+        "height": 280,
+        "fps": 60.0,
+        "aa_mode": "physical_ss",
+        "supersample": 2,
+        "pix_fmt": "gray",
+        "codec": "prores4444",
+        "jobs": 1,
+        "ffmpeg_threads": 0,
+        "nproc": 28,
+        "machine": "Windows-11-10.0.26300-SP0"
+      }
+    },
+    "lut": {
+      "enabled": true,
+      "status": "succeeded",
+      "timing_scope": "inclusive qualification/setup/encode/scratch-cleanup wall; excludes lazy imports, ordinary argv construction and sidecar serialization; all included in outer service wall",
+      "qualification_seconds": 0.5828614000001835,
+      "qualification": {
+        "passed": true,
+        "sampling": "identity",
+        "scope": "actual CPU FFmpeg byte oracle; not render performance or Vulkan qualification",
+        "cases": [
+          {
+            "geometry": [
+              32,
+              32
+            ],
+            "label": "control",
+            "frames": 258,
+            "rgba_sha256": "2fee8ca32a6327c1be96bb0c633a6156fcb029e84f144f9ceee4fda0fdc9038c",
+            "bytes": 1056768
+          },
+          {
+            "geometry": [
+              32,
+              32
+            ],
+            "label": "candidate",
+            "frames": 258,
+            "rgba_sha256": "2fee8ca32a6327c1be96bb0c633a6156fcb029e84f144f9ceee4fda0fdc9038c",
+            "bytes": 1056768
+          },
+          {
+            "geometry": [
+              1400,
+              5
+            ],
+            "label": "control",
+            "frames": 258,
+            "rgba_sha256": "8afdfc9ac19dacacaa15270a892c5910b4e2cf45a7fb0ec3b64fef8e51803379",
+            "bytes": 7224000
+          },
+          {
+            "geometry": [
+              1400,
+              5
+            ],
+            "label": "candidate",
+            "frames": 258,
+            "rgba_sha256": "8afdfc9ac19dacacaa15270a892c5910b4e2cf45a7fb0ec3b64fef8e51803379",
+            "bytes": 7224000
+          },
+          {
+            "geometry": [
+              8,
+              280
+            ],
+            "label": "control",
+            "frames": 258,
+            "rgba_sha256": "92ff2bc492cccb4ba4036dca5eef373da910707f0f69146fcb3d49c09a83b7fa",
+            "bytes": 2311680
+          },
+          {
+            "geometry": [
+              8,
+              280
+            ],
+            "label": "candidate",
+            "frames": 258,
+            "rgba_sha256": "92ff2bc492cccb4ba4036dca5eef373da910707f0f69146fcb3d49c09a83b7fa",
+            "bytes": 2311680
+          }
+        ]
+      },
+      "prepared": {
+        "canvas_width": 1400,
+        "canvas_height": 280,
+        "class_count": 4,
+        "preparation_seconds": 0.0014002999996591825,
+        "geq_integer_sampling": "identity",
+        "changed_stage": "final gray GEQ only",
+        "unchanged_stages": [
+          "AA",
+          "gblur",
+          "blend",
+          "crop",
+          "colorization",
+          "encoding"
+        ],
+        "production_default": false
+      }
+    },
+    "operator_observation": {
+      "date": "2026-11-15",
+      "provenance": "direct user statement supplied to this task",
+      "native_windows_command_succeeded": true,
+      "resolve_studio_import": "ACCEPTED",
+      "resolve_studio_display": "ACCEPTED",
+      "scope": "this identified full MOV imports and displays correctly",
+      "exhaustive_playback": "NOT_ESTABLISHED",
+      "color_management": "NOT_ESTABLISHED",
+      "long_timeline": "NOT_ESTABLISHED",
+      "exact_artifact_download": "NOT_CONFIRMED",
+      "cleanup_authorized": false
+    }
+  },
+  "completed_cuda_control_campaign": {
+    "reported_status": "COMPLETE",
+    "reported_error": null,
+    "reported_failure": null,
+    "reported_source_git": {
+      "available": true,
+      "commit": "4b306068ee804a4a2242b66e19e3e9fe1aa83d28",
+      "status": "",
+      "tree": "97f7e002474f65ba078f0faf72247e2344131bc2"
+    },
+    "source_snapshot_sha256": "83d8def69616091b04b1335ca154ec987ef582171cc91f09201e3e7bf6e5c712",
+    "input": {
+      "bytes": 37985180,
+      "sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+      "filename": "s0e00-Damian.wav"
+    },
+    "selected_tools": {
+      "ffmpeg": {
+        "bytes": 453104,
+        "sha256": "bdf6aabffdba7411edff8d36c389d695257fcdf823d196020176e117612862f6"
+      },
+      "ffprobe": {
+        "bytes": 216864,
+        "sha256": "a6dac1e9e8631e04075d06854cc4069308aec279bb04683b4a0bca5e4f54b2fe"
+      }
+    },
+    "selected_tool_provenance": "OBSERVED_INSTALLED_TOOLS; no invented pinned build receipt",
+    "selected_cuda_interpreter": {
+      "bytes": 30889232,
+      "sha256": "8f9781a98200d9ecda7e00464e4c64b1327abae788ae8e6979d5c859311410c7",
+      "version": "3.12.14 (main, Aug 14 2026, 15:34:45) [Clang 22.1.3 ]"
+    },
+    "effective_preset": {
+      "canvas": {
+        "fps": 60.0,
+        "height": 280,
+        "width": 1400
+      },
+      "description": "Opt-in refined ribbon: configurable audio-derived smooth/balanced/detailed contours. Experimental; v1 unchanged.",
+      "effects": {
+        "glow": {
+          "color": "#C7E6EC",
+          "enabled": true,
+          "level": "high"
+        },
+        "particles": {
+          "enabled": false
+        }
+      },
+      "name": "iuris-ribbon-refined",
+      "palette": {
+        "pale_cyan": "#C7E6EC",
+        "periwinkle_blue": "#6E7BA7",
+        "slate_teal": "#2F474F",
+        "soft_yellow": "#F2C558",
+        "steel_blue": "#3D5D73"
+      },
+      "schema_version": 1,
+      "signal": {
+        "detail_level": "balanced",
+        "fixed_axis_profile": "filled-ribbon-v2",
+        "frequency": {
+          "range": "auto"
+        },
+        "idle_activity": 0.0,
+        "noise_rate": 0.8,
+        "noise_seed": 1729,
+        "normalization": {
+          "mode": "auto",
+          "soft_clip": true
+        },
+        "scale": "sqrt",
+        "smoothing": 0.06,
+        "visual_noise": 0.35
+      },
+      "waveform": {
+        "amplitude": 0.82,
+        "background_mode": "dark-background",
+        "center_line": true,
+        "center_line_extent": 0.96,
+        "center_line_opacity": 0.55,
+        "color": "#C7E6EC",
+        "color_mode": "auto",
+        "domain": "frequency",
+        "reflection_opacity": 0.45,
+        "stroke_width": 1.0,
+        "style": "filled",
+        "time_mode": null,
+        "window_seconds": 5.0
+      }
+    },
+    "spec": {
+      "color": [
+        199,
+        230,
+        236
+      ],
+      "extent": 0.96,
+      "height": 280,
+      "horizon": true,
+      "opacity": 0.55,
+      "overscan": 50,
+      "reflection": 0.45,
+      "sigma": 16.0,
+      "supersample": 2,
+      "thickness": 1.0,
+      "width": 1400
+    },
+    "qualifications": {
+      "cuda-combined-qualify-candidate": {
+        "status": "SUCCEEDED",
+        "passed": true,
+        "gpu_qualified": true,
+        "transfer_qualified": false,
+        "selected_device_match": true,
+        "algorithm": "ribbon-fir-gaussian-v1-not-ffmpeg-recursive-gblur",
+        "backend": "cuda",
+        "output_mode": "device-rgba",
+        "timing_mode": "ordinary",
+        "batch_size": 2,
+        "cold_process_wall_seconds": 2.5553842000008444,
+        "cases": [
+          {
+            "case": "zero-horizon-hidden-rgb",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "impulse",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "edge-impulse",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.842170943040401e-14,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "fractional-alpha",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "reflection",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.9802322387695312e-08,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "geometry": [
+              64,
+              32
+            ]
+          },
+          {
+            "case": "zero-horizon-hidden-rgb",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "impulse",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "edge-impulse",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.842170943040401e-14,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "fractional-alpha",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "reflection",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 5.960464477539063e-08,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "geometry": [
+              1400,
+              280
+            ]
+          }
+        ]
+      },
+      "cuda-combined-qualify-control": {
+        "status": "SUCCEEDED",
+        "passed": true,
+        "gpu_qualified": true,
+        "transfer_qualified": false,
+        "selected_device_match": true,
+        "algorithm": "ribbon-fir-gaussian-v1-not-ffmpeg-recursive-gblur",
+        "backend": "cuda",
+        "output_mode": "host-reuse",
+        "timing_mode": "diagnostic",
+        "batch_size": 1,
+        "cold_process_wall_seconds": 2.654020818999925,
+        "cases": [
+          {
+            "case": "zero-horizon-hidden-rgb",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "impulse",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "edge-impulse",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.842170943040401e-14,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "fractional-alpha",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "reflection",
+            "geometry": [
+              64,
+              32
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.9802322387695312e-08,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "geometry": [
+              64,
+              32
+            ]
+          },
+          {
+            "case": "zero-horizon-hidden-rgb",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "impulse",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "edge-impulse",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 2.842170943040401e-14,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "fractional-alpha",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 0.0,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "case": "reflection",
+            "geometry": [
+              1400,
+              280
+            ],
+            "max_alpha_byte_error": 0,
+            "max_composite_byte_error": 0.0,
+            "max_float_alpha_error": 5.960464477539063e-08,
+            "rgb_including_hidden_equal": true
+          },
+          {
+            "geometry": [
+              1400,
+              280
+            ]
+          }
+        ]
+      }
+    },
+    "render_observations": [
+      {
+        "id": "cuda-combined-service32-r01-A",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "host-reuse",
+        "batch_size": 1,
+        "timing_mode": "diagnostic",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-service32",
+          "order": "AB",
+          "repeat": 1,
+          "side": "A"
+        },
+        "workload": {
+          "duration": 32.0,
+          "frames": 1920,
+          "id": "service32",
+          "kind": "service32",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 16.853876540000783,
+        "cold_process_wall_seconds": 21.191323701999863,
+        "external_verification_seconds": 3.2786692600002425,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "5604b162dcdde4164657bc09039837c4528e02ea2870763eab3be41317944084",
+        "finished_rgba_sha256": "bbddca4f5acff9da28dae7a7d22e0ea69e523912dbf6f7f201736e7928de9161",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.0372721740004636,
+        "worker_setup_seconds": 0.0023014969992800616,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 14.152714088999346,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "1be97c9a3d41ac33f9cf226db0e77d52d112cac8445be70cf12d6e3ace570a2d",
+          "decoded_rgba_sha256": "c374a051c44b8559d8fdc6b2d69aca3318a206ad077b4ef47fea7d7787c8c703",
+          "edge_halo_composite_integer_metrics": {},
+          "fps": "60/1",
+          "frame_grid_seconds": "32",
+          "frames": 1920,
+          "lossless_against_preencode": null,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 1878070053,
+          "time_base": "1/15360",
+          "validation_seconds": 3.2786692600002425,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 4.023999281344004e-06,
+          "context_seconds": 7.137400098145008e-05,
+          "setup_seconds": 0.002216888000475592,
+          "phase_scope": "diagnostic synchronized serialized phases; wall and CUDA events non-additive",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 386225867,
+          "sha256": "3f9e7a9bb48981c681902b770182ea55ec9ecba7e70a225777e06b5ccac3808d"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-service32-r01-B",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "device-rgba",
+        "batch_size": 2,
+        "timing_mode": "ordinary",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-service32",
+          "order": "AB",
+          "repeat": 1,
+          "side": "B"
+        },
+        "workload": {
+          "duration": 32.0,
+          "frames": 1920,
+          "id": "service32",
+          "kind": "service32",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 13.279217151999546,
+        "cold_process_wall_seconds": 20.405177647000528,
+        "external_verification_seconds": 6.068433729999015,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "5604b162dcdde4164657bc09039837c4528e02ea2870763eab3be41317944084",
+        "finished_rgba_sha256": "bbddca4f5acff9da28dae7a7d22e0ea69e523912dbf6f7f201736e7928de9161",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.0459294929987664,
+        "worker_setup_seconds": 0.001341101000434719,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 10.584228319999966,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "1be97c9a3d41ac33f9cf226db0e77d52d112cac8445be70cf12d6e3ace570a2d",
+          "decoded_rgba_sha256": "c374a051c44b8559d8fdc6b2d69aca3318a206ad077b4ef47fea7d7787c8c703",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 297837960,
+            "halo_error": 0,
+            "halo_n": 190815565,
+            "rgb_error": 0,
+            "union_count": 342502307
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "32",
+          "frames": 1920,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 1878070053,
+          "time_base": "1/15360",
+          "validation_seconds": 6.068433729999015,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 4.359000740805641e-06,
+          "context_seconds": 5.697699998563621e-05,
+          "setup_seconds": 0.0012707440000667702,
+          "phase_scope": "ordinary completed call wall/CPU only; one explicit completion sync; blocking transfers; no CUDA events",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 386225867,
+          "sha256": "3f9e7a9bb48981c681902b770182ea55ec9ecba7e70a225777e06b5ccac3808d"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-service32-r02-A",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "host-reuse",
+        "batch_size": 1,
+        "timing_mode": "diagnostic",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-service32",
+          "order": "BA",
+          "repeat": 2,
+          "side": "A"
+        },
+        "workload": {
+          "duration": 32.0,
+          "frames": 1920,
+          "id": "service32",
+          "kind": "service32",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 16.448533230000976,
+        "cold_process_wall_seconds": 23.573060885000814,
+        "external_verification_seconds": 6.038870600001246,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "5604b162dcdde4164657bc09039837c4528e02ea2870763eab3be41317944084",
+        "finished_rgba_sha256": "bbddca4f5acff9da28dae7a7d22e0ea69e523912dbf6f7f201736e7928de9161",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.021800385999086,
+        "worker_setup_seconds": 0.001835380000557052,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 13.726282596000601,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "1be97c9a3d41ac33f9cf226db0e77d52d112cac8445be70cf12d6e3ace570a2d",
+          "decoded_rgba_sha256": "c374a051c44b8559d8fdc6b2d69aca3318a206ad077b4ef47fea7d7787c8c703",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 297837960,
+            "halo_error": 0,
+            "halo_n": 190815565,
+            "rgb_error": 0,
+            "union_count": 342502307
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "32",
+          "frames": 1920,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 1878070053,
+          "time_base": "1/15360",
+          "validation_seconds": 6.038870600001246,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 3.474000550340861e-06,
+          "context_seconds": 6.429800123441964e-05,
+          "setup_seconds": 0.0017607850004424108,
+          "phase_scope": "diagnostic synchronized serialized phases; wall and CUDA events non-additive",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 386225867,
+          "sha256": "3f9e7a9bb48981c681902b770182ea55ec9ecba7e70a225777e06b5ccac3808d"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-service32-r02-B",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "device-rgba",
+        "batch_size": 2,
+        "timing_mode": "ordinary",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-service32",
+          "order": "BA",
+          "repeat": 2,
+          "side": "B"
+        },
+        "workload": {
+          "duration": 32.0,
+          "frames": 1920,
+          "id": "service32",
+          "kind": "service32",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 13.558696860000055,
+        "cold_process_wall_seconds": 20.516885500999706,
+        "external_verification_seconds": 5.916532916000506,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "5604b162dcdde4164657bc09039837c4528e02ea2870763eab3be41317944084",
+        "finished_rgba_sha256": "bbddca4f5acff9da28dae7a7d22e0ea69e523912dbf6f7f201736e7928de9161",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.0415959260008094,
+        "worker_setup_seconds": 0.0014240820000850363,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 10.798917202999291,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "1be97c9a3d41ac33f9cf226db0e77d52d112cac8445be70cf12d6e3ace570a2d",
+          "decoded_rgba_sha256": "c374a051c44b8559d8fdc6b2d69aca3318a206ad077b4ef47fea7d7787c8c703",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 297837960,
+            "halo_error": 0,
+            "halo_n": 190815565,
+            "rgb_error": 0,
+            "union_count": 342502307
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "32",
+          "frames": 1920,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 1878070053,
+          "time_base": "1/15360",
+          "validation_seconds": 5.916532916000506,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 3.904000550392084e-06,
+          "context_seconds": 5.626900019706227e-05,
+          "setup_seconds": 0.0013557180009229342,
+          "phase_scope": "ordinary completed call wall/CPU only; one explicit completion sync; blocking transfers; no CUDA events",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 386225867,
+          "sha256": "3f9e7a9bb48981c681902b770182ea55ec9ecba7e70a225777e06b5ccac3808d"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-short-r01-A",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "host-reuse",
+        "batch_size": 1,
+        "timing_mode": "diagnostic",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-short",
+          "order": "AB",
+          "repeat": 1,
+          "side": "A"
+        },
+        "workload": {
+          "duration": 4.0,
+          "frames": 240,
+          "id": "speech",
+          "kind": "short",
+          "selection": "requested speech at source offset 25s",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 4.353684277000866,
+        "cold_process_wall_seconds": 5.787138472998777,
+        "external_verification_seconds": 0.4964059169997199,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "aea2ae8ebcc643a63164b4b704f05a2e15991e03c97322f729dcc6e5d99d280f",
+        "finished_rgba_sha256": "66bddfe136ef659ae7f1626c12868facea3cb2efca8622b545fa80a84734156a",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.159320568000112,
+        "worker_setup_seconds": 0.0019431569999142084,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 1.599496820999775,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "fa17794350e2175b1d526c1f9b2e5a60da8bfa9094d1998c307680564619697f",
+          "decoded_rgba_sha256": "32c04156b7345243e183ee4f3e153b35cedd7b646282efe2323c5dbf0e742ef6",
+          "edge_halo_composite_integer_metrics": {},
+          "fps": "60/1",
+          "frame_grid_seconds": "4",
+          "frames": 240,
+          "lossless_against_preencode": null,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 284312426,
+          "time_base": "1/15360",
+          "validation_seconds": 0.4964059169997199,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 4.936000550515018e-06,
+          "context_seconds": 7.163400005083531e-05,
+          "setup_seconds": 0.0018589920000522397,
+          "phase_scope": "diagnostic synchronized serialized phases; wall and CUDA events non-additive",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 52076580,
+          "sha256": "aef0f75cb66ff779a422bc855d508a4d124327c39697c18dbc014b877a75d17c"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-short-r01-B",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "device-rgba",
+        "batch_size": 2,
+        "timing_mode": "ordinary",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-short",
+          "order": "AB",
+          "repeat": 1,
+          "side": "B"
+        },
+        "workload": {
+          "duration": 4.0,
+          "frames": 240,
+          "id": "speech",
+          "kind": "short",
+          "selection": "requested speech at source offset 25s",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 4.052805829000135,
+        "cold_process_wall_seconds": 5.689305141999284,
+        "external_verification_seconds": 0.8072830830005842,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "aea2ae8ebcc643a63164b4b704f05a2e15991e03c97322f729dcc6e5d99d280f",
+        "finished_rgba_sha256": "66bddfe136ef659ae7f1626c12868facea3cb2efca8622b545fa80a84734156a",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.1415728450010647,
+        "worker_setup_seconds": 0.0014123170003585983,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 1.3166944700005843,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "fa17794350e2175b1d526c1f9b2e5a60da8bfa9094d1998c307680564619697f",
+          "decoded_rgba_sha256": "32c04156b7345243e183ee4f3e153b35cedd7b646282efe2323c5dbf0e742ef6",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 39084569,
+            "halo_error": 0,
+            "halo_n": 23582079,
+            "rgb_error": 0,
+            "union_count": 45639336
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "4",
+          "frames": 240,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 284312426,
+          "time_base": "1/15360",
+          "validation_seconds": 0.8072830830005842,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 3.6669989640358835e-06,
+          "context_seconds": 6.903400026203599e-05,
+          "setup_seconds": 0.0013316189997567562,
+          "phase_scope": "ordinary completed call wall/CPU only; one explicit completion sync; blocking transfers; no CUDA events",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 52076580,
+          "sha256": "aef0f75cb66ff779a422bc855d508a4d124327c39697c18dbc014b877a75d17c"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-short-r02-A",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "host-reuse",
+        "batch_size": 1,
+        "timing_mode": "diagnostic",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-short",
+          "order": "BA",
+          "repeat": 2,
+          "side": "A"
+        },
+        "workload": {
+          "duration": 4.0,
+          "frames": 240,
+          "id": "speech",
+          "kind": "short",
+          "selection": "requested speech at source offset 25s",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 4.348590068999329,
+        "cold_process_wall_seconds": 5.998047136999958,
+        "external_verification_seconds": 0.8047620190009184,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "aea2ae8ebcc643a63164b4b704f05a2e15991e03c97322f729dcc6e5d99d280f",
+        "finished_rgba_sha256": "66bddfe136ef659ae7f1626c12868facea3cb2efca8622b545fa80a84734156a",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.0712404639998567,
+        "worker_setup_seconds": 0.00210735699874931,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 1.615836995999416,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "fa17794350e2175b1d526c1f9b2e5a60da8bfa9094d1998c307680564619697f",
+          "decoded_rgba_sha256": "32c04156b7345243e183ee4f3e153b35cedd7b646282efe2323c5dbf0e742ef6",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 39084569,
+            "halo_error": 0,
+            "halo_n": 23582079,
+            "rgb_error": 0,
+            "union_count": 45639336
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "4",
+          "frames": 240,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 284312426,
+          "time_base": "1/15360",
+          "validation_seconds": 0.8047620190009184,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 4.203999196761288e-06,
+          "context_seconds": 7.507100053771865e-05,
+          "setup_seconds": 0.0020197650010231882,
+          "phase_scope": "diagnostic synchronized serialized phases; wall and CUDA events non-additive",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 52076580,
+          "sha256": "aef0f75cb66ff779a422bc855d508a4d124327c39697c18dbc014b877a75d17c"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      },
+      {
+        "id": "cuda-combined-short-r02-B",
+        "actual_action": "PROCESS",
+        "status": "SUCCEEDED",
+        "backend": "cuda",
+        "device": "cuda:0",
+        "output_mode": "device-rgba",
+        "batch_size": 2,
+        "timing_mode": "ordinary",
+        "pair": {
+          "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+          "id": "cuda-combined-short",
+          "order": "BA",
+          "repeat": 2,
+          "side": "B"
+        },
+        "workload": {
+          "duration": 4.0,
+          "frames": 240,
+          "id": "speech",
+          "kind": "short",
+          "selection": "requested speech at source offset 25s",
+          "start": 25.0
+        },
+        "worker_policy": "serial jobs1 (not stock pool2 production32)",
+        "timer": "perf_counter immediately around actual service.render; external preplan and strict external validation excluded; imports/initialization/per-encode qualification inside render and production validation/publication included",
+        "wall_seconds": 4.018945125000755,
+        "cold_process_wall_seconds": 5.8010786270006065,
+        "external_verification_seconds": 0.8154806330003339,
+        "analysis_context": "interval-local; no full-source causal prehistory",
+        "analysis_cache_policy": "disabled identically for both FIR service sides",
+        "analysis_cache_observed": "miss",
+        "original_raster_sha256": "aea2ae8ebcc643a63164b4b704f05a2e15991e03c97322f729dcc6e5d99d280f",
+        "finished_rgba_sha256": "66bddfe136ef659ae7f1626c12868facea3cb2efca8622b545fa80a84734156a",
+        "initialization_scope": "per encode, inside service.render wall; no warmup reuse",
+        "qualification_seconds": 2.0991322209993086,
+        "worker_setup_seconds": 0.002081395999994129,
+        "encoder_envelope_scope": "inclusive raster/finishing/serialization/feed/CPU encode; not encoder-exclusive; initialization/qualification precede this envelope",
+        "encoder_envelope_wall_seconds": 1.3220166709998011,
+        "validation": {
+          "alpha_association_contract": "straight",
+          "alpha_max": 255,
+          "alpha_min": 0,
+          "decoded_alpha_sha256": "fa17794350e2175b1d526c1f9b2e5a60da8bfa9094d1998c307680564619697f",
+          "decoded_rgba_sha256": "32c04156b7345243e183ee4f3e153b35cedd7b646282efe2323c5dbf0e742ef6",
+          "edge_halo_composite_integer_metrics": {
+            "081018": 0,
+            "F0F0F0": 0,
+            "alpha_error": 0,
+            "checkerboard": 0,
+            "edge_error": 0,
+            "edge_n": 39084569,
+            "halo_error": 0,
+            "halo_n": 23582079,
+            "rgb_error": 0,
+            "union_count": 45639336
+          },
+          "fps": "60/1",
+          "frame_grid_seconds": "4",
+          "frames": 240,
+          "lossless_against_preencode": null,
+          "lossless_against_reference_master": true,
+          "max_pts_error_seconds": "0",
+          "passed": true,
+          "preencode_losslessness_proof": {
+            "codec_contract": "lossy ProRes",
+            "reason": "service comparison verifies a reference master, not an independent finished pre-encode RGBA oracle",
+            "status": "NOT_PERFORMED"
+          },
+          "reference_prefix_frames": null,
+          "stream": {
+            "avg_frame_rate": "60/1",
+            "codec_name": "prores",
+            "height": 280,
+            "pix_fmt": "yuva444p12le",
+            "profile": "4444",
+            "time_base": "1/15360",
+            "width": 1400
+          },
+          "studio": "PENDING",
+          "temporal_alpha_absolute_delta_sum": 284312426,
+          "time_base": "1/15360",
+          "validation_seconds": 0.8154806330003339,
+          "visual": "PENDING"
+        },
+        "worker": {
+          "device": "cuda:0",
+          "device_name": "NVIDIA GeForce RTX 3090",
+          "compute_capability": [
+            8,
+            6
+          ],
+          "torch_version": "2.9.1+cu128",
+          "torch_cuda_build": "12.8",
+          "import_seconds": 4.2459996620891616e-06,
+          "context_seconds": 7.779099905746989e-05,
+          "setup_seconds": 0.0019910579994757427,
+          "phase_scope": "ordinary completed call wall/CPU only; one explicit completion sync; blocking transfers; no CUDA events",
+          "call_timer": "after batch metadata/validation, before host input preparation through completed download and optional host assembly; ends before timing-row append; excludes tobytes/encoder feed"
+        },
+        "native_mov": {
+          "bytes": 52076580,
+          "sha256": "aef0f75cb66ff779a422bc855d508a4d124327c39697c18dbc014b877a75d17c"
+        },
+        "process": {
+          "returncode": 0,
+          "shutdown_verified": true,
+          "supervision": "LINUX_PRIVATE_SUBREAPER",
+          "resource_refused": false
+        }
+      }
+    ],
+    "pair_summaries": [
+      {
+        "id": "cuda-combined-short",
+        "orders": [
+          "AB",
+          "BA"
+        ],
+        "sides": {
+          "A": {
+            "n": 2,
+            "wall_seconds": 4.351137173000097,
+            "cold_process_wall_seconds": 5.892592804999367,
+            "external_verification_seconds": 0.6505839680003191
+          },
+          "B": {
+            "n": 2,
+            "wall_seconds": 4.035875477000445,
+            "cold_process_wall_seconds": 5.7451918844999454,
+            "external_verification_seconds": 0.811381858000459
+          }
+        },
+        "descriptive_service_wall_reduction_percent": 7.245501198075999,
+        "scope": "combined CUDA assembly/batching/timing contrast, not CPU-vs-CUDA or isolated GPU arithmetic; n2 descriptive only",
+        "within_workload_native_mov_sha256": "aef0f75cb66ff779a422bc855d508a4d124327c39697c18dbc014b877a75d17c"
+      },
+      {
+        "id": "cuda-combined-service32",
+        "orders": [
+          "AB",
+          "BA"
+        ],
+        "sides": {
+          "A": {
+            "n": 2,
+            "wall_seconds": 16.65120488500088,
+            "cold_process_wall_seconds": 22.38219229350034,
+            "external_verification_seconds": 4.658769930000744
+          },
+          "B": {
+            "n": 2,
+            "wall_seconds": 13.4189570059998,
+            "cold_process_wall_seconds": 20.461031574000117,
+            "external_verification_seconds": 5.99248332299976
+          }
+        },
+        "descriptive_service_wall_reduction_percent": 19.41149545227584,
+        "scope": "combined CUDA assembly/batching/timing contrast, not CPU-vs-CUDA or isolated GPU arithmetic; n2 descriptive only",
+        "within_workload_native_mov_sha256": "3f9e7a9bb48981c681902b770182ea55ec9ecba7e70a225777e06b5ccac3808d"
+      }
+    ],
+    "reported_pair_statistics": [
+      {
+        "claim": "descriptive only; no speedup or visual/NLE acceptance",
+        "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+        "excluded": [],
+        "id": "cuda-combined-short",
+        "orders": [
+          "AB",
+          "BA"
+        ],
+        "sides": {
+          "A": {
+            "max_seconds": 4.353684277000866,
+            "median_seconds": 4.351137173000097,
+            "min_seconds": 4.348590068999329,
+            "n": 2
+          },
+          "B": {
+            "max_seconds": 4.052805829000135,
+            "median_seconds": 4.035875477000445,
+            "min_seconds": 4.018945125000755,
+            "n": 2
+          }
+        },
+        "speedup": null,
+        "validated_paired_n": 2
+      },
+      {
+        "claim": "descriptive only; no speedup or visual/NLE acceptance",
+        "comparison": "combined device RGBA8 + within-file batch2 + ordinary timing vs retained host-reuse batch1 diagnostic; same serial service API; initialization/per-encode qualification/validation/publication included",
+        "excluded": [],
+        "id": "cuda-combined-service32",
+        "orders": [
+          "AB",
+          "BA"
+        ],
+        "sides": {
+          "A": {
+            "max_seconds": 16.853876540000783,
+            "median_seconds": 16.65120488500088,
+            "min_seconds": 16.448533230000976,
+            "n": 2
+          },
+          "B": {
+            "max_seconds": 13.558696860000055,
+            "median_seconds": 13.4189570059998,
+            "min_seconds": 13.279217151999546,
+            "n": 2
+          }
+        },
+        "speedup": null,
+        "validated_paired_n": 2
+      }
+    ],
+    "reported_acceptance": {
+      "promotion": "NOT_APPROVED",
+      "studio": "PENDING",
+      "visual": "PENDING"
+    },
+    "evidence_boundary": "supplied self-contained reported diagnostic evidence, with compact/excerpted raw subrecords; full JSON parsed and internal numeric/hash fields reconciled locally; no independent target media/ledger/environment revalidation and no signed attestation",
+    "closed_campaign": true,
+    "rerun_recommended": false
+  },
+  "historical_cpu_salvage": {
+    "status": "SALVAGED_UNVERIFIED",
+    "eligible_n": 0,
+    "disposition": "unchanged; this CUDA diagnostic does not authenticate the earlier failed WSL CPU records"
+  },
+  "new_cpu_cuda_comparison": {
+    "status": "IMPLEMENTATION_AND_PARENT_VERIFICATION_PENDING",
+    "fresh_results": null,
+    "scope": "exactly eight serial service observations: ABBA CPU recursive-blur serial/LUT vs combined CUDA FIR, at [25,29) and [25,57), n2 each side per interval; same selected CUDA interpreter/FFmpeg/effective appearance; analysis cache disabled; interval-local analysis",
+    "cross_algorithm_byte_equality_required": false,
+    "full_source": "DEFERRED_CONDITIONAL_ON_SHORT_USEFULNESS_AND_VISUAL_CLOSENESS; separate control/candidate/work capacity admission above 6GiB short budget"
+  }
+}
