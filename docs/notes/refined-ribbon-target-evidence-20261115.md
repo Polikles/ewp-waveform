@@ -94,15 +94,47 @@ Prior failed WSL CPU records remain SALVAGED_UNVERIFIED/n0; no historical compar
 is rerun or authenticated by this new CUDA record. The combined control campaign is
 closed. Its old flags remain replay interfaces, not the recommended next task.
 
-## Implemented matched screen, not a target performance result
+## Completed matched CPU/LUT versus CUDA FIR screen
 
-Follow the dedicated [current CPU/CUDA comparison scope](../../EXPERIMENTS.md#current-cpucuda-service-comparison-scope--2026-11-15).
-The screen is implemented in the existing runner; actual matched RTX3090 timing
-and qualification remain target-only. CPU recursive FFmpeg blur versus CUDA FIR
-is an intentional algorithm contrast; no cross-algorithm byte-equality oracle or
-completed performance result is asserted.
-Full-source comparison is deferred, conditional on useful, visually close shorts and
-separate control/candidate/work capacity admission above the6GiB short budget.
-Two speakers' existing mono files remain two independent assets; a convenient
-one-command multi-file procedure is backlog only. No scheduler, GUI, other-style,
-installation, media cleanup, archive or publication action follows from this record.
+The subsequently supplied `report-7f9a02425e04-diagnostics.json` is COMPLETE with
+fresh observations on clean P`4326f8e1706f48c760bba0a0fdf4dc43d9dc5750`, tree
+`b892827ece0c8fa6c2401dae2e5bfbdc9a133f1f`. Its2,852,654bytes were parsed locally;
+SHA-256`76939afa4c904f13be9a5f5c21b89e8edbe80b9a1fba9d16185fdfc059f992f9`.
+[Curated numeric record](../../examples/experiments/refined-ribbon-matched-target-20261115.json).
+Both independent qualifiers passed on RTX3090, same retained CUDA interpreter,
+selected FFmpeg and effective production appearance. A is CPU serial/LUT with
+recursive blur; B is CUDA FIR/device-RGBA8/batch2/ordinary. Each interval is fresh
+sequential AB/BA, n=2 per side, with same-side repeat references only:
+
+| Interval | CPU service median | CUDA service median | CPU cold-worker median | CUDA cold-worker median |
+|---|---:|---:|---:|---:|
+| 4s | 3.048876s | 4.056735s | 4.436340s | 5.645239s |
+| 32s | 12.563301s | 13.477869s | 18.116119s | 19.348109s |
+
+Service includes lazy initialization, per-encode qualification, normal validation
+and publication. Representative qualification costs about0.96s CPU and2s CUDA
+are already included, not subtractable ordinary-workflow savings. Cold worker
+also includes external verification. These are different finishing algorithms,
+not isolated backend arithmetic or cross-side finished-pixel equivalence. Original
+raster/config checks remain matched. Diagnostics are reported target evidence,
+not local execution or independent media/ledger revalidation. Windows89s remains
+an unmatched job-duration observation, not an isolated OS/backend comparison.
+No full-source winner or two-duration crossover is inferred; do not rerun shorts.
+
+## Explicit full-source confirmation is prepared, not executed here
+
+The next action is the separate
+[full confirmation opt-in](../../EXPERIMENTS.md#explicit-full-source-confirmation--2026-11-15):
+one fresh CPU control followed by one fresh CUDA candidate, complete original
+source/history/normalization, n=1 per side and separately admitted12GiB growth
+with10GiB free reserve. Both native MOVs stay on the operator host. No full-input
+CPU or CUDA render was generated on VM.1 for this preparation. Local simulations
+and tiny real CPU-Torch fixtures do not qualify native CUDA hardware.
+
+Keep the accepted Windows CPU/ProRes command unchanged. After full costs and
+correctness are available, a useful CUDA result additionally needs its retained
+native Resolve assessment before promotion; otherwise leave CUDA experimental
+and close this single-file style pass around the proven CPU workflow. Unchanged
+accepted CPU assets do not need repeated assessment. Two mono recordings still
+mean two independent assets; convenient multi-file procedure, GUI and other styles
+remain deferred. All historical media holds/source identities remain unchanged.

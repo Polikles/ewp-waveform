@@ -167,6 +167,7 @@ def inspect(
     reference: Path | None = None,
     lossless: bool = False,
     reference_prefix_frames: int | None = None,
+    require_silent: bool = False,
 ) -> dict[str, Any]:
     if reference_prefix_frames is not None and (
         type(reference_prefix_frames) is not int
@@ -182,10 +183,9 @@ def inspect(
         "error",
         "-threads",
         "0",
-        "-select_streams",
-        "v:0",
+        *([] if require_silent else ["-select_streams", "v:0"]),
         "-show_entries",
-        "stream=codec_name,profile,pix_fmt,width,height,avg_frame_rate,time_base:"
+        "stream=codec_type,codec_name,profile,pix_fmt,width,height,avg_frame_rate,time_base:"
         "frame=best_effort_timestamp",
         "-of",
         "json",
@@ -194,9 +194,16 @@ def inspect(
     result = run_captured(argv, log, phase="complete-frame-metadata")
     if result.stderr.strip():
         raise ValueError("probe diagnostics")
-    out = check_grid(
-        json.loads(result.stdout), width=width, height=height, frames=frames, codec=codec
-    )
+    metadata = json.loads(result.stdout)
+    if require_silent and (
+        len(metadata.get("streams", [])) != 1 or metadata["streams"][0].get("codec_type") != "video"
+    ):
+        raise ValueError("silent single-video output required; extra/audio streams found")
+    out = check_grid(metadata, width=width, height=height, frames=frames, codec=codec)
+    if require_silent:
+        out["silent"] = True
+        out["audio_streams"] = 0
+
     digest, alpha_digest = hashlib.sha256(), hashlib.sha256()
     minimum, maximum, count = 255, 0, 0
     metrics: dict[str, int] = {}

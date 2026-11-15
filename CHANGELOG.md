@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add standalone `--compare-cpu-cuda-full`: exactly one full-source CPU-LUT control
+  then one combined CUDA-FIR candidate through the existing serial service, with
+  explicit12GiB growth/10GiB reserve admission, complete-source normalization and
+  history, independent native MOV checks and ordered final one-frame batch proof.
+  Preserve the existing short4/gated32 defaults, ordinary Windows CPU command and
+  appearance. Report n=1 service/cold-worker costs descriptively without subtracting
+  qualification or claiming a backend winner. Retain complete JSON/Markdown even
+  when bounded diagnostic ZIP packaging refuses. Record the supplied completed
+  P4326f8e matched short campaign separately; full NVIDIA execution remains target-only.
+
 - Record supplied November15 native Windows full production/Resolve import-display
   acceptance and completed RTX3090 combined-CUDA campaign as curated evidence,
   without inferring unavailable Windows commit/MOV hash or broader acceptance.

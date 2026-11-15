@@ -42,10 +42,38 @@ def audio_plan(request: dict[str, Any]) -> dict[str, Any]:
     audio = Path(request["audio"])
     log = Path(request["evidence"]) / "commands.jsonl"
     with command_evidence(log):
-        duration = probe_media(audio).duration_seconds
+        media = probe_media(audio)
+        duration = media.duration_seconds
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError("positive finite audio duration required")
     records = [json.loads(line) for line in log.read_text().splitlines()]
+    if request.get("full_source_confirmation"):
+        if (
+            request["full_source_confirmation"] is not True
+            or request["smoke"]
+            or abs(duration - 395.6785) > 0.000001
+            or media.channels != 1
+            or media.sample_rate != 48000
+            or media.codec != "pcm_s16le"
+        ):
+            raise ValueError("full confirmation requires original mono PCM16/48kHz full source")
+        return {
+            "status": "SUCCEEDED",
+            "source_duration_seconds": duration,
+            "source_media": media.model_dump(mode="json"),
+            "commands": records,
+            "workloads": [
+                {
+                    "id": "full",
+                    "kind": "full",
+                    "start": None,
+                    "duration": None,
+                    "frames": round(duration * 60),
+                    "selection": "complete source, source-origin normalization and causal history",
+                }
+            ],
+            "analysis_context": "full-source",
+        }
     if request["smoke"]:
         if duration < 0.1:
             raise ValueError("CPU smoke needs at least 0.1s of source")
@@ -150,6 +178,46 @@ def audio_plan(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_batch_tail(counters: dict[str, Any], frames: int, batch_size: int) -> dict[str, Any]:
+    """Check the entire live-prefix sequence, including a final nonempty partial batch.
+
+    Indices describe ordered iterator delivery, not independent GPU frame-content
+    attestation. Complete decoded frame count and PTS are checked separately.
+    """
+    if type(frames) is not int or frames <= 0 or type(batch_size) is not int or batch_size <= 0:
+        raise ValueError("positive integer frame count and batch size required")
+    calls = counters.get("batch_calls")
+    if not isinstance(calls, list):
+        raise ValueError("missing batch sequence")
+    cursor = 0
+    for call in calls:
+        expected = min(batch_size, frames - cursor)
+        if (
+            not isinstance(call, dict)
+            or expected <= 0
+            or type(call.get("frames")) is not int
+            or call["frames"] != expected
+            or type(call.get("first_frame")) is not int
+            or call["first_frame"] != cursor
+        ):
+            raise ValueError("batch count/order/live-prefix mismatch")
+        cursor += expected
+    if cursor != frames or counters.get("emitted_frames") != frames:
+        raise ValueError("missing/extra final batch or delivered frame count")
+    return {
+        "passed": True,
+        "frames": frames,
+        "batch_size": batch_size,
+        "batch_count": len(calls),
+        "full_batch_count": frames // batch_size,
+        "final_batch_frames": calls[-1]["frames"],
+        "final_batch_first_frame": calls[-1]["first_frame"],
+        "partial_batch_frames": frames % batch_size,
+        "ordering_scope": "sequential input/live-prefix output iterator indices; "
+        "complete decoded count/cadence/PTS checked independently",
+    }
+
+
 def service_render(request: dict[str, Any]) -> dict[str, Any]:
     from ewp_waveform.application.service import plan_jobs, render
     from ewp_waveform.ffmpeg import experiment_suite_validation as validation
@@ -158,6 +226,44 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     finish_lut = request.get("finish_lut", False)
     torch_finish = request.get("torch_finish", False)
     matched = request.get("matched_cpu_cuda", False)
+    full_confirmation = request.get("full_source_confirmation", False)
+    confirmation_options: dict[str, Any] = (
+        {"full_source_confirmation": True} if full_confirmation else {}
+    )
+    w = request["workload"]
+    if type(full_confirmation) is not bool or (
+        full_confirmation
+        and (
+            matched is not True
+            or w.get("kind") != "full"
+            or w.get("id") != "full"
+            or w.get("start") is not None
+            or w.get("duration") is not None
+            or type(w.get("frames")) is not int
+            or w["frames"] != 23741
+            or request.get("reference") is not None
+            or request.get("backend") != ("cpu-lut" if finish_lut else "cuda")
+            or (
+                torch_finish
+                and any(
+                    request.get(k) != v
+                    for k, v in {
+                        "output_mode": "device-rgba",
+                        "batch_size": 2,
+                        "timing_mode": "ordinary",
+                    }.items()
+                )
+            )
+        )
+    ):
+        raise ValueError(
+            "full confirmation requires explicit unbounded full-source CPU/CUDA request"
+        )
+    bounded = (
+        w.get("kind") in ("short", "service32")
+        and isinstance(w.get("duration"), (int, float))
+        and 0 < w["duration"] <= 32
+    )
     if type(matched) is not bool or (
         matched
         and (
@@ -167,13 +273,18 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
             or finish_lut == torch_finish
             or request.get("variant")
             or request.get("visual_overrides") != {}
-            or request["workload"]["kind"] not in ("short", "service32")
-            or not 0 < request["workload"]["duration"] <= 32
+            or not (bounded or full_confirmation)
         )
     ):
         raise ValueError(
-            "matched CPU/CUDA requires bounded serial LUT/FIR with saved production preset"
+            "matched CPU/CUDA requires bounded serial LUT/FIR or explicit full confirmation "
+            "with saved production preset"
         )
+    full_input = identity(Path(request["audio"])) if full_confirmation else None
+    if full_input is not None and full_input["sha256"] != (
+        "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b"
+    ):
+        raise ValueError("full confirmation original input SHA256 mismatch")
     if type(torch_finish) is not bool or (
         torch_finish and (finish_lut or request.get("variant") or request.get("jobs", 2) != 1)
     ):
@@ -218,6 +329,18 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("exactly one fresh production PROCESS required")
         if perf.processing.get("jobs") != jobs:
             raise ValueError("requested service worker policy drift")
+        if full_confirmation:
+            media = plans[0].media
+            if (
+                not math.isfinite(media.duration_seconds)
+                or abs(media.duration_seconds - 395.6785) > 0.000001
+                or media.channels != 1
+                or media.sample_rate != 48000
+                or media.codec != "pcm_s16le"
+                or plans[0].job.fps != 60
+                or round(media.duration_seconds * plans[0].job.fps) != w["frames"]
+            ):
+                raise ValueError("full confirmation source media/complete frame plan mismatch")
         variant = request.get("variant")
         if torch_finish:
             from ewp_waveform.application.cuda_combined_experiment import TorchServiceExperiment
@@ -231,13 +354,15 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
                 timing_mode=request.get("timing_mode", "ordinary"),
                 expected_preset=preset.model_dump(mode="json"),
                 expected_device=request.get("expected_device"),
+                **confirmation_options,
             )
             kwargs["experiment"] = torch_adapter
         elif matched:
             from ewp_waveform.application.cuda_combined_experiment import SerialLUTServiceExperiment
 
             torch_adapter = SerialLUTServiceExperiment(
-                expected_preset=preset.model_dump(mode="json")
+                expected_preset=preset.model_dump(mode="json"),
+                **confirmation_options,
             )
             kwargs["experiment"] = torch_adapter
         if variant:
@@ -302,8 +427,17 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
             finishing_algorithm="ffmpeg-recursive-gblur-lut" if finish_lut else "gaussian-fir",
             raster_observation_scope="SHA-256 once per original input frame on both sides, "
             "inside service.render; observation overhead included, not subtracted",
-            external_verification_scope="first of each side standalone; subsequent repeats "
-            "decode against their own side reference; outside service wall, inside cold envelope",
+            external_verification_scope=(
+                "n=1 per side; each complete native MOV verified standalone; outside "
+                "service wall, inside cold envelope; no historical/cross-side pixel oracle"
+                if full_confirmation
+                else "first of each side standalone; subsequent repeats decode against their own "
+                "side reference; outside service wall, inside cold envelope"
+            ),
+        )
+    if full_confirmation and torch_finish:
+        torch_metrics["batch_tail_validation"] = validate_batch_tail(
+            torch_metrics["raster_feed"], w["frames"], request["batch_size"]
         )
     valid = validation.inspect(
         request["ffmpeg"],
@@ -319,12 +453,15 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
             (finish_lut or torch_finish or request.get("reference_lossless"))
             and request.get("reference")
         ),
+        **({"require_silent": True} if full_confirmation else {}),
     )
     if request.get("variant") == "TRANSFER" or (
         (finish_lut or torch_finish or request.get("reference_lossless"))
         and request.get("reference")
     ):
         valid["lossless_against_reference_master"] = True
+    if full_input is not None and identity(Path(request["audio"])) != full_input:
+        raise ValueError("full confirmation source changed during worker")
     # Master equality is not a comparison against finished pre-encode bytes.
     # Keep an unavailable proof distinct from a failed numerical comparison.
     valid["lossless_against_preencode"] = None
@@ -359,6 +496,20 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "artifacts": [identity(output), identity(performance)],
         "service_result": result,
         **torch_metrics,
+        **(
+            {
+                "full_source_confirmation": True,
+                "full_source_context": {
+                    "start_seconds": 0.0,
+                    "duration_seconds": plans[0].media.duration_seconds,
+                    "frames": w["frames"],
+                    "normalization_scope": "complete source",
+                    "causal_history": "source origin through EOF; no independent intervals",
+                },
+            }
+            if full_confirmation
+            else {}
+        ),
         "phase_metrics": result.get("performance", {}),
         "external_verification_seconds": valid["validation_seconds"],
         "visual": "PENDING",

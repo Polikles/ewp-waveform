@@ -14,16 +14,21 @@ control campaign is **COMPLETE**; do not rerun it as the next task.
 retain the reported settings, source JSON hashes and results. Windows producing
 commit/whole-MOV hash remain unknown; acceptance is import/display only.
 
-The next WSL comparison uses the existing runner/preparations and the implemented
-`--compare-cpu-cuda` campaign. Run from the clean updated checkout; the real matched
-RTX3090 measurements remain target-only, not established by local CPU-Torch tests.
+The matched CPU-LUT/CUDA-FIR short campaign is also **COMPLETE** on clean P4326f8e;
+[reported target observations](docs/notes/refined-ribbon-target-evidence-20261115.md#completed-matched-cpulut-versus-cuda-fir-screen)
+are descriptive, not a full-file result. Do not rerun the short campaign.
+
+From the clean updated checkout on the same WSL host, explicitly opt into one
+full-source confirmation (CPU first, CUDA second; n=1 per side):
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --compare-cpu-cuda --max-growth-gib 6
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --compare-cpu-cuda-full --max-growth-gib 12 --reserve-gib 10 --timeout 1800
 ```
 
-[Current CPU/CUDA scope](#current-cpucuda-service-comparison-scope--2026-11-15)
-is eight bounded serial service observations, not another broad matrix or full run.
+This command reuses the retained CUDA preparation, never requests a CUDA install,
+and does not run short4/32 again. Read the [full confirmation policy](#explicit-full-source-confirmation--2026-11-15)
+below before launch. The existing `--compare-cpu-cuda` flag remains short4/gated32
+ABBA only; neither it nor any existing command silently acquires a full render.
 
 For a usable complete CPU/ProRes asset on native Windows, in PowerShell:
 
@@ -52,11 +57,81 @@ the earlier CPU shortlist. No Linux NVIDIA display driver, CUDA toolkit compiler
 or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
+## Explicit full-source confirmation — 2026-11-15
+
+`--compare-cpu-cuda-full` is a separate standalone opt-in, not `--full` appended to
+the short command. It requires `--cuda` and explicitly supplied growth/reserve
+limits of at least12GiB/10GiB. It excludes smoke, other campaigns, setup-only,
+preflight and replay overrides. One independently qualified CPU-LUT control A runs
+first, followed sequentially by one independently qualified CUDA candidate B in
+separate fresh workers, both in the selected retained CUDA interpreter. No short
+campaign, repeat or hidden GPU warmup precedes these full renders. Qualification
+subprocesses do not share their CUDA context with render workers; each render
+still pays its own lazy initialization and per-encode qualification.
+
+Freeze source, interpreter, selected FFmpeg/ffprobe, original input hash, saved
+`iuris-ribbon-refined-production` appearance, output filesystem and identically
+disabled analysis cache. Both requests use `start=None,duration=None`: independent
+complete-source normalization and causal history from source origin through EOF,
+not assembly of separately analyzed intervals. The input is the authenticated
+395.6785s mono PCM16/48kHz WAV. Expect23,741frames,1400×280/60fps, silent
+straight-alpha ProRes4444. CPU remains recursive FFmpeg blur with qualified LUT;
+CUDA remains FIR/device-RGBA8/batch2/ordinary timing. No new algorithm, tune matrix,
+cross-algorithm finished-pixel identity or historical master hash is imposed.
+
+The12GiB growth policy explicitly admits3GiB control +3GiB candidate +3GiB
+simultaneous temporary work +1GiB logs/verification +2GiB headroom. Existing
+preparations are baseline storage, not permission for another download. Admission
+checks actual output/evidence filesystem placement and the configured10GiB free
+reserve before bootstrap; with one shared filesystem this requires at least22GiB
+free at admission. These allowances are conservative planning, not a predicted
+file size or guaranteed continuous quota. Existing sampled growth/reserve checks,
+process-tree supervision and terminal/report checks remain enabled. An impossible
+budget refuses rather than bypasses policy; the old6GiB short limit is rejected.
+
+The external verifier completely software-decodes each MOV independently, checks
+all-frame content alpha/count, cadence and timestamps, and verifies the single
+video stream has no audio. CUDA additionally validates every batch index/live
+prefix:11,870full pairs and final one-frame batch at zero-based frame23,740,
+11,871calls total. Iterator order is explicit, separately from decoded PTS; tiny
+CPU-Torch fixtures exercise ordinal content and borrowed-buffer behavior. This is
+not an independent full CUDA pixel oracle. Each new output receives its own
+observed file/decoded hashes; repeat-reference and pre-encode ProRes-losslessness
+proofs remain unavailable, not fabricated.
+
+Report actual n=1 service and cold-worker wall per side, descriptively. Service
+includes lazy imports/context, per-encode qualification, normal validation and
+publication; cold-worker time also includes preplanning and complete external
+verification. Extra diagnostics are non-additive and never replace/subtract from
+complete costs. Parent bootstrap, identity guards and report export remain outside
+those per-worker timers. Do not fit a crossover from the completed4/32s results,
+require a warmed context or compare the accepted Windows89s job observation as a
+matched WSL/OS benchmark. No winner is established before target execution.
+
+Default retained paths (the actual UTC/random token is printed):
+
+- `~/.local/state/ewp-portable-experiments/media-TOKEN/compare-cpu-cuda-full-r01-A/output/s0e00/*.mov`
+- corresponding `compare-cpu-cuda-full-r01-B/output/s0e00/*.mov`
+- `~/.local/state/ewp-portable-experiments/run-TOKEN/reports/report-ID.md`
+- same reports directory: `report-ID.json`, `measurements-ID.json`,
+  `report-ID-diagnostics.json`, command companion and optional diagnostic ZIP.
+
+No full MP4 views are automatically produced. Keep both native MOVs locally; no
+audio/MOV upload to VM.1 or ChatGPT. Return `report-ID-diagnostics.json` (complete
+JSON even if the bounded ZIP refuses), preferably with Markdown and measurements.
+Packaging outcome is separate from render outcome. If CUDA shows a worthwhile
+complete-cost advantage, assess its retained native output in Resolve before
+promotion. Otherwise retain CUDA experimental and finish this single-file style
+pass around the already accepted Windows CPU workflow. Do not re-request review
+of unchanged accepted CPU assets. GUI, more styles/backends and a convenient
+one-command multi-file procedure remain deferred; separate mono recordings need
+separate waveform assets, not speaker mixing or diarization.
+
 ## Current CPU/CUDA service comparison scope — 2026-11-15
 
-This implemented campaign is not a completed CPU/CUDA performance claim.
-The exact next command is at the top of this guide. It selects only two
-four-observation sequences:
+The following short4/gated32 interface is retained unchanged for replay, not the
+next task. Its supplied RTX3090 run is complete; see the linked target evidence.
+It selects only two four-observation sequences:
 
 | Interval | Frames | Serial-service order | Observations |
 |---|---:|---|---:|
@@ -103,15 +178,13 @@ against their own side. Original-raster SHA-256 work is included on both sides;
 CUDA also retains its existing pre-encode RGBA digest. Those observations are not
 subtracted from service wall. Cross-algorithm byte identity is never required.
 
-A full control/candidate comparison is **deferred and conditional** on useful,
-visually close short results and separately admitted full-source budgets. Reserve
-control, candidate and simultaneous work/evidence headroom explicitly; the6GiB
-short limit is not permission or sufficient sizing for a full pair. No new full
-flag or fixed speedup threshold is promised. Native experimental Resolve acceptance
-remains independent. A later convenient one-command procedure for several selected
-mono recordings is backlog only: two existing mono tracks produce two independent
-assets, not speaker separation, composition, a scheduler or GPU-throughput matrix.
-GUI and other styles remain outside this task.
+A full control/candidate comparison now has the separate explicitly admitted
+[full-source confirmation mode](#explicit-full-source-confirmation--2026-11-15).
+The6GiB short limit remains insufficient and is never silently reused for it.
+Native experimental Resolve acceptance remains independent. A later convenient
+one-command procedure for several selected mono recordings is backlog only:
+separate mono tracks produce separate assets, not speaker separation, composition,
+a scheduler or GPU-throughput matrix. GUI and other styles remain outside this task.
 
 ## Historical optimization campaigns and reading the results
 

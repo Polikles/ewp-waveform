@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "supplied-target-evidence",
+  "status": "COMPLETE",
+  "report_file": "report-7f9a02425e04-diagnostics.json",
+  "report_sha256": "76939afa4c904f13be9a5f5c21b89e8edbe80b9a1fba9d16185fdfc059f992f9",
+  "executed_product_commit": "4326f8e1706f48c760bba0a0fdf4dc43d9dc5750",
+  "executed_product_tree": "b892827ece0c8fa6c2401dae2e5bfbdc9a133f1f",
+  "executed_source_clean": true,
+  "fresh_in_original_invocation": true,
+  "local_media_revalidation": "NOT_PERFORMED",
+  "trust_scope": "supplied diagnostic parsed locally; not signed attestation or local hardware execution",
+  "gpu": "RTX 3090",
+  "source_audio_sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b",
+  "comparison": "CPU LUT recursive FFmpeg blur versus CUDA FIR device-RGBA8/batch2/ordinary; different finishing algorithms",
+  "observations": [
+    {
+      "group": "compare-cpu-cuda-short",
+      "n_per_side": 2,
+      "execution_order": "ABBA",
+      "sides": {
+        "A": {
+          "algorithm": "CPU recursive-LUT",
+          "service_median_seconds": 3.048876155500693,
+          "cold_worker_median_seconds": 4.436339952999333
+        },
+        "B": {
+          "algorithm": "CUDA FIR",
+          "service_median_seconds": 4.0567352264988585,
+          "cold_worker_median_seconds": 5.645239419998688
+        }
+      }
+    },
+    {
+      "group": "compare-cpu-cuda-service32",
+      "n_per_side": 2,
+      "execution_order": "ABBA",
+      "sides": {
+        "A": {
+          "algorithm": "CPU recursive-LUT",
+          "service_median_seconds": 12.56330076949962,
+          "cold_worker_median_seconds": 18.116118737998477
+        },
+        "B": {
+          "algorithm": "CUDA FIR",
+          "service_median_seconds": 13.477869258000283,
+          "cold_worker_median_seconds": 19.348109103999377
+        }
+      }
+    }
+  ],
+  "full_source_result": "NOT_RUN",
+  "production": "accepted native Windows CPU/ProRes serial-LUT retained; no experimental promotion"
+}

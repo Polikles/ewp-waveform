@@ -52,17 +52,24 @@ def _torch_stream(
 ) -> Iterator[bytes]:
     """Consume every borrowed output before the next batch; preserve a partial tail."""
     source = iter(frames)
+    cursor = 0
     while batch := list(islice(source, worker.batch_size)):
         started = time.perf_counter()
         outputs = worker.finish_batch(batch, pix_fmt)
         elapsed = time.perf_counter() - started
+        if len(outputs) != len(batch):
+            raise ValueError("finisher batch output count differs from live input prefix")
         counters["finishing_wall_seconds"] += elapsed
-        counters["batch_calls"].append({"frames": len(batch), "wall_seconds": elapsed})
+        counters["batch_calls"].append(
+            {"frames": len(batch), "first_frame": cursor, "wall_seconds": elapsed}
+        )
         if worker.batch_size == 1:
             counters["frame_calls"].append(elapsed)
         # Serialization is outside the finishing-call timer, as in the old control.
         for output in outputs:
+            counters["emitted_frames"] = cursor + 1
             yield output.tobytes()
+            cursor += 1
 
 
 def _hash(path: Path) -> str:
