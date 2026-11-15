@@ -67,6 +67,12 @@ def test_portable_real_cpu_service_and_read_only_resume(tmp_path: Path) -> None:
         assert steps[name]["status"] == "SUCCEEDED", steps[name].get("error")
         assert steps[name]["validation"]["passed"]
         assert steps[name]["validation"]["frames"] == 6
+    # New matched-service factors must not silently become factors of historical
+    # recursive-FFmpeg/NumPy comparisons and invalidate their declared pairs.
+    for name, step in steps.items():
+        if "fir-algorithm-r" in name and not name.endswith("-views"):
+            assert "backend" not in step["experimental_controls"]
+            assert "matched_cpu_cuda" not in step["experimental_controls"]
     paired = pair_statistics(steps)
     assert len(paired) == 1 and paired[0]["validated_paired_n"] == 2, paired
     assert paired[0]["orders"] == ["AB", "BA"]

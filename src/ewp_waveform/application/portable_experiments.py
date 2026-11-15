@@ -1054,10 +1054,15 @@ def invoke(
                 "finish_lut",
                 "jobs",
                 "torch_finish",
-                "backend",
-                "matched_cpu_cuda",
             )
         }
+        # Backend is a declared paired factor only for the new matched workflow.
+        # Adding it globally would invalidate retained algorithm contrasts whose
+        # established control declarations intentionally predate this field.
+        if request.get("matched_cpu_cuda"):
+            value["experimental_controls"].update(
+                backend=request.get("backend"), matched_cpu_cuda=True
+            )
         value["experimental_settings"] = {
             key: request.get(key)
             for key in ("codec", "variant", "encoder_threads", "filter_threads", "async_depth")
