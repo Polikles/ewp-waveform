@@ -68,7 +68,13 @@ class TorchServiceExperiment:
         ):
             raise ValueError("frozen effective preset drift; replan required")
         if (
-            preset.name != "iuris-ribbon-refined"
+            (
+                preset.name != "iuris-ribbon-refined"
+                and not (
+                    preset.name == "iuris-ribbon-refined-production"
+                    and self.expected_preset is not None
+                )
+            )
             or job.domain.value != "frequency"
             or formats != ["prores4444"]
             or duration is None
@@ -233,6 +239,197 @@ class TorchServiceExperiment:
                 "not encoder-exclusive; initialization/qualification precede this envelope",
                 initialization_scope="per encode, inside service.render wall; no warmup reuse",
             )
+
+
+@dataclass
+class SerialLUTServiceExperiment(TorchServiceExperiment):
+    """Same cache-disabled serial service/raster observation, unchanged CPU LUT encoder.
+
+    Inherit only the bounded service hook spine; never initialize a Torch worker.
+    """
+
+    backend: str = "cpu-lut"
+    device: str = "cpu"
+
+    def __post_init__(self) -> None:
+        if self.backend != "cpu-lut" or self.device != "cpu":
+            raise ValueError("serial LUT service requires cpu-lut/cpu")
+
+    def identity(self) -> dict[str, Any]:
+        return {
+            "adapter_revision": 1,
+            "candidate": "CPU-LUT-SERIAL-SERVICE",
+            "analysis_cache": "disabled",
+            "ribbon_finish_lut": True,
+            "flag_scope": "explicit encode hook; ordinary performance flag remains disabled",
+        }
+
+    def encode(
+        self, encoder: Callable[..., None], frames: Iterable[bytes], kwargs: dict[str, Any]
+    ) -> None:
+        from ewp_waveform.ffmpeg.draw import parse_rgb
+        from ewp_waveform.ffmpeg.torch_finish import FinishSpec
+
+        finish = kwargs.get("ribbon_finish")
+        if (
+            self.metrics
+            or finish is None
+            or kwargs.get("ribbon_finish_lut", False)
+            or kwargs.get("png_dir") is not None
+            or kwargs.get("prores_path") is None
+            or kwargs.get("pix_fmt") not in ("gray", "rgba")
+            or kwargs.get("fps") != 60
+        ):
+            raise ValueError("serial LUT service requires one original-raster LUT MOV encode")
+        spec = FinishSpec(
+            width=kwargs["width"],
+            height=kwargs["height"],
+            overscan=kwargs["overscan"],
+            supersample=kwargs["supersample"],
+            sigma=kwargs["glow"],
+            reflection=finish[0],
+            horizon=finish[1],
+            thickness=finish[2],
+            extent=finish[3],
+            opacity=finish[4],
+            color=parse_rgb(kwargs["color"]),
+        )
+        raster = hashlib.sha256()
+        count = 0
+
+        def tracked() -> Iterator[bytes]:
+            nonlocal count
+            for frame in frames:
+                raster.update(frame)
+                count += 1
+                yield frame
+
+        started = time.perf_counter()
+        try:
+            # This retains the strict selected-executable identity guard and
+            # per-encode LUT qualification/preparation inside service.render.
+            encoder(tracked(), **{**kwargs, "ribbon_finish_lut": True})
+            if count != kwargs["n_frames"]:
+                raise ValueError("serial LUT service original frame count mismatch")
+        finally:
+            self.metrics.update(
+                spec=asdict(spec),
+                effective_preset=self.expected_preset,
+                original_raster_sha256=raster.hexdigest(),
+                raster_feed={"frames": count},
+                encoder_envelope_wall_seconds=time.perf_counter() - started,
+                encoder_envelope_scope="inclusive raster/feed/CPU finishing/encode and "
+                "per-encode LUT qualification/preparation; not encoder-exclusive",
+                initialization_scope="per encode, inside service.render wall; no warmup reuse",
+            )
+
+
+def compare_campaign(
+    config: dict[str, Any],
+    workloads: list[dict[str, Any]],
+    step: Callable[..., dict[str, Any]],
+    skipped: Callable[[str, str], None],
+) -> None:
+    """Fresh CPU LUT versus combined CUDA: exactly short4/32 ABBA, never full.
+
+    Qualification and first renders are independent by side. Only same-side
+    decoded output is an exact oracle: recursive blur and FIR differ deliberately.
+    """
+    if config["repeats"] != 2:
+        raise ValueError("CPU/CUDA comparison requires exactly two repeats (ABBA)")
+    python = config["cuda_python"]
+    # CPU runs in the selected CUDA interpreter even when CUDA qualification fails.
+    # An invalid interpreter will fail independently, never silently substitute one.
+    lut = step(
+        "compare-cpu-cuda-lut-qualification",
+        {"operation": "qualify-lut"},
+        optional=True,
+        python=python,
+    )
+    cuda = step(
+        "compare-cpu-cuda-cuda-qualification",
+        {"operation": "qualify-finish", "backend": "cuda", **COMBINED},
+        optional=True,
+        python=python,
+    )
+    ready = {
+        "A": lut.get("status") == "SUCCEEDED" and lut.get("passed") is True,
+        "B": cuda.get("status") == "SUCCEEDED"
+        and cuda.get("passed") is True
+        and cuda.get("gpu_qualified") is True
+        and bool(config.get("cuda_environment")),
+    }
+    short = next(w for w in workloads if w["id"] in ("speech", "smoke"))
+
+    def pair(label: str, workload: dict[str, Any]) -> bool:
+        first: dict[str, dict[str, Any]] = {}
+        values: list[dict[str, Any]] = []
+        raster: str | None = None
+        for repeat, order in ((1, "AB"), (2, "BA")):
+            for side in order:
+                name = f"{label}-r{repeat:02d}-{side}"
+                if not ready[side] or (repeat == 2 and side not in first):
+                    skipped(
+                        name, "independent side qualification/first validated render unavailable"
+                    )
+                    values.append({"status": "SKIPPED"})
+                    continue
+                request: dict[str, Any] = {
+                    "operation": "service",
+                    "jobs": 1,
+                    "matched_cpu_cuda": True,
+                    "visual_overrides": {},
+                    "workload": workload,
+                    "finish_lut": side == "A",
+                    "torch_finish": side == "B",
+                    "backend": "cpu-lut" if side == "A" else "cuda",
+                    **({} if side == "A" else COMBINED),
+                    "pair": {
+                        "id": label,
+                        "repeat": repeat,
+                        "order": order,
+                        "side": side,
+                        "comparison": "combined serial CPU LUT recursive-blur pipeline vs CUDA "
+                        "FIR device-RGBA8/batch2/ordinary pipeline; not isolated kernel speedup; "
+                        "service includes lazy import/context, per-encode qualification, "
+                        "publication; "
+                        "exact decoded repeat oracle is same-side only",
+                    },
+                }
+                if raster:
+                    request["expected_raster_sha256"] = raster
+                if side in first:
+                    reference = first[side]
+                    request.update(reference=reference["output"], reference_lossless=True)
+                    if side == "B":
+                        request["expected_finished_rgba_sha256"] = reference["finished_rgba_sha256"]
+                value = step(name, request, optional=True, python=python)
+                values.append(value)
+                if (
+                    value.get("status") == "SUCCEEDED"
+                    and value.get("validation", {}).get("passed") is True
+                ):
+                    first.setdefault(side, value)
+                    raster = raster or value["original_raster_sha256"]
+        return len(values) == 4 and all(
+            v.get("status") == "SUCCEEDED" and v.get("validation", {}).get("passed") is True
+            for v in values
+        )
+
+    short_passed = pair("compare-cpu-cuda-short", short)
+    if not short_passed or short["id"] == "smoke":
+        skipped("compare-cpu-cuda-service32", "requires both complete original-input short sides")
+    else:
+        pair(
+            "compare-cpu-cuda-service32",
+            {
+                "id": "service32",
+                "kind": "service32",
+                "start": 25.0,
+                "duration": 32.0,
+                "frames": 1920,
+            },
+        )
 
 
 def campaign(

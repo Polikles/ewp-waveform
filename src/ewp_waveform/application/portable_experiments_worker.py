@@ -157,6 +157,23 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
 
     finish_lut = request.get("finish_lut", False)
     torch_finish = request.get("torch_finish", False)
+    matched = request.get("matched_cpu_cuda", False)
+    if type(matched) is not bool or (
+        matched
+        and (
+            request.get("jobs") != 1
+            or type(finish_lut) is not bool
+            or type(torch_finish) is not bool
+            or finish_lut == torch_finish
+            or request.get("variant")
+            or request.get("visual_overrides") != {}
+            or request["workload"]["kind"] not in ("short", "service32")
+            or not 0 < request["workload"]["duration"] <= 32
+        )
+    ):
+        raise ValueError(
+            "matched CPU/CUDA requires bounded serial LUT/FIR with saved production preset"
+        )
     if type(torch_finish) is not bool or (
         torch_finish and (finish_lut or request.get("variant") or request.get("jobs", 2) != 1)
     ):
@@ -173,7 +190,10 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     root.mkdir(parents=True, exist_ok=False)
     evidence = Path(request["evidence"])
     performance = (
-        performance_file(root, finish_lut=finish_lut, jobs=jobs)
+        # The ordinary service deliberately forbids performance-LUT + any adapter.
+        # The matched CPU adapter explicitly selects LUT at its encoder hook,
+        # retaining that production guard while sharing cache/raster instrumentation.
+        performance_file(root, finish_lut=finish_lut and not matched, jobs=jobs)
         if finish_lut or jobs != 2
         else performance_file(root)
     )
@@ -188,6 +208,10 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "force": True,
         **request["visual_overrides"],
     }
+    if matched:
+        kwargs["preset_name"] = str(
+            Path(__file__).resolve().parents[3] / "presets/iuris-ribbon-refined-production.toml"
+        )
     with command_evidence(evidence / "commands.jsonl"):
         _, preset, perf, plans, _ = plan_jobs(Path(request["audio"]), **kwargs)
         if len(plans) != 1 or plans[0].action != "PROCESS" or plans[0].media is None:
@@ -207,6 +231,13 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
                 timing_mode=request.get("timing_mode", "ordinary"),
                 expected_preset=preset.model_dump(mode="json"),
                 expected_device=request.get("expected_device"),
+            )
+            kwargs["experiment"] = torch_adapter
+        elif matched:
+            from ewp_waveform.application.cuda_combined_experiment import SerialLUTServiceExperiment
+
+            torch_adapter = SerialLUTServiceExperiment(
+                expected_preset=preset.model_dump(mode="json")
             )
             kwargs["experiment"] = torch_adapter
         if variant:
@@ -245,13 +276,35 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("service route did not observe required actual worker policy")
     output = Path(result["outputs"][0]["path"])
     torch_metrics = torch_adapter.metrics if torch_adapter is not None else {}
-    if torch_finish:
+    if torch_finish or matched:
         for expected, observed in (
             ("expected_raster_sha256", "original_raster_sha256"),
             ("expected_finished_rgba_sha256", "finished_rgba_sha256"),
         ):
             if request.get(expected) not in (None, torch_metrics.get(observed)):
                 raise ValueError("matched FIR service " + observed + " mismatch")
+    if matched and finish_lut:
+        lut = result.get("performance", {}).get("extras", {}).get("ribbon_finish_lut", {})
+        if (
+            lut.get("status") != "succeeded"
+            or lut.get("qualification", {}).get("passed") is not True
+        ):
+            raise ValueError("matched CPU service requires successful per-encode LUT qualification")
+        torch_metrics["lut_setup"] = lut
+    if matched:
+        torch_metrics.update(
+            worker_interpreter={
+                "executable": sys.executable,
+                "version": sys.version,
+                "prefix": sys.prefix,
+            },
+            same_side_reference=request.get("reference"),
+            finishing_algorithm="ffmpeg-recursive-gblur-lut" if finish_lut else "gaussian-fir",
+            raster_observation_scope="SHA-256 once per original input frame on both sides, "
+            "inside service.render; observation overhead included, not subtracted",
+            external_verification_scope="first of each side standalone; subsequent repeats "
+            "decode against their own side reference; outside service wall, inside cold envelope",
+        )
     valid = validation.inspect(
         request["ffmpeg"],
         request["ffprobe"],
@@ -292,9 +345,13 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "timer": "perf_counter immediately around actual service.render; external preplan and "
         "strict external validation excluded; imports/initialization/per-encode qualification "
         "inside render and production validation/publication included",
-        "route": "EXPLICIT_SERIAL_FIR_SERVICE_EXPERIMENT"
-        if torch_finish
-        else ("EXPLICIT_SHORT_SERVICE_EXPERIMENT" if variant else "STOCK_SERVICE"),
+        "route": "MATCHED_SERIAL_CPU_CUDA_SERVICE"
+        if matched
+        else (
+            "EXPLICIT_SERIAL_FIR_SERVICE_EXPERIMENT"
+            if torch_finish
+            else ("EXPLICIT_SHORT_SERVICE_EXPERIMENT" if variant else "STOCK_SERVICE")
+        ),
         "workload": w,
         "variant": variant,
         "worker_policy": "serial jobs1 (not stock pool2 production32)" if jobs == 1 else "jobs2",
@@ -309,9 +366,13 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         "analysis_context": "full-source"
         if w["kind"] == "full"
         else "interval-local; no full-source causal prehistory",
-        "analysis_cache_policy": "disabled identically for both FIR service sides"
-        if torch_finish
-        else "fresh task-owned EWP_ANALYSIS_CACHE selector per service attempt",
+        "analysis_cache_policy": "disabled identically for matched serial service sides"
+        if matched
+        else (
+            "disabled identically for both FIR service sides"
+            if torch_finish
+            else "fresh task-owned EWP_ANALYSIS_CACHE selector per service attempt"
+        ),
         "analysis_cache_selected_path": os.environ.get("EWP_ANALYSIS_CACHE"),
         "analysis_cache_observed": result.get("performance", {})
         .get("extras", {})

@@ -875,10 +875,16 @@ def freeze(
         "full": args.full or args.reference_only,
         "reference_only": args.reference_only,
         "production32": not args.no_production32
-        and not (args.optimize or args.cuda_combined or args.optimize_single_file),
+        and not (
+            args.optimize
+            or args.cuda_combined
+            or args.optimize_single_file
+            or args.compare_cpu_cuda
+        ),
         "cuda": args.cuda,
         "cuda_combined": args.cuda_combined,
         "cuda_combined_service32": args.cuda_combined_service32,
+        "compare_cpu_cuda": args.compare_cpu_cuda,
         "optimize_single_file": args.optimize_single_file,
         "repeats": args.repeats,
         "optimize": args.optimize,
@@ -899,7 +905,10 @@ def freeze(
         "preparation_policy": preparation,
         "device": args.device,
         "expected_device": args.expect_device_regex,
-        "visual_overrides": template["visual_overrides"],
+        "visual_overrides": {} if args.compare_cpu_cuda else template["visual_overrides"],
+        "comparison_preset": identity(ROOT / "presets/iuris-ribbon-refined-production.toml")
+        if args.compare_cpu_cuda
+        else None,
         "limits": {**campaign_limits(args), "stage_timeout": args.timeout},
         "claim": "opt-in experiments; production defaults unchanged; GUI future only",
     }
@@ -1045,6 +1054,8 @@ def invoke(
                 "finish_lut",
                 "jobs",
                 "torch_finish",
+                "backend",
+                "matched_cpu_cuda",
             )
         }
         value["experimental_settings"] = {
@@ -1271,6 +1282,12 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
 
     plan = step("audio-plan", {"operation": "audio-plan", "smoke": config["smoke"]})
     workloads = plan["workloads"]
+    if config.get("compare_cpu_cuda"):
+        with failure_stage("campaign:compare-cpu-cuda"):
+            from ewp_waveform.application.cuda_combined_experiment import compare_campaign
+
+            compare_campaign(config, workloads, step, skipped)
+        return make_result_views(results, step)
     if config.get("optimize_single_file"):
         with failure_stage("campaign:single-file"):
             from ewp_waveform.application.single_file_campaign import (
@@ -1598,6 +1615,12 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--audio", type=Path)
     p.add_argument(
+        "--compare-cpu-cuda",
+        action="store_true",
+        help="only matched serial CPU LUT vs combined CUDA FIR: short4 then gated32s ABBA; "
+        "same CUDA interpreter, production look and disabled caches; never full",
+    )
+    p.add_argument(
         "--optimize-single-file",
         action="store_true",
         help="targeted GEQ/LUT short then jobs policy32/LUT32; --cuda adds combined FIR4/32",
@@ -1804,6 +1827,24 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--audio PATH required except with --cpu-smoke or --resume")
     if args.cpu_smoke and (args.full or args.reference_only):
         p.error("--cpu-smoke cannot authorize a full render")
+    if args.compare_cpu_cuda and (
+        not args.cuda
+        or args.repeats != 2
+        or args.optimize
+        or args.optimize_single_file
+        or args.cuda_combined
+        or args.cuda_combined_service32
+        or args.full
+        or args.reference_only
+        or args.preflight_only
+        or args.setup_only
+        or args.verify_environment
+        or args.inspect_storage is not None
+    ):
+        p.error(
+            "--compare-cpu-cuda requires --cuda and --repeats 2; "
+            "excludes other campaigns/actions/full"
+        )
     if args.optimize_service32 and not args.optimize:
         p.error("--optimize-service32 requires --optimize")
     if args.cuda_combined_service32 and not args.cuda_combined:
@@ -1856,6 +1897,7 @@ def main(argv: list[str] | None = None) -> int:
         option in {token.split("=", 1)[0] for token in argv}
         for option in (
             "--audio",
+            "--compare-cpu-cuda",
             "--optimize-single-file",
             "--cuda-combined",
             "--cuda-combined-service32",

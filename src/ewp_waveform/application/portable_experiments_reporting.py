@@ -336,6 +336,40 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
         samples: dict[str, list[float]] = {"A": [], "B": []}
         excluded: list[dict[str, Any]] = []
         orders, comparison = [], ""
+        pipeline_contrast = group in ("compare-cpu-cuda-short", "compare-cpu-cuda-service32")
+        repeat_reason = None
+        if pipeline_contrast:
+            if set(repeats) != {1, 2} or any(set(s) != {"A", "B"} for s in repeats.values()):
+                repeat_reason = "requires complete two-repeat CPU/CUDA ABBA"
+            else:
+                for side in ("A", "B"):
+                    first, second = (repeats[n][side][1] for n in (1, 2))
+                    if (
+                        first.get("same_side_reference") is not None
+                        or second.get("same_side_reference") != first.get("output")
+                        or not first.get("output")
+                        or not first.get("validation", {}).get("decoded_rgba_sha256")
+                        or first["validation"]["decoded_rgba_sha256"]
+                        != second.get("validation", {}).get("decoded_rgba_sha256")
+                        or second.get("validation", {}).get("lossless_against_reference_master")
+                        is not True
+                        or first.get("pair", {}).get("order") != "AB"
+                        or second.get("pair", {}).get("order") != "BA"
+                    ):
+                        repeat_reason = "same-side decoded repeat oracle unavailable/mismatched"
+                    if side == "B" and (
+                        not first.get("finished_rgba_sha256")
+                        or first.get("finished_rgba_sha256") != second.get("finished_rgba_sha256")
+                    ):
+                        repeat_reason = "CUDA same-side finished RGBA repeat mismatch"
+                    for key in (
+                        "original_raster_sha256",
+                        "spec",
+                        "effective_preset",
+                        "execution_settings",
+                    ):
+                        if not first.get(key) or first.get(key) != second.get(key):
+                            repeat_reason = "same-side repeat " + key + " mismatch"
         for ordinal, sides in sorted(repeats.items()):
             if set(sides) != {"A", "B"}:
                 excluded.append({"repeat": ordinal, "reason": "missing pair member"})
@@ -384,9 +418,75 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "single-file-jobs32": {"jobs"},
                 "cuda-combined-short": {"output_mode", "batch_size", "timing_mode"},
                 "cuda-combined-service32": {"output_mode", "batch_size", "timing_mode"},
+                "compare-cpu-cuda-short": {
+                    "output_mode",
+                    "batch_size",
+                    "timing_mode",
+                    "finish_lut",
+                    "torch_finish",
+                    "backend",
+                },
+                "compare-cpu-cuda-service32": {
+                    "output_mode",
+                    "batch_size",
+                    "timing_mode",
+                    "finish_lut",
+                    "torch_finish",
+                    "backend",
+                },
             }.get(group, set())
             if changed_controls - allowed_controls:
                 reason = "undeclared experimental control changes"
+            if pipeline_contrast:
+                for r, expected in (
+                    (
+                        a,
+                        {
+                            "finish_lut": True,
+                            "torch_finish": False,
+                            "backend": "cpu-lut",
+                            "output_mode": None,
+                            "batch_size": None,
+                            "timing_mode": None,
+                        },
+                    ),
+                    (
+                        b,
+                        {
+                            "finish_lut": False,
+                            "torch_finish": True,
+                            "backend": "cuda",
+                            "output_mode": "device-rgba",
+                            "batch_size": 2,
+                            "timing_mode": "ordinary",
+                        },
+                    ),
+                ):
+                    controls = r.get("experimental_controls", {})
+                    if any(
+                        controls.get(k) != v
+                        for k, v in {**expected, "jobs": 1, "matched_cpu_cuda": True}.items()
+                    ):
+                        reason = "incorrect declared CPU/CUDA combined pipeline controls"
+                for key in ("worker_interpreter", "analysis_context", "analysis_cache_policy"):
+                    if not a.get(key) or a.get(key) != b.get(key):
+                        reason = "unmatched " + key
+                if (
+                    a.get("analysis_cache_policy")
+                    != "disabled identically for matched serial service sides"
+                ):
+                    reason = "CPU/CUDA cache policy not disabled"
+                if (
+                    a.get("lut_setup", {}).get("status") != "succeeded"
+                    or a.get("lut_setup", {}).get("qualification", {}).get("passed") is not True
+                    or b.get("qualification", {}).get("gpu_qualified") is not True
+                    or b.get("qualification", {}).get("passed") is not True
+                    or not str(b.get("worker", {}).get("device", "")).startswith("cuda:")
+                    or b.get("worker", {}).get("device_name") in (None, "CPU")
+                ):
+                    reason = "missing per-encode independent qualification"
+                if not a.get("original_raster_sha256") or not b.get("original_raster_sha256"):
+                    reason = "original raster proof unavailable"
             frames = a.get("validation", {}).get("frames")
             if (
                 type(frames) is not int
@@ -405,6 +505,8 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 or a.get("effective_preset") != b.get("effective_preset")
             ):
                 reason = "original raster/config mismatch"
+            if repeat_reason:
+                reason = repeat_reason
             if reason:
                 excluded.append({"repeat": ordinal, "reason": reason})
                 continue
@@ -428,7 +530,12 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "sides": stats,
                 "excluded": excluded,
                 "speedup": None,
-                "claim": "descriptive only; no speedup or visual/NLE acceptance",
+                "claim": "descriptive combined pipeline contrast; "
+                "recursive CPU blur versus CUDA FIR; "
+                "not isolated kernel speedup or cross-algorithm byte equivalence; "
+                "visual/NLE pending"
+                if pipeline_contrast
+                else "descriptive only; no speedup or visual/NLE acceptance",
             }
         )
     return summaries
@@ -502,6 +609,8 @@ def report(
                         "repeats",
                         "optimization",
                         "visual_overrides",
+                        "compare_cpu_cuda",
+                        "comparison_preset",
                     }
                 }
             ),
@@ -540,7 +649,12 @@ def report(
         "",
         "Visual / native NLE acceptance: PENDING. Promotion: NOT_APPROVED.",
         "",
-        "No speedup claimed. Installed/selected tools are a build contrast, "
+        "No speedup claimed. Matched CPU LUT recursive blur versus combined CUDA FIR is a "
+        "whole serial-service pipeline contrast, not isolated kernel acceleration or "
+        "cross-algorithm byte equivalence. Both include qualification/validation/publication; "
+        "original-raster hashing overhead is included on both sides."
+        if config and config.get("compare_cpu_cuda")
+        else "No speedup claimed. Installed/selected tools are a build contrast, "
         "not isolated GPU acceleration. "
         "Stock service versus the custom FIR pipeline also changes wrapper/publication scope.",
         "",
@@ -574,7 +688,11 @@ def report(
     if config and config.get("cuda_error"):
         lines += [
             "Optional CUDA environment/setup failed; "
-            "independent CPU/Vulkan controls remain admitted:",
+            + (
+                "independent CPU controls remain admitted in the selected CUDA interpreter:"
+                if config.get("compare_cpu_cuda")
+                else "independent CPU/Vulkan controls remain admitted:"
+            ),
             "",
             "```text",
             str(config["cuda_error"])[-1200:].replace("```", "'''"),
@@ -612,6 +730,17 @@ def report(
             "",
         ]
     if config:
+        if config.get("compare_cpu_cuda"):
+            lines += [
+                "Matched CPU and CUDA worker Python: "
+                f"`{config.get('cuda_python', 'not retained')}`",
+                "",
+                "First A and first B are verified standalone; repeats use same-side decoded "
+                "references only. Independent CPU LUT and actual CUDA FIR qualification are "
+                "required per encode. Service wall includes lazy import/context/setup; cold "
+                "worker envelope also includes external verification. Neither is pure kernel time.",
+                "",
+            ]
         lines += [
             f"Selected Python: `{config.get('python', 'not retained')}`",
             "",
@@ -629,6 +758,8 @@ def report(
                 if config.get("preflight_only")
                 else "CPU six-frame usability validation; no full/pool2/GPU claims."
                 if config.get("smoke")
+                else "matched serial CPU LUT/CUDA FIR: short4 and gated32s, never full."
+                if config.get("compare_cpu_cuda")
                 else "short-first production recipe."
             ),
             "",
@@ -641,6 +772,7 @@ def report(
                     "production32",
                     "full",
                     "reference_only",
+                    "compare_cpu_cuda",
                     "cuda",
                     "optimize",
                 )
