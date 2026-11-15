@@ -229,7 +229,7 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
     confirmation_options: dict[str, Any] = (
         {"full_source_confirmation": True} if full_confirmation else {}
     )
-    w = request["workload"]
+    w = request.get("workload", {})
     if type(full_confirmation) is not bool or (
         full_confirmation
         and (
