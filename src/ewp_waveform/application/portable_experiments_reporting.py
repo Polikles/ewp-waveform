@@ -318,6 +318,48 @@ def diagnostic_bundle(
     return {"path": str(destination), "members": members, "uncompressed_bytes": total}
 
 
+def _matched_diagnostic_shape_reason(repeats: dict[int, dict[str, Any]]) -> str | None:
+    """Reject malformed matched proofs without rewriting retained raw records."""
+    for ordinal, sides in repeats.items():
+        for side, (_, result) in sides.items():
+            for key in (
+                "validation",
+                "experimental_controls",
+                "execution_settings",
+                "worker_interpreter",
+                "workload",
+            ):
+                if not isinstance(result.get(key), dict):
+                    return f"malformed matched diagnostic: {key} (repeat {ordinal} {side})"
+            interpreter = result["worker_interpreter"]
+            if any(
+                not isinstance(interpreter.get(key), str) or not interpreter[key].strip()
+                for key in ("executable", "version", "prefix")
+            ):
+                return f"unavailable observed interpreter identity (repeat {ordinal} {side})"
+            context = result.get("analysis_context")
+            if not isinstance(context, str) or not context.strip():
+                return f"unavailable observed analysis context (repeat {ordinal} {side})"
+            for key in ("lut_setup", "qualification", "worker"):
+                if key in result and not isinstance(result[key], dict):
+                    return f"malformed matched diagnostic: {key} (repeat {ordinal} {side})"
+            if side == "A":
+                lut = result.get("lut_setup")
+                if not isinstance(lut, dict) or not isinstance(lut.get("qualification"), dict):
+                    return f"malformed matched LUT qualification (repeat {ordinal} {side})"
+            elif not isinstance(result.get("qualification"), dict) or not isinstance(
+                result.get("worker"), dict
+            ):
+                return f"malformed matched CUDA qualification (repeat {ordinal} {side})"
+            elif any(
+                not isinstance(result["worker"].get(key), str)
+                or not result["worker"][key].strip()
+                for key in ("device", "device_name")
+            ):
+                return f"unavailable observed CUDA device identity (repeat {ordinal} {side})"
+    return None
+
+
 def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
     """Descriptive paired observations, never a ratio between unrelated scopes."""
     import math
@@ -338,7 +380,10 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
         orders, comparison = [], ""
         pipeline_contrast = group in ("compare-cpu-cuda-short", "compare-cpu-cuda-service32")
         repeat_reason = None
-        if pipeline_contrast:
+        malformed = _matched_diagnostic_shape_reason(repeats) if pipeline_contrast else None
+        if malformed:
+            excluded.append({"repeat": None, "reason": malformed})
+        if pipeline_contrast and not malformed:
             if set(repeats) != {1, 2} or any(set(s) != {"A", "B"} for s in repeats.values()):
                 repeat_reason = "requires complete two-repeat CPU/CUDA ABBA"
             else:
@@ -367,10 +412,13 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                         "spec",
                         "effective_preset",
                         "execution_settings",
+                        "worker_interpreter",
+                        "analysis_context",
+                        "analysis_cache_policy",
                     ):
                         if not first.get(key) or first.get(key) != second.get(key):
                             repeat_reason = "same-side repeat " + key + " mismatch"
-        for ordinal, sides in sorted(repeats.items()):
+        for ordinal, sides in () if malformed else sorted(repeats.items()):
             if set(sides) != {"A", "B"}:
                 excluded.append({"repeat": ordinal, "reason": "missing pair member"})
                 continue
@@ -387,6 +435,7 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                     or r.get("evidence_status") == "SALVAGED_UNVERIFIED"
                     or r.get("validation", {}).get("passed") is not True
                     or not isinstance(wall, (int, float))
+                    or (pipeline_contrast and type(wall) is bool)
                     or not math.isfinite(wall)
                     or wall <= 0
                 ):
@@ -512,6 +561,17 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             for side, r in (("A", a), ("B", b)):
                 samples[side].append(r["wall_seconds"])
+        if pipeline_contrast and excluded:
+            # Counterbalancing is a property of the complete four-observation
+            # screen. An eligible ordinal cannot rescue a failed reference or
+            # leave misleading one-order medians after its sibling is excluded.
+            samples = {"A": [], "B": []}
+            excluded.append(
+                {
+                    "repeat": None,
+                    "reason": "complete eligible CPU/CUDA ABBA required; all samples withheld",
+                }
+            )
         stats = {
             side: {
                 "n": len(values),
@@ -795,7 +855,8 @@ def report(
             continue
         wall = result.get("wall_seconds")
         wall_text = f"{wall:.3f}" if isinstance(wall, (float, int)) else "—"
-        valid = result.get("validation", {})
+        valid_value = result.get("validation")
+        valid = valid_value if isinstance(valid_value, dict) else {}
         validation = f"{valid.get('frames')} frames PASS" if valid.get("passed") else "—"
         reason = _reason(result)
         use = "FRESH" if name in fresh_names else "REUSED"

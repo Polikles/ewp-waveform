@@ -248,7 +248,11 @@ def report_fixture() -> dict[str, Any]:
             },
             "same_side_reference": req.get("reference"),
             "output": name + ".mov",
-            "worker_interpreter": {"executable": "same"},
+            "worker_interpreter": {
+                "executable": "same",
+                "version": "3.12 fixture",
+                "prefix": "same",
+            },
             "analysis_context": "interval-local",
             "analysis_cache_policy": "disabled identically for matched serial service sides",
             "original_raster_sha256": "r",
@@ -290,7 +294,8 @@ def test_report_rejects_unmatched_or_unproven_pairs(change: str) -> None:
     else:
         b["qualification"]["gpu_qualified"] = False
     stats = pair_statistics(values)[0]
-    assert stats["validated_paired_n"] < 2 and stats["excluded"]
+    assert stats["validated_paired_n"] == 0 and stats["excluded"]
+    assert all(s["n"] == 0 and s["median_seconds"] is None for s in stats["sides"].values())
 
 
 def test_worker_refuses_unbounded_matched_before_outputs(tmp_path: Path) -> None:
@@ -333,3 +338,85 @@ def test_report_explains_matched_service_scope_and_worker_interpreter(tmp_path: 
     assert "First A and first B are verified standalone" in text
     assert "original-raster hashing overhead is included on both sides" in text
     assert "Stock service versus the custom FIR pipeline also changes wrapper" not in text
+
+
+@pytest.mark.parametrize("ordinal", (1, 2))
+@pytest.mark.parametrize("side", ("A", "B"))
+@pytest.mark.parametrize("change", ("failed", "validation", "salvaged", "wall", "qualification"))
+def test_report_requires_all_four_eligible_members(ordinal: int, side: str, change: str) -> None:
+    values = report_fixture()
+    item = values[f"compare-cpu-cuda-short-r{ordinal:02d}-{side}"]
+    if change == "failed":
+        item.update(status="FAILED", throughput_fresh=False)
+    elif change == "validation":
+        item["validation"]["passed"] = False
+    elif change == "salvaged":
+        item["evidence_status"] = "SALVAGED_UNVERIFIED"
+    elif change == "wall":
+        item["wall_seconds"] = None
+    elif side == "A":
+        item["lut_setup"]["qualification"]["passed"] = False
+    else:
+        item["qualification"]["passed"] = False
+    stats = pair_statistics(values)[0]
+    assert stats["validated_paired_n"] == 0 and stats["excluded"]
+    assert all(s["n"] == 0 and s["median_seconds"] is None for s in stats["sides"].values())
+
+
+@pytest.mark.parametrize(
+    "change", ("interpreter", "context", "interpreter-string", "interpreter-field")
+)
+def test_report_rejects_observed_identity_drift_across_ordinals(change: str) -> None:
+    values = report_fixture()
+    for name, item in values.items():
+        if "r02" not in name:
+            continue
+        if change == "interpreter":
+            item["worker_interpreter"]["executable"] = "another observed Python"
+        elif change == "context":
+            item["analysis_context"] = "changed observed context"
+        elif change == "interpreter-string":
+            item["worker_interpreter"] = "not an inventory"
+        else:
+            item["worker_interpreter"]["version"] = ""
+    stats = pair_statistics(values)[0]
+    assert stats["validated_paired_n"] == 0 and stats["excluded"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "lut_setup",
+        "lut_qualification",
+        "qualification",
+        "validation",
+        "worker",
+        "experimental_controls",
+        "worker_interpreter",
+    ),
+)
+@pytest.mark.parametrize("malformed", (None, [], "invalid"))
+def test_malformed_matched_proofs_preserve_failure_and_report_companions(
+    tmp_path: Path, field: str, malformed: Any
+) -> None:
+    import json
+
+    from ewp_waveform.application.portable_experiments_reporting import report
+
+    values = report_fixture()
+    side = "B" if field in ("qualification", "worker") else "A"
+    item = values["compare-cpu-cuda-short-r01-" + side]
+    if field == "lut_qualification":
+        item["lut_setup"]["qualification"] = malformed
+    else:
+        item[field] = malformed
+    original = copy.deepcopy(values)
+    path = report(tmp_path, "FAILED", "original worker failure", {"compare_cpu_cuda": True}, values)
+    assert path.is_file()
+    full = json.loads(path.with_suffix(".json").read_text())
+    assert full["error"] == "original worker failure" and full["status"] == "FAILED"
+    assert full["results"] == original and values == original
+    assert full["pair_statistics"][0]["validated_paired_n"] == 0
+    assert full["pair_statistics"][0]["excluded"]
+    assert list(path.parent.glob("measurements-*.json"))
+    assert path.with_name(path.stem + "-diagnostics.json").is_file()
