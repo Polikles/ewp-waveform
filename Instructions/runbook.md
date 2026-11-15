@@ -18,7 +18,33 @@ It reads WAV/MP3 (source files are never modified) and writes transparent wavefo
 
 Compose those assets later in DaVinci Resolve or another NLE. This tool does not edit audio, transcribe, or assemble the final podcast video.
 
-## Defaults you will actually use
+## Recommended saved refined-ribbon production path
+
+For stationary refined ribbon, mapping7 / filled-ribbon-v2 with the saved production
+appearance, use the existing CPU helper. In native Windows PowerShell from the
+updated checkout, with the already prepared environment and no activation:
+
+```powershell
+git pull --ff-only
+py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
+```
+
+Use a clean main checkout for the update; preserve local work if Git refuses.
+The helper reuses verified runtime/tools without installing, creates fresh output
+directories, and prints native MOV and result paths. The transparent ProRes4444
+MOV is the Resolve asset; JSON/logs are provenance. Repeat the helper separately
+with another mono recording's actual `--audio` path for another independent asset.
+Do not infer the second speaker's filename or require a new render of the accepted
+asset. The one-command multi-file procedure remains later work.
+
+The operator's full Windows asset imported/displayed correctly in Resolve Studio.
+The completed matched comparison supports this bounded practical CPU selection,
+not a universal GPU rejection. CUDA remains opt-in; its full native Resolve gate
+does not block editing with the CPU asset. [Evidence and next work](../docs/notes/refined-ribbon-cpu-selection-20261115.md);
+[runtime/output/usage details](../EXPERIMENTS.md#ordinary-full-file-windows-cpu-render-no-experiment-campaign).
+No production appearance, code or other-style default changes accompany this decision.
+
+## Legacy CLI defaults (separate from the saved production helper)
 
 | Choice | Name | Meaning |
 |---|---|---|
@@ -26,7 +52,8 @@ Compose those assets later in DaVinci Resolve or another NLE. This tool does not
 | Fixed-axis spectrum | `iuris-spectrum` | Frequency on X (log-Hz, auto span). Vertical motion only. Experimental. |
 | Performance | `balanced` | 60 s chunks, 2 encode processes, FFmpeg threads 0 (auto; pinned to 1 per process when jobs>1). |
 
-Playhead envelope and particles are not available. GPU is not used.
+Playhead envelope and particles are not available. These legacy defaults do not use
+GPU; separately guarded GPU experiments remain opt-in.
 
 ## File names and grouping
 
@@ -40,7 +67,8 @@ Playhead envelope and particles are not available. GPU is not used.
 
 ## Everyday commands
 
-All commands from the checkout, with `uv run` in front.
+The following general CLI commands run from the checkout with `uv run` in front;
+the prepared-runtime production helper above does not use `uv`.
 
 ```bash
 # Environment

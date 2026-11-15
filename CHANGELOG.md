@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Close the saved single-file refined-ribbon pass around the existing CPU command:
+  document completed full CPU/CUDA report `cf7c9a5277e5`, its n1/side AB limits,
+  exact output identities and separate native Windows Resolve import/display
+  acceptance. Recommend prepared-runtime ordinary Windows production without
+  changing code, appearance or other-style defaults. Keep CUDA opt-in, full CUDA
+  native assessment and multi-file/context-amortization work deferred; no closing
+  render or benchmark replay is needed. Earlier preparation entries below retain
+  their historical implementation scope, not current target-result status.
+
 - Add standalone `--compare-cpu-cuda-full`: exactly one full-source CPU-LUT control
   then one combined CUDA-FIR candidate through the existing serial service, with
   explicit12GiB growth/10GiB reserve admission, complete-source normalization and

@@ -1,5 +1,11 @@
 # Supplied refined-ribbon target evidence — 2026-11-15
 
+**Current closeout:** the subsequent full-source report `cf7c9a5277e5` is now
+COMPLETE / VALIDATED PAIR. [Separate full evidence and practical CPU selection](refined-ribbon-cpu-selection-20261115.md)
+supersede the next-action wording in the historical preparation section below.
+Keep using the accepted CPU asset; no campaign replay or new operator review is
+needed to close this pass. Original report statuses and earlier evidence remain unchanged.
+
 This additive record supersedes earlier **current-use** statements that the combined
 CUDA candidate is unmeasured or the ordinary Windows helper has never succeeded.
 Earlier dated failures, tests and acceptance records remain historical, unchanged.
@@ -121,7 +127,9 @@ not local execution or independent media/ledger revalidation. Windows89s remains
 an unmatched job-duration observation, not an isolated OS/backend comparison.
 No full-source winner or two-duration crossover is inferred; do not rerun shorts.
 
-## Explicit full-source confirmation is prepared, not executed here
+## Historical full-source preparation (superseded by completed closeout)
+
+The following records the earlier preparation state, not a current execution request.
 
 The next action is the separate
 [full confirmation opt-in](../../EXPERIMENTS.md#explicit-full-source-confirmation--2026-11-15):

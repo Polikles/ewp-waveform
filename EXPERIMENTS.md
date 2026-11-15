@@ -14,23 +14,19 @@ control campaign is **COMPLETE**; do not rerun it as the next task.
 retain the reported settings, source JSON hashes and results. Windows producing
 commit/whole-MOV hash remain unknown; acceptance is import/display only.
 
-The matched CPU-LUT/CUDA-FIR short campaign is also **COMPLETE** on clean P4326f8e;
-[reported target observations](docs/notes/refined-ribbon-target-evidence-20261115.md#completed-matched-cpulut-versus-cuda-fir-screen)
-are descriptive, not a full-file result. Do not rerun the short campaign.
+The matched short campaign on clean P4326f8e and the subsequent full-source
+confirmation on clean P43682ff are both **COMPLETE**. Report `cf7c9a5277e5` admits
+one fresh CPU then CUDA pair, n=1/side AB, not counterbalanced: service
+134.836780 / 161.968311s; cold worker176.112998 / 203.427444s. Both validated all
+23,741frames. These are whole-pipeline observations with different finishing
+algorithms, not medians or isolated kernel acceleration. Costs overlap.
+[Completed evidence, exact identities and practical selection](docs/notes/refined-ribbon-cpu-selection-20261115.md)
+close this style/workload pass around the usable CPU path. **Do not rerun shorts,
+the full pair or another benchmark campaign to close this pass.** No CUDA promotion
+or new Resolve review is requested; its full native assessment remains pending.
 
-From the clean updated checkout on the same WSL host, explicitly opt into one
-full-source confirmation (CPU first, CUDA second; n=1 per side):
-
-```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --compare-cpu-cuda-full --max-growth-gib 12 --reserve-gib 10 --timeout 1800
-```
-
-This command reuses the retained CUDA preparation, never requests a CUDA install,
-and does not run short4/32 again. Read the [full confirmation policy](#explicit-full-source-confirmation--2026-11-15)
-below before launch. The existing `--compare-cpu-cuda` flag remains short4/gated32
-ABBA only; neither it nor any existing command silently acquires a full render.
-
-For a usable complete CPU/ProRes asset on native Windows, in PowerShell:
+For ordinary production of this saved refined-ribbon look, use CPU on native
+Windows. From the updated checkout in PowerShell, reusing prepared tools/runtime:
 
 ```powershell
 py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
@@ -58,6 +54,10 @@ or global Python dependency is installed.
 The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
 ## Explicit full-source confirmation — 2026-11-15
+
+**Completed historical interface/policy, not a next-run request.** The operator
+completed report `cf7c9a5277e5`; see the [separate closeout](docs/notes/refined-ribbon-cpu-selection-20261115.md).
+The opt-in interface and its safeguards remain available, but no repeat is needed.
 
 `--compare-cpu-cuda-full` is a separate standalone opt-in, not `--full` appended to
 the short command. It requires `--cuda` and explicitly supplied growth/reserve
@@ -799,12 +799,25 @@ static Windows tests and mocked devices do not establish native Windows/GPU succ
 
 ## Ordinary full-file Windows CPU render (no experiment campaign)
 
-For actual asset production from the current checkout, use the prepared-runtime,
-reuse-only helper. In PowerShell, with no environment activation:
+This is the **recommended ordinary path for the saved stationary refined-ribbon
+look**, not a global default change for other styles. The full comparison and
+accepted Windows usability evidence are [recorded separately](docs/notes/refined-ribbon-cpu-selection-20261115.md).
+For a new asset, start in the updated checkout (use `git pull --ff-only` on a clean
+main checkout; preserve local work if Git refuses). Use the prepared-runtime,
+reuse-only helper in native Windows PowerShell, with no environment activation:
 
 ```powershell
 py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
 ```
+
+For another mono recording, invoke the same command separately and replace only
+the quoted `--audio` value with that recording's actual existing path. Each input
+produces its own transparent MOV asset; do not mix the two speakers' recordings.
+The second speaker's filename is not prescribed. A convenient one-command
+multi-file procedure and batch/context-amortization tests remain deferred, not
+implemented or measured here. Import the printed MOV into Resolve Studio; result
+JSON/logs are provenance, not the editing asset. Continue using the already accepted
+CPU asset without regenerating or reassessing it just to close this pass.
 
 Native Windows keeps the supplied drive/UNC path in the ordinary CLI and input
 discovery; it does not translate it to `/mnt/d/...` or add a blanket path prefix.

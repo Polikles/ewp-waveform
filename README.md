@@ -39,6 +39,25 @@ Audio editing/mastering, transcription, subtitles, source separation, final scen
 
 ## Install and run
 
+For the saved stationary refined-ribbon appearance (mapping7 / filled-ribbon-v2),
+the recommended ordinary path is **CPU**, using the already prepared environment.
+From the updated clean main checkout in native Windows PowerShell (preserve local
+work if Git refuses the update):
+
+```powershell
+git pull --ff-only
+py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
+```
+
+No environment activation or new setup is needed when preparation is already
+valid. Each invocation uses a fresh output directory and prints native MOV/result
+paths; import the transparent ProRes4444 MOV into Resolve Studio. To render another
+mono recording, run the same command with its actual path: one input, one asset.
+The accepted asset can remain in the edit; no render is required just to close
+this optimization pass. See the [production usage details](EXPERIMENTS.md#ordinary-full-file-windows-cpu-render-no-experiment-campaign)
+and [completed comparison / bounded CPU selection](docs/notes/refined-ribbon-cpu-selection-20261115.md).
+CUDA remains opt-in; other styles and later multi-file throughput work are separate.
+
 For the opt-in WSL/CUDA/native Windows CPU/Vulkan experiments, use the single
 [canonical operator guide](EXPERIMENTS.md). From a clean checkout:
 

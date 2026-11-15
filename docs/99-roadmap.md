@@ -2,6 +2,23 @@
 
 No dates are assigned until evidence supports them.
 
+## Refined-ribbon pass closed — 2026-11-15
+
+- Complete/usable: saved stationary refined-ribbon mapping7 / filled-ribbon-v2,
+  one-file CPU command and transparent MOV for Resolve Studio. The operator accepted
+  native Windows import/display; keep editing with that asset without a closing rerender.
+- Deferred: convenient one-command multi-file procedure and batch-throughput tests;
+  each separate mono input still produces its own asset. CUDA context/setup
+  amortization is an opportunity, not a demonstrated multi-file gain.
+- Separate future work: other styles/settings/backends, including CUDA; no global
+  defaults or experimental safeguards are changed by this scoped CPU choice.
+- Remaining experimental gate: full native Resolve assessment of the retained
+  full CUDA candidate (and applicable changed outputs before their promotion),
+  not a blocker or new review request for the accepted CPU workflow.
+
+See [completed full/short observations, identities and sampling limits](notes/refined-ribbon-cpu-selection-20261115.md).
+No new benchmark campaign is required to close this pass.
+
 ## Current experiment direction — 0.6.0
 
 The opt-in [portable experiment workflow](../EXPERIMENTS.md) compares installed
