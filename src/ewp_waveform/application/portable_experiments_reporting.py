@@ -352,8 +352,7 @@ def _matched_diagnostic_shape_reason(repeats: dict[int, dict[str, Any]]) -> str 
             ):
                 return f"malformed matched CUDA qualification (repeat {ordinal} {side})"
             elif any(
-                not isinstance(result["worker"].get(key), str)
-                or not result["worker"][key].strip()
+                not isinstance(result["worker"].get(key), str) or not result["worker"][key].strip()
                 for key in ("device", "device_name")
             ):
                 return f"unavailable observed CUDA device identity (repeat {ordinal} {side})"
