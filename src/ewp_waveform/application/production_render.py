@@ -235,8 +235,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             require_process_safe(record)
             if record["returncode"] != 0 or record["error"]:
+                details = (
+                    "\n".join(
+                        f"{name}: {record[name]}"
+                        for name in ("error", "stderr", "stdout")
+                        if record.get(name)
+                    )
+                    or "no command diagnostics"
+                )
                 raise ValueError(
-                    f"command failed; see {folder}: {record['error']}\n{record['stderr']}"
+                    f"command failed (returncode={record['returncode']}); see {folder}\n{details}"
                 )
             return record
 

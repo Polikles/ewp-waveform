@@ -19,7 +19,7 @@ from tests.render_oracles import assert_prores_contract, decoded_prores_frames
 
 
 def test_ordinary_production_launcher_publishes_six_frames(tmp_path: Path) -> None:
-    source = tmp_path / "s0e00-Ordinary.wav"
+    source = tmp_path / "s9e17-Other mono with spaces.wav"
     samples = array("h", (round(15000 * math.sin(i * math.tau * 440 / 48000)) for i in range(4800)))
     if sys.byteorder != "little":
         samples.byteswap()
@@ -27,12 +27,13 @@ def test_ordinary_production_launcher_publishes_six_frames(tmp_path: Path) -> No
         stream.setparams((1, 2, 48000, 0, "NONE", "not compressed"))
         stream.writeframes(samples.tobytes())
     before = identity(source), source.stat().st_mtime_ns
-    media = tmp_path / "media"
+    media = tmp_path / "media with spaces"
     evidence = Path(os.environ.get("EWP_PRODUCTION_TEST_EVIDENCE", str(tmp_path / "logs")))
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     assert ffmpeg and ffprobe
     command = [
         sys.executable,
+        "-S",  # Stdlib-only bootstrap must reuse the selected populated environment.
         str(production.DRIVER),
         "--audio",
         str(source),
@@ -67,6 +68,10 @@ def test_ordinary_production_launcher_publishes_six_frames(tmp_path: Path) -> No
     assert result_payload_errors(payload) == []
     assert payload["job"]["status"] == "SUCCEEDED"
     mov = Path(summary["output"]["path"])
+    assert f"Output root: {media}" in observed.stdout
+    assert f"Logs: {evidence}" in observed.stdout
+    assert f"SUCCEEDED: {mov}" in observed.stdout
+    assert f"Result: {summary['result_json']}" in observed.stdout
     assert_prores_contract(mov, width=1400, height=280, fps=60, frame_count=6)
     frames = decoded_prores_frames(mov, width=1400, height=280)
     assert len(frames) == 6
@@ -109,3 +114,45 @@ def test_ordinary_production_launcher_publishes_six_frames(tmp_path: Path) -> No
     assert refused.returncode == 2 and "already exists" in refused.stderr
     for item in held.values():
         verify(item)
+
+
+def test_launcher_reports_real_cli_input_failure(tmp_path: Path) -> None:
+    source = tmp_path / "unsupported input.txt"
+    source.write_bytes(b"synthetic unsupported input; must never reach decoding")
+    before = identity(source), source.stat().st_mtime_ns
+    media = tmp_path / "fresh media"
+    evidence_parent = Path(os.environ.get("EWP_PRODUCTION_TEST_EVIDENCE", str(tmp_path / "logs")))
+    evidence = evidence_parent.parent / (evidence_parent.name + "-input-failure")
+    observed = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(production.DRIVER),
+            "--audio",
+            str(source),
+            "--python",
+            sys.executable,
+            "--output-root",
+            str(media),
+            "--evidence-root",
+            str(evidence),
+            "--max-growth-gib",
+            "0.0625",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    assert observed.returncode == 2, observed.stdout + observed.stderr
+    child = json.loads((evidence / "ordinary-cli/result.json").read_text())
+    assert child["returncode"] == 3 and child["error"] is None
+    assert child["shutdown_verified"] is True
+    failure = json.loads((evidence / "failure.json").read_text())["error"]
+    assert "returncode=3" in failure and "MVP inputs are WAV and MP3" in failure
+    assert str(evidence / "ordinary-cli") in failure
+    assert failure in observed.stderr
+    assert not (evidence / "publication.json").exists()
+    assert not (media / "output").exists()
+    assert (identity(source), source.stat().st_mtime_ns) == before

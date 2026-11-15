@@ -655,6 +655,15 @@ reuse-only helper. In PowerShell, with no environment activation:
 py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
 ```
 
+Native Windows keeps the supplied drive/UNC path in the ordinary CLI and input
+discovery; it does not translate it to `/mnt/d/...` or add a blanket path prefix.
+Quote paths containing spaces. Another mono filename is equally valid; the example
+is not a required recording name. On Linux/WSL the CLI retains its drive-to-`/mnt`
+compatibility, and WSL's own `/mnt/d/...` paths stay unchanged. Use a host-native
+existing file for the helper's `--audio` argument. This is the primary render input,
+not a reference-normalization input; the selected config/preset/performance files
+contain no machine-specific audio path and need no path repair.
+
 This runs exactly one ordinary `python -m ewp_waveform render` through the shared
 application service, with normal validation and publication. It renders the entire
 supplied file, not a preview, matrix, benchmark, CUDA adapter or experimental
@@ -706,6 +715,10 @@ root is refused without modifications, never resumed/forced/overwritten.
 `--evidence-root PATH` optionally separates logs from media and must also be new.
 Generated data must be outside the product checkout (ignored external ops storage
 is permitted). Failed attempts remain intact; choose another fresh root.
+Command failures report the child return code and available error, stderr and
+stdout (including input-discovery diagnostics), plus the retained log directory;
+the helper itself returns2 on refusal/failure, not the child's exit code. Successful
+root/MOV/result paths are printed in the host's native path syntax.
 
 Defaults allow8GiB new output/work/log growth, require10GiB free reserve and permit
 up to24hours (`--max-growth-gib`, `--reserve-gib`, `--timeout-seconds`). Sampled
@@ -717,6 +730,9 @@ smoke is one synthetic0.1s/six-frame **ordinary full-file** render at the commit
 production geometry, with qualified LUT, decoded fractional alpha, silent stream,
 schema-valid publication, cleanup, source immutability and collision refusal.
 Linux execution and Windows selection mocks do not qualify native Windows/NLE.
+The path-policy regression also follows launcher argv through actual Typer render
+parsing and resolved service config under explicitly labelled platform simulations;
+it does not execute a Windows filesystem or renderer on the Linux host.
 The supplied Windows four-second service LUT result was slower than GEQ; prior
 32s pipeline and per-encode qualification timings do not establish full speedup.
 
@@ -729,6 +745,9 @@ Serial GEQ/LUT native MOV hashes agree in the supplied records; jobs-policy MOV
 containers differ while decoded RGBA/alpha/composites agree. These are supplied
 Windows observations, not VM.1 target execution or a full-episode speedup. They
 supersede the earlier narrower Windows recommendation without rewriting it.
+
+A later one-command operator procedure for multiple input files is deferred;
+this helper remains single-file. No scheduler or throughput policy is added here.
 
 The **separate**, existing focused WSL CUDA experiment command is:
 

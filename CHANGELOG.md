@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Preserve native Windows input/output paths through ordinary CLI discovery instead
+  of rewriting drive paths to `/mnt/...`; retain Linux/WSL drive conversion and
+  native `/mnt/...` inputs, including quoted paths with spaces. Production-helper
+  failures now report the child return code and available error/stdout/stderr.
+  Linux synthetic launcher coverage and platform simulations are not native
+  Windows execution qualification; appearance and rendering policy are unchanged.
+
 - Keep combined CUDA campaign scheduling stdlib-only, moving rendering imports
   into the selected worker. Preserve full chained failure traceback, failing
   stage/frame and actual interpreter identity in future diagnostic exports.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -22,9 +23,9 @@ def builtin_performance_dir() -> Path:
 
 
 def normalize_user_path(value: str | Path) -> Path:
-    """Accept POSIX or Windows paths. On Linux, ``D:\\foo`` becomes ``/mnt/d/foo``."""
+    """Keep native Windows paths; on Linux/WSL map ``D:\\foo`` to ``/mnt/d/foo``."""
     text = str(value).strip().strip('"').strip("'")
-    if not text:
+    if not text or os.name == "nt":
         return Path(text)
     match = _WINDOWS_DRIVE.match(text)
     if match is not None:

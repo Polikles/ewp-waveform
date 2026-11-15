@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -64,7 +65,10 @@ def test_ordinary_full_cli_argv_and_private_performance(tmp_path: Path) -> None:
     text = production.performance_text(media)
     actual = tomllib.loads(text)
     committed = tomllib.loads(production.PERFORMANCE.read_text())
-    assert actual.pop("workdirs") == {**committed.pop("workdirs"), "root": str(media / "work")}
+    assert actual.pop("workdirs") == {
+        **committed.pop("workdirs"),
+        "root": (media / "work").as_posix(),
+    }
     assert actual == committed
     argv = production.cli_command(
         Path("python.exe"), Path("track with spaces.wav"), media, media / "performance.toml"
@@ -161,3 +165,167 @@ def test_windows_retained_tools_use_existing_lock_store(
 def test_unpaired_tools_refuse_before_launch(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="both --ffmpeg and --ffprobe"):
         production.select_tools(tmp_path / "ffmpeg", None, tmp_path, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "returncode,error,stdout,stderr,expected",
+    [
+        (3, None, "E_INPUT_UNSUPPORTED: primary missing", "", "primary missing"),
+        (5, None, "", "encoder failed", "encoder failed"),
+        (0, "timeout after 1s", "progress", "", "timeout after 1s"),
+        (None, "launch failed", "", "", "launch failed"),
+        (2, None, "", "", "no command diagnostics"),
+    ],
+)
+def test_failed_command_reports_exit_and_useful_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    returncode: int | None,
+    error: str | None,
+    stdout: str,
+    stderr: str,
+    expected: str,
+) -> None:
+    # Simulated supervisor results; no interpreter/tool acquisition or render.
+    source = tmp_path / "another mono.wav"
+    source.write_bytes(b"failure diagnostic fixture; not decoded")
+    output = tmp_path / "new"
+    monkeypatch.setattr(production, "check_budget", lambda *args: {})
+    monkeypatch.setattr(
+        production,
+        "run_command",
+        lambda *args, **kwargs: {
+            "returncode": returncode,
+            "error": error,
+            "stdout": stdout,
+            "stderr": stderr,
+            "shutdown_verified": True,
+        },
+    )
+    assert (
+        production.main(
+            ["--audio", str(source), "--python", sys.executable, "--output-root", str(output)]
+        )
+        == 2
+    )
+    failure = json.loads((output / "logs/failure.json").read_text())["error"]
+    assert f"returncode={returncode}" in failure
+    assert expected in failure
+    assert "see " in failure and "runtime" in failure
+    assert failure in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "platform,audio,expected,output",
+    [
+        (
+            "nt",
+            r"D:\test-waveform\s0e00\s0e00-Damian.wav",
+            r"D:\test-waveform\s0e00\s0e00-Damian.wav",
+            r"E:\render output\fresh",
+        ),
+        (
+            "nt",
+            "D:/test-waveform/s0e00/s0e00-Damian.wav",
+            "D:/test-waveform/s0e00/s0e00-Damian.wav",
+            "E:/render output/fresh",
+        ),
+        (
+            "nt",
+            r"E:\other episode\s9e17-Other mono.wav",
+            r"E:\other episode\s9e17-Other mono.wav",
+            r"F:\other output\fresh",
+        ),
+        (
+            "posix",
+            r"E:\other episode\s9e17-Other mono.wav",
+            "/mnt/e/other episode/s9e17-Other mono.wav",
+            "/mnt/f/render output/fresh",
+        ),
+        (
+            "posix",
+            "/mnt/d/other episode/s9e17-Other mono.wav",
+            "/mnt/d/other episode/s9e17-Other mono.wav",
+            "/mnt/f/render output/fresh",
+        ),
+    ],
+)
+def test_launcher_argv_through_typer_and_resolved_service_platform_simulation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    audio: str,
+    expected: str,
+    output: str,
+) -> None:
+    from typer.testing import CliRunner
+
+    from ewp_waveform import cli, paths
+    from ewp_waveform.application import service
+    from ewp_waveform.config.models import PerformanceProfile, VisualPreset
+    from ewp_waveform.domain.models import PlannedJob, SourceMedia
+
+    # Only the path-policy branch is simulated. Native host config loading and
+    # Typer/service resolution remain real; foreign filesystem/media I/O does not.
+    monkeypatch.setattr(paths, "os", SimpleNamespace(name=platform))
+    discovered: list[Path] = []
+    selected: list[str] = []
+    host_source = tmp_path / "s9e17-Other mono.wav"
+
+    def discover(input_path: Path, **kwargs: Any) -> list[Path]:
+        discovered.append(input_path)
+        assert input_path == Path(expected)
+        assert kwargs == {"recursive": False, "follow_symlinks": False}
+        return [host_source]
+
+    def probe(path: Path) -> SourceMedia:
+        assert path == host_source
+        return SourceMedia(
+            path=path,
+            duration_seconds=0.1,
+            sample_rate=48000,
+            channels=1,
+            codec="pcm_s16le",
+            format_name="wav",
+            size_bytes=9644,
+        )
+
+    class ReachedRenderer(RuntimeError):
+        pass
+
+    def render_job(
+        job: PlannedJob,
+        media: SourceMedia,
+        preset: VisualPreset,
+        performance: PerformanceProfile,
+        **kwargs: Any,
+    ) -> Any:
+        assert job.path == host_source and media.channels == 1
+        assert preset.model_dump() == load_preset(str(production.PRESET)).model_dump()
+        assert performance.model_dump() == load_performance(str(performance_path)).model_dump()
+        assert preset.signal["visual_noise"] == 0.35 and preset.signal["noise_seed"] == 1729
+        assert preset.waveform.color_mode == "custom"
+        assert preset.waveform.reflection_opacity == 0.45
+        assert performance.processing["jobs"] == 1
+        assert performance.processing["ribbon_finish_lut"] is True
+        assert kwargs["formats"] == ["prores4444"]
+        assert kwargs["output_dir"] == Path(output) / "output"
+        assert kwargs["force"] is False
+        assert kwargs["start"] is None and kwargs["duration"] is None
+        selected.append(preset.name)
+        # Stop before renderer/publication: do not synthesize a successful render.
+        raise ReachedRenderer
+
+    monkeypatch.setattr(service, "discover_paths", discover)
+    monkeypatch.setattr(service, "probe_media", probe)
+    monkeypatch.setattr(service, "render_job", render_job)
+    performance_path = tmp_path / "performance.toml"
+    performance_path.write_text(production.performance_text(tmp_path), encoding="utf-8")
+    argv = production.cli_command(Path(sys.executable), Path(audio), Path(output), performance_path)
+    observed = CliRunner().invoke(cli.app, argv[3:])
+    assert isinstance(observed.exception, ReachedRenderer), observed.output or repr(
+        observed.exception
+    )
+    assert discovered == [Path(expected)]
+    assert selected == ["iuris-ribbon-refined-production"]
