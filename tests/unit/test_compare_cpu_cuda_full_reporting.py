@@ -93,7 +93,7 @@ def full_fixture(frames: int = 5) -> dict[str, Any]:
             "qualification": {"passed": True, "gpu_qualified": True},
             "raster_feed": {"frames": frames},
         }
-    calls = [
+    calls: list[dict[str, Any]] = [
         {
             "ordinal": i,
             "kind": "finish",

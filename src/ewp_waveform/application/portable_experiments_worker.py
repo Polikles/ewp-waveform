@@ -438,6 +438,7 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
         torch_metrics["batch_tail_validation"] = validate_batch_tail(
             torch_metrics["raster_feed"], w["frames"], request["batch_size"]
         )
+    validation_options: dict[str, Any] = {"require_silent": True} if full_confirmation else {}
     valid = validation.inspect(
         request["ffmpeg"],
         request["ffprobe"],
@@ -452,7 +453,7 @@ def service_render(request: dict[str, Any]) -> dict[str, Any]:
             (finish_lut or torch_finish or request.get("reference_lossless"))
             and request.get("reference")
         ),
-        **({"require_silent": True} if full_confirmation else {}),
+        **validation_options,
     )
     if request.get("variant") == "TRANSFER" or (
         (finish_lut or torch_finish or request.get("reference_lossless"))
