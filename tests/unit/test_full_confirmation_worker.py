@@ -106,7 +106,7 @@ def test_full_worker_request_refuses_before_any_render(tmp_path: Path, damage: s
         request["backend"] = "torch-cpu"
     else:
         request["full_source_confirmation"] = "true"
-    with pytest.raises(ValueError, match="full|bounded"):
+    with pytest.raises(ValueError, match=r"full|bounded"):
         service_render(request)
 
 
@@ -183,6 +183,7 @@ def test_positive_full_worker_passes_unbounded_request_to_real_service_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, side: str
 ) -> None:
     from types import SimpleNamespace
+
     from ewp_waveform.application import portable_experiments_worker as worker
     from ewp_waveform.application import service
 
