@@ -94,12 +94,13 @@ Prior failed WSL CPU records remain SALVAGED_UNVERIFIED/n0; no historical compar
 is rerun or authenticated by this new CUDA record. The combined control campaign is
 closed. Its old flags remain replay interfaces, not the recommended next task.
 
-## Next task, not a completed result
+## Implemented matched screen, not a target performance result
 
 Follow the dedicated [current CPU/CUDA comparison scope](../../EXPERIMENTS.md#current-cpucuda-service-comparison-scope--2026-11-15).
-The new comparison implementation and parent verification are pending in this record.
-CPU recursive FFmpeg blur versus CUDA FIR is an intentional algorithm contrast;
-no cross-algorithm byte-equality oracle or completed performance result is asserted.
+The screen is implemented in the existing runner; actual matched RTX3090 timing
+and qualification remain target-only. CPU recursive FFmpeg blur versus CUDA FIR
+is an intentional algorithm contrast; no cross-algorithm byte-equality oracle or
+completed performance result is asserted.
 Full-source comparison is deferred, conditional on useful, visually close shorts and
 separate control/candidate/work capacity admission above the6GiB short budget.
 Two speakers' existing mono files remain two independent assets; a convenient

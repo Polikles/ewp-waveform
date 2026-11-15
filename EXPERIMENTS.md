@@ -14,9 +14,9 @@ control campaign is **COMPLETE**; do not rerun it as the next task.
 retain the reported settings, source JSON hashes and results. Windows producing
 commit/whole-MOV hash remain unknown; acceptance is import/display only.
 
-The next intended WSL comparison uses the existing runner/preparations. **New
-`--compare-cpu-cuda` implementation and parent verification are pending in this
-record; use this recipe only after the checked implementation is integrated.**
+The next WSL comparison uses the existing runner/preparations and the implemented
+`--compare-cpu-cuda` campaign. Run from the clean updated checkout; the real matched
+RTX3090 measurements remain target-only, not established by local CPU-Torch tests.
 
 ```bash
 python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --compare-cpu-cuda --max-growth-gib 6
@@ -54,21 +54,29 @@ The old `scripts/run_wsl_experiments.py` command remains a compatibility entry.
 
 ## Current CPU/CUDA service comparison scope — 2026-11-15
 
-This is the new task scope, **implementation/checks pending parent verification**,
-not a completed CPU/CUDA performance claim. The exact intended command is at the
-top of this guide. It selects only two four-observation sequences:
+This implemented campaign is not a completed CPU/CUDA performance claim.
+The exact next command is at the top of this guide. It selects only two
+four-observation sequences:
 
 | Interval | Frames | Serial-service order | Observations |
 |---|---:|---|---:|
 | source[25,29) | 240 | CPU,CUDA,CUDA,CPU (ABBA) | 4 |
 | source[25,57) | 1,920 | CPU,CUDA,CUDA,CPU (ABBA) | 4 |
 
-Total: exactly8 actual `service.render` observations, n2/side/interval; prerequisite
-qualification and separate views/verification are additional stages, not extra
-render observations. CPU is the ordinary jobs1/serial qualified-LUT route with
-FFmpeg recursive blur. CUDA is the completed combined device-RGBA8/batch2/ordinary
-FIR candidate. Both sides must use the **same selected CUDA-capable Python and
-FFmpeg**, original input, complete effective appearance and encoder policy.
+Total when independently qualified and short gates pass:8 actual `service.render`
+observations, n2/side/interval; qualification and separate views/verification are
+additional stages, not render observations. A failed CUDA qualification still
+permits fresh CPU short controls in the same selected interpreter, but blocks the
+matched32s stage. CPU is the existing jobs1/serial qualified-LUT encoder with
+FFmpeg recursive blur. A scoped service adapter disables analysis caching and
+hashes original raster bytes identically on both sides. It enables CPU LUT at the
+encode hook: the ordinary performance result flag remains false (the normal API
+forbids combining that flag with an experiment adapter); the experiment identity,
+`lut_setup` and actual per-encode qualification record the effective LUT selection.
+No ordinary service guard is relaxed. CUDA is the completed combined
+device-RGBA8/batch2/ordinary FIR candidate. Both sides use the **same selected
+CUDA-capable Python and FFmpeg**, original input, complete saved production preset
+appearance and automatic CPU ProRes encoder-thread policy.
 Analysis cache is disabled identically, analysis/normalization is interval-local
 per interval, and source bounds/frame counts must be checked before rendering.
 This is an intentional **recursive CPU versus FIR CUDA algorithm/workflow contrast**,
@@ -85,6 +93,15 @@ preparation reuse, ownership/resource refusal and immutable failed-run evidence;
 no dependency acquisition or old CPU/CUDA control campaign replay is requested.
 Do not append `--optimize`, `--optimize-single-file`, `--cuda-combined`, `--full`,
 `--reference-only` or unrelated backend flags to the current command.
+
+Return the printed `report-ID.md`, `measurements-ID.json`,
+`report-ID-diagnostics.json`, and the diagnostic ZIP if packaging succeeded.
+Do not return audio or multi-gigabyte MOVs. If ZIP packaging refuses, return the
+separate intact JSON companions; packaging refusal is not render failure.
+First CPU/first CUDA external checks are standalone; their repeats compare only
+against their own side. Original-raster SHA-256 work is included on both sides;
+CUDA also retains its existing pre-encode RGBA digest. Those observations are not
+subtracted from service wall. Cross-algorithm byte identity is never required.
 
 A full control/candidate comparison is **deferred and conditional** on useful,
 visually close short results and separately admitted full-source budgets. Reserve

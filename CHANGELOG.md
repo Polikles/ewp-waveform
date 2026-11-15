@@ -5,8 +5,11 @@
 - Record supplied November15 native Windows full production/Resolve import-display
   acceptance and completed RTX3090 combined-CUDA campaign as curated evidence,
   without inferring unavailable Windows commit/MOV hash or broader acceptance.
-  Replace the current-next experiment recipe with the narrow CPU/CUDA service
-  comparison scope; implementation and parent verification remain pending here.
+  Add the focused `--compare-cpu-cuda` campaign: fresh CPU serial/LUT versus combined
+  CUDA through the actual service, same saved production look/interpreter/tools,
+  disabled caches, same-side exact repeat oracles and gated4/32s ABBA only.
+  Preserve independent qualification and explicit recursive-blur/FIR distinction;
+  actual matched NVIDIA timings and native experimental Resolve gates stay target-only.
 
 - Preserve native Windows input/output paths through ordinary CLI discovery instead
   of rewriting drive paths to `/mnt/...`; retain Linux/WSL drive conversion and
