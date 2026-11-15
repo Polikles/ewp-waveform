@@ -5,25 +5,31 @@ opt-in: production renderer defaults, output identities and accepted looks do no
 change. GUI work and additional render styles remain future roadmap items; the
 operator already has GUI graphic references.
 
-## Start with one command
+## Current one-file commands
 
-From a clean current `Polikles/ewp-waveform` checkout:
-
-WSL:
+From a clean updated `Polikles/ewp-waveform` checkout, the remaining WSL experiment
+uses the existing runner and verified preparations, without repeating the sixteen
+completed CPU renders:
 
 ```bash
-python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --optimize-single-file --cuda --max-growth-gib 6
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
 ```
 
-Native Windows, in PowerShell:
+For a usable complete CPU/ProRes asset on native Windows, in PowerShell:
 
 ```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --prepare-ffmpeg --optimize-single-file --max-growth-gib 6
+py -3 scripts/render_refined_ribbon.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav"
 ```
 
+The ordinary production helper uses a fresh timestamp/random output directory and
+the committed exact visual/serial-LUT settings described below. It is not an
+experiment campaign and does not acquire dependencies/tools. The experimental
+runner remains the single entry for all qualification/comparison/preparation work.
 No environment activation, exports, manifest editing or private startup documents.
-Git, a Python bootstrap and available `uv` (or a pre-existing locked Python3.12
-project environment) are prerequisites. WSL keeps its installed FFmpeg/ffprobe
+For experiment preparation, Git, a Python bootstrap and available `uv` (or a
+pre-existing locked Python3.12 project environment) are prerequisites. Ordinary
+production requires already prepared tools/runtime and never invokes `uv`.
+WSL keeps its installed FFmpeg/ffprobe
 baseline; Windows `--prepare-ffmpeg` explicitly permits isolated pinned acquisition
 without requiring a preinstalled pair or replacing system tools.
 The driver discovers/selects the locked Python3.12 project environment; if it is
@@ -138,6 +144,40 @@ lossy MOV contrast and exact reference-master comparisons are distinct. A tiny
 software-FFmpeg regression compares the same finished masks through raw RGBA and
 FFV1/decode, including hidden RGB and fractional alpha; it does not retroactively
 prove any retained full/direct run or establish native Windows/NLE acceptance.
+
+## November15 bootstrap repair and retained CPU evidence
+
+The supplied WSL run `run-20261115T095928Z-fb528a5f` failed after sixteen CPU
+renders and before CUDA. The source defect is reproduced: the dependency-light
+bootstrap imported `single_file_campaign -> cuda_combined_experiment ->
+render_fixed -> analysis.spectrum -> numpy`, despite populated selected CPU/CUDA
+workers. Rendering imports now stay behind worker-only methods/type checking.
+No global NumPy installation, working-environment rebuild or CUDA download is the
+repair. Future bootstrap/worker failures retain the full chained traceback, failing
+stage/frame and actual interpreter executable/version/prefix. The old report did
+not retain its original traceback/bootstrap identity; reproduction evidence is
+separate, not an invented historical stack.
+
+Original FAILED/SALVAGED_UNVERIFIED records and n=0 statistics remain unchanged.
+The bounded supplied ZIP omits original events/requests/results/media and contains
+only compact config, so it cannot authenticate these historical outputs on VM.1.
+If the full quiescent original run and indexed media remain on WSL, independently
+verify their retained exact bytes without resume, rendering, decoding, environment
+setup or a current-source equality requirement:
+
+```bash
+python3 -S scripts/authenticate_retained_success.py --run "/home/linuch/.local/state/ewp-portable-experiments/run-20261115T095928Z-fb528a5f" --output "/home/linuch/.local/state/ewp-portable-experiments/recovery-cpu-auth-r01"
+```
+
+The output directory must be new. This verifies the sealed config, complete event
+hashchain, unique request/terminal joins, process exit/shutdown, frozen validation,
+frame ordering/reference provenance and indexed artifact hashes, then writes only
+a separate authentication report and conservative eligible paired statistics.
+It reuses the historical validation of authenticated identical bytes; it is not
+fresh timing/pixels or signed third-party attestation. Missing/changed evidence
+remains ineligible. Do not remove owner.lock, rewrite the old report, or use
+`--resume` to bypass the failure. Optional `--diagnostics` requires an unexcerpted
+full original report, not the supplied transformed diagnostic export.
 
 ## Missing uv / bootstrap Python 3.14 (first native Windows run)
 
@@ -677,13 +717,25 @@ Linux execution and Windows selection mocks do not qualify native Windows/NLE.
 The supplied Windows four-second service LUT result was slower than GEQ; prior
 32s pipeline and per-encode qualification timings do not establish full speedup.
 
-The **separate**, existing focused Windows CUDA experiment command is:
+The supplied clean P/08b432a Windows campaign completed: serial32s service GEQ
+11.550576 -> LUT9.054572seconds (counterbalanced medians,n=2/side); serial4s service
+1.909447 ->2.101591seconds. Per-encode LUT qualification costs about0.57seconds,
+so short benefit is workload-dependent. The separate jobs2->jobs1 GEQ comparison
+30.555886 ->11.527845seconds is a worker-policy contrast, not an isolated LUT gain.
+Serial GEQ/LUT native MOV hashes agree in the supplied records; jobs-policy MOV
+containers differ while decoded RGBA/alpha/composites agree. These are supplied
+Windows observations, not VM.1 target execution or a full-episode speedup. They
+supersede the earlier narrower Windows recommendation without rewriting it.
 
-```powershell
-py -3 scripts/run_experiments.py --audio "D:\test-waveform\s0e00\s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
+The **separate**, existing focused WSL CUDA experiment command is:
+
+```bash
+python3 scripts/run_experiments.py --audio "/mnt/d/test-waveform/s0e00/s0e00-Damian.wav" --cuda --cuda-combined --cuda-combined-service32 --max-growth-gib 6
 ```
 
-It is not the production helper and is pending the current bootstrap/CUDA repair
-and target execution. It authorizes bounded short/32s tests, not full CUDA rendering;
-no successful CUDA repair, hardware run or speedup is claimed by this addition.
+It is not the production helper. The dependency-light bootstrap repair is locally
+verified; native CUDA execution and application-level4/32s results remain target-only.
+This command authorizes bounded short/32s tests, not full CUDA rendering, and
+reuses verified preparation without requesting installation. No native CUDA success
+or speedup is claimed from CPU-Torch tests or simulated dispatch.
 Historical notes and retained full-reference acceptance remain unchanged.

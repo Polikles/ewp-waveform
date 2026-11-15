@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Keep combined CUDA campaign scheduling stdlib-only, moving rendering imports
+  into the selected worker. Preserve full chained failure traceback, failing
+  stage/frame and actual interpreter identity in future diagnostic exports.
+  The existing CUDA-only4/32s command avoids repeating the CPU shortlist.
+- Add read-only `scripts/authenticate_retained_success.py`: independently check
+  retained successful CPU terminals and exact artifact bytes into a new report,
+  preserving original FAILED/SALVAGED statuses and separating reused validation
+  from fresh timing. Missing original records/media remain ineligible.
+
 - Add `scripts/render_refined_ribbon.py`, a reuse-only, no-activation Windows/WSL
   helper for one ordinary full-file CPU serial/LUT render, separate from experimental
   `--full`/CUDA campaigns. Commit the explicit selected refined-ribbon visual
