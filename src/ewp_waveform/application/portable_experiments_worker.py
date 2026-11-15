@@ -69,7 +69,6 @@ def audio_plan(request: dict[str, Any]) -> dict[str, Any]:
                     "start": None,
                     "duration": None,
                     "frames": round(duration * 60),
-                    "selection": "complete source, source-origin normalization and causal history",
                 }
             ],
             "analysis_context": "full-source",

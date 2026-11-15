@@ -149,6 +149,33 @@ def test_full_audio_plan_does_not_discover_short_intervals(
     assert workload["kind"] == "full" and workload["frames"] == 23741
     assert workload["start"] is workload["duration"] is None
     assert "quiet_intervals_seconds" not in result
+    from ewp_waveform.application.cuda_combined_experiment import compare_full_campaign
+
+    calls: list[dict[str, Any]] = []
+
+    def simulated_step(name: str, request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        calls.append(request)
+        return {
+            "status": "SUCCEEDED",
+            "passed": True,
+            "gpu_qualified": True,
+            "validation": {"passed": True},
+            "original_raster_sha256": "fixture-raster",
+        }
+
+    compare_full_campaign(
+        {
+            "compare_cpu_cuda_full": True,
+            "compare_cpu_cuda": False,
+            "audio": {"sha256": "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b"},
+            "cuda_python": "same-fixture-python",
+            "cuda_environment": {"fixture": True},
+        },
+        result,
+        simulated_step,
+        lambda *a: None,
+    )
+    assert [r["backend"] for r in calls if r["operation"] == "service"] == ["cpu-lut", "cuda"]
 
 
 @pytest.mark.parametrize("side", ["A", "B"])
