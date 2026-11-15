@@ -624,8 +624,14 @@ def reseal_terminal(run: Path, rows: list[dict[str, Any]], index: int) -> None:
 @pytest.mark.parametrize("operation", ["direct", "service"])
 @pytest.mark.parametrize(
     ("field", "bad"),
-    [("render", 100000.0), ("worker", 0.0), ("worker", -1.0),
-     ("worker", True), ("worker", "3"), ("cold_alias", 100000.0)],
+    [
+        ("render", 100000.0),
+        ("worker", 0.0),
+        ("worker", -1.0),
+        ("worker", True),
+        ("worker", "3"),
+        ("cold_alias", 100000.0),
+    ],
 )
 def test_contained_render_timer_must_agree_with_worker(
     tmp_path: Path, operation: str, field: str, bad: Any
@@ -691,4 +697,3 @@ def test_pair_admission_also_reconciles_alpha(tmp_path: Path, operation: str) ->
     stats = recovery._statistics(report["qualified"], report["config"])
     group = report["qualified"][name]["value"]["pair"]["id"]
     assert next(s for s in stats if s["id"] == group)["recovered_paired_n"] == 1
-
