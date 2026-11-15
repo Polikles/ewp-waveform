@@ -17,6 +17,7 @@ import platform
 import shutil
 import struct
 import sys
+import time
 import traceback
 import uuid
 import wave
@@ -580,6 +581,55 @@ def prerequisite_admission(args: argparse.Namespace) -> None:
             raise ValueError(tool_advice(rerun))
 
 
+def admit_full_cpu_cuda(args: argparse.Namespace, run: Path, media: Path) -> dict[str, Any]:
+    """Admit both retained MOVs and simultaneous work before any bootstrap/setup.
+
+    This conservative placement estimate is not a continuous/kernel quota. The
+    existing campaign budget and sampled process watchdog remain authoritative.
+    """
+    gib = 1024**3
+    allocations = {
+        "control": 3 * gib,
+        "candidate": 3 * gib,
+        "simultaneous_work": 3 * gib,
+        "logs_verification": gib,
+        "headroom": 2 * gib,
+    }
+    required = sum(allocations.values())
+    if args.max_growth_gib * gib < required or args.reserve_gib < 10:
+        raise ResourceAdmissionError("full CPU/CUDA requires growth >=12GiB and reserve >=10GiB")
+    # Media owns native controls/candidate/work and spare headroom; evidence owns logs.
+    placements = ((media, required - allocations["logs_verification"]), (run, gib))
+    filesystems: dict[int, dict[str, Any]] = {}
+    for path, amount in placements:
+        existing = path.resolve()
+        while not existing.exists():
+            existing = existing.parent
+        device = existing.stat().st_dev
+        entry = filesystems.setdefault(
+            device, {"paths": [], "required_bytes": 0, "free_bytes": None}
+        )
+        entry["paths"].append(str(path))
+        entry["required_bytes"] += amount
+        free = shutil.disk_usage(existing).free
+        entry["free_bytes"] = (
+            free if entry["free_bytes"] is None else min(entry["free_bytes"], free)
+        )
+    for entry in filesystems.values():
+        if entry["free_bytes"] < entry["required_bytes"] + args.reserve_gib * gib:
+            raise ResourceAdmissionError(
+                "full CPU/CUDA placement lacks pair allocation plus free reserve: " + str(entry)
+            )
+    return {
+        "allocations_bytes": allocations,
+        "required_growth_bytes": required,
+        "reserve_bytes": args.reserve_gib * gib,
+        "placements": list(filesystems.values()),
+        "scope": "conservative pre-bootstrap pair admission; "
+        "sampled watchdog, not continuous quota",
+    }
+
+
 def campaign_limits(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "growth_bytes": args.max_growth_gib * 1024**3,
@@ -880,13 +930,16 @@ def freeze(
             or args.cuda_combined
             or args.optimize_single_file
             or args.compare_cpu_cuda
+            or args.compare_cpu_cuda_full
         ),
         "cuda": args.cuda,
         "cuda_combined": args.cuda_combined,
         "cuda_combined_service32": args.cuda_combined_service32,
         "compare_cpu_cuda": args.compare_cpu_cuda,
+        "compare_cpu_cuda_full": args.compare_cpu_cuda_full,
+        "full_pair_admission": getattr(args, "_full_pair_admission", None),
         "optimize_single_file": args.optimize_single_file,
-        "repeats": args.repeats,
+        "repeats": 1 if args.compare_cpu_cuda_full else args.repeats,
         "optimize": args.optimize,
         "optimization": {
             "encoder_threads": args.optimize_encoder_threads,
@@ -896,7 +949,9 @@ def freeze(
             "compact": getattr(args, "optimize_compact", False),
             "service32": getattr(args, "optimize_service32", False),
         },
-        "repeat_scope": "speech shortlist (or six-frame smoke) and selected service32 pairs; "
+        "repeat_scope": "n=1 full-source sequential AB; no short rerenders"
+        if args.compare_cpu_cuda_full
+        else "speech shortlist (or six-frame smoke) and selected service32 pairs; "
         "sequential AB/BA alternating",
         "cuda_environment": cuda_environment,
         "cuda_error": cuda_error,
@@ -905,9 +960,11 @@ def freeze(
         "preparation_policy": preparation,
         "device": args.device,
         "expected_device": args.expect_device_regex,
-        "visual_overrides": {} if args.compare_cpu_cuda else template["visual_overrides"],
+        "visual_overrides": {}
+        if args.compare_cpu_cuda or args.compare_cpu_cuda_full
+        else template["visual_overrides"],
         "comparison_preset": identity(ROOT / "presets/iuris-ribbon-refined-production.toml")
-        if args.compare_cpu_cuda
+        if args.compare_cpu_cuda or args.compare_cpu_cuda_full
         else None,
         "limits": {**campaign_limits(args), "stage_timeout": args.timeout},
         "claim": "opt-in experiments; production defaults unchanged; GUI future only",
@@ -967,6 +1024,22 @@ def verify_config(run: Path, verification: Path) -> dict[str, Any]:
     return config
 
 
+def verify_full_service_identity(config: dict[str, Any]) -> dict[str, Any]:
+    """Read-only source/input/tool guard; never a runtime requalification or warmup."""
+    started = time.perf_counter()
+    if source_identity(ROOT) != config["source"]:
+        raise ValueError("full-service frozen source changed; no further dispatch")
+    verify(config["audio"])
+    for item in config["selected"]["tools"].values():
+        verify(item)
+    return {
+        "passed": True,
+        "wall_seconds": time.perf_counter() - started,
+        "scope": "source/input/selected-tool identity verification outside service and cold "
+        "worker envelope; no environment probe or warmup",
+    }
+
+
 def invoke(
     config: dict[str, Any],
     name: str,
@@ -975,6 +1048,8 @@ def invoke(
     optional: bool = False,
     python: str | None = None,
 ) -> dict[str, Any]:
+    full_service = config.get("compare_cpu_cuda_full") and request.get("operation") == "service"
+    identity_before = verify_full_service_identity(config) if full_service else None
     run, media = Path(config["run"]), Path(config["media"])
     root = run / "steps" / name
     root.mkdir(parents=True, exist_ok=False)
@@ -1006,6 +1081,7 @@ def invoke(
             else config["limits"]["stage_timeout"],
             monitor=lambda: check_budget(run, media, config["limits"]),
         )
+        identity_after = verify_full_service_identity(config) if full_service else None
         parse_errors: list[dict[str, str]] = []
         try:
             value: dict[str, Any] = (
@@ -1032,6 +1108,11 @@ def invoke(
                 "argv": observed["argv"],
             }
         value["optional"] = optional
+        if full_service:
+            value["full_service_identity_verification"] = {
+                "before": identity_before,
+                "after": identity_after,
+            }
         if request.get("pair"):
             value["pair"] = request["pair"]
         value["execution_settings"] = {
@@ -1063,6 +1144,8 @@ def invoke(
             value["experimental_controls"].update(
                 backend=request.get("backend"), matched_cpu_cuda=True
             )
+            if request.get("full_source_confirmation"):
+                value["experimental_controls"]["full_source_confirmation"] = True
         value["experimental_settings"] = {
             key: request.get(key)
             for key in ("codec", "variant", "encoder_threads", "filter_threads", "async_depth")
@@ -1285,8 +1368,18 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
         if name not in results:
             results[name] = skip(config, name, reason)
 
-    plan = step("audio-plan", {"operation": "audio-plan", "smoke": config["smoke"]})
+    plan_request: dict[str, Any] = {"operation": "audio-plan", "smoke": config["smoke"]}
+    if config.get("compare_cpu_cuda_full"):
+        plan_request["full_source_confirmation"] = True
+    plan = step("audio-plan", plan_request)
     workloads = plan["workloads"]
+    if config.get("compare_cpu_cuda_full"):
+        with failure_stage("campaign:compare-cpu-cuda-full"):
+            from ewp_waveform.application.cuda_combined_experiment import compare_full_campaign
+
+            compare_full_campaign(config, plan, step, skipped)
+        # Native MOVs remain available; never transcode large full-source views.
+        return results
     if config.get("compare_cpu_cuda"):
         with failure_stage("campaign:compare-cpu-cuda"):
             from ewp_waveform.application.cuda_combined_experiment import compare_campaign
@@ -1620,6 +1713,12 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--audio", type=Path)
     p.add_argument(
+        "--compare-cpu-cuda-full",
+        action="store_true",
+        help="only one full-source CPU LUT then combined CUDA FIR (AB, n=1/side); "
+        "requires --cuda and explicit --max-growth-gib >=12, --reserve-gib >=10; no shorts/views",
+    )
+    p.add_argument(
         "--compare-cpu-cuda",
         action="store_true",
         help="only matched serial CPU LUT vs combined CUDA FIR: short4 then gated32s ABBA; "
@@ -1832,6 +1931,40 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--audio PATH required except with --cpu-smoke or --resume")
     if args.cpu_smoke and (args.full or args.reference_only):
         p.error("--cpu-smoke cannot authorize a full render")
+    explicit_flags = {token.split("=", 1)[0] for token in argv}
+    if args.compare_cpu_cuda_full and (
+        not args.cuda
+        or not args.audio
+        or args.cpu_smoke
+        or args.compare_cpu_cuda
+        or args.optimize
+        or args.optimize_single_file
+        or args.cuda_combined
+        or args.cuda_combined_service32
+        or args.full
+        or args.reference_only
+        or args.preflight_only
+        or args.setup_only
+        or args.verify_environment
+        or args.inspect_storage is not None
+        or "--repeats" in explicit_flags
+    ):
+        p.error(
+            "--compare-cpu-cuda-full requires --audio and --cuda; "
+            "standalone n=1 mode excludes smoke/other campaigns/actions/repeats"
+        )
+    if args.compare_cpu_cuda_full and (
+        "--max-growth-gib" not in explicit_flags
+        or "--reserve-gib" not in explicit_flags
+        or not math.isfinite(args.max_growth_gib)
+        or args.max_growth_gib < 12
+        or not math.isfinite(args.reserve_gib)
+        or args.reserve_gib < 10
+    ):
+        p.error(
+            "--compare-cpu-cuda-full requires explicit --max-growth-gib >=12 "
+            "and explicit --reserve-gib >=10"
+        )
     if args.compare_cpu_cuda and (
         not args.cuda
         or args.repeats != 2
@@ -1903,6 +2036,7 @@ def main(argv: list[str] | None = None) -> int:
         for option in (
             "--audio",
             "--compare-cpu-cuda",
+            "--compare-cpu-cuda-full",
             "--optimize-single-file",
             "--cuda-combined",
             "--cuda-combined-service32",
@@ -1998,6 +2132,10 @@ def main(argv: list[str] | None = None) -> int:
             if media.is_relative_to(run) or run.is_relative_to(media):
                 raise ValueError("run metadata and media namespaces must be disjoint")
             media.mkdir(mode=0o700, parents=True, exist_ok=False)
+            if args.compare_cpu_cuda_full:
+                stage = "startup:full-pair-admission"
+                args._full_pair_admission = admit_full_cpu_cuda(args, run, media)
+                save(run / "full-pair-admission.json", args._full_pair_admission)
             original = original_inventory(run, media)
             stage = "startup:freeze"
             config = freeze(args, run, media, original)

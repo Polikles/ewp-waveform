@@ -44,9 +44,12 @@ class TorchServiceExperiment:
     timing_mode: str = "ordinary"
     expected_preset: dict[str, Any] | None = None
     expected_device: str | None = None
+    full_source_confirmation: bool = False
     metrics: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
+        if type(self.full_source_confirmation) is not bool:
+            raise ValueError("full_source_confirmation must be a strict bool")
         from ewp_waveform.ffmpeg.torch_finish import (
             validate_backend_device,
             validate_execution_options,
@@ -67,6 +70,17 @@ class TorchServiceExperiment:
             and preset.model_dump(mode="json") != self.expected_preset
         ):
             raise ValueError("frozen effective preset drift; replan required")
+        if type(self.full_source_confirmation) is not bool:
+            raise ValueError("full_source_confirmation must be a strict bool")
+        full = self.full_source_confirmation
+        if full and (
+            duration is not None
+            or preset.name != "iuris-ribbon-refined-production"
+            or self.expected_preset is None
+            or preset.canvas.width != 1400
+            or preset.canvas.height != 280
+        ):
+            raise ValueError("full-source confirmation requires unbounded saved production preset")
         if (
             (
                 preset.name != "iuris-ribbon-refined"
@@ -77,9 +91,10 @@ class TorchServiceExperiment:
             )
             or job.domain.value != "frequency"
             or formats != ["prores4444"]
-            or duration is None
-            or not math.isfinite(duration)
-            or not 0 < duration <= 32
+            or (
+                not full
+                and (duration is None or not math.isfinite(duration) or not 0 < duration <= 32)
+            )
             or job.fps != 60
         ):
             raise ValueError("FIR service requires refined ribbon MOV at 60fps, duration <=32s")
@@ -133,10 +148,23 @@ class TorchServiceExperiment:
 
         return cast(PipelineHooks, Pipeline(base))
 
+    def validate_full_encode(self, kwargs: dict[str, Any]) -> None:
+        if type(self.full_source_confirmation) is not bool:
+            raise ValueError("full_source_confirmation must be a strict bool")
+        if self.full_source_confirmation and (
+            type(kwargs.get("n_frames")) is not int
+            or kwargs.get("n_frames") != 23741
+            or kwargs.get("width") != 1400
+            or kwargs.get("height") != 280
+            or kwargs.get("fps") != 60
+        ):
+            raise ValueError("full-source confirmation requires 23741 frames at 1400x280/60")
+
     def encode(
         self, encoder: Callable[..., None], frames: Iterable[bytes], kwargs: dict[str, Any]
     ) -> None:
         """Preserve production raster/state, replacing only the finishing seam."""
+        self.validate_full_encode(kwargs)
         from ewp_waveform.application.torch_experiment import _torch_stream
         from ewp_waveform.ffmpeg.draw import parse_rgb
         from ewp_waveform.ffmpeg.torch_finish import FinishSpec, TorchFinisher, qualify
@@ -252,6 +280,8 @@ class SerialLUTServiceExperiment(TorchServiceExperiment):
     device: str = "cpu"
 
     def __post_init__(self) -> None:
+        if type(self.full_source_confirmation) is not bool:
+            raise ValueError("full_source_confirmation must be a strict bool")
         if self.backend != "cpu-lut" or self.device != "cpu":
             raise ValueError("serial LUT service requires cpu-lut/cpu")
 
@@ -267,6 +297,7 @@ class SerialLUTServiceExperiment(TorchServiceExperiment):
     def encode(
         self, encoder: Callable[..., None], frames: Iterable[bytes], kwargs: dict[str, Any]
     ) -> None:
+        self.validate_full_encode(kwargs)
         from ewp_waveform.ffmpeg.draw import parse_rgb
         from ewp_waveform.ffmpeg.torch_finish import FinishSpec
 
@@ -322,6 +353,90 @@ class SerialLUTServiceExperiment(TorchServiceExperiment):
                 "per-encode LUT qualification/preparation; not encoder-exclusive",
                 initialization_scope="per encode, inside service.render wall; no warmup reuse",
             )
+
+
+def compare_full_campaign(
+    config: dict[str, Any],
+    plan: dict[str, Any],
+    step: Callable[..., dict[str, Any]],
+    skipped: Callable[[str, str], None],
+) -> None:
+    """Explicit n=1 full-source AB; independent gates, no short or view work.
+
+    Preflight qualification workers do not warm either fresh service worker.
+    Original source/plan bounds are also authenticated independently by each worker.
+    """
+    if (
+        config.get("compare_cpu_cuda_full") is not True
+        or config.get("compare_cpu_cuda") is not False
+        or config.get("smoke")
+        or config.get("audio", {}).get("sha256")
+        != "e7088a3dfdfc12323acbc2d4f9d4c0af304b95eaabfe80e45becbcf7bb16348b"
+        or plan.get("status") != "SUCCEEDED"
+        or not isinstance(plan.get("source_duration_seconds"), (int, float))
+        or not math.isclose(plan["source_duration_seconds"], 395.6785, rel_tol=0, abs_tol=1e-6)
+        or round(plan["source_duration_seconds"] * 60) != 23741
+        or plan.get("workloads")
+        != [{"id": "full", "kind": "full", "start": None, "duration": None, "frames": 23741}]
+    ):
+        raise ValueError("full CPU/CUDA requires authenticated original full-source plan")
+    python = config["cuda_python"]
+    label = "compare-cpu-cuda-full"
+    lut = step(
+        label + "-lut-qualification", {"operation": "qualify-lut"}, optional=True, python=python
+    )
+    cuda = step(
+        label + "-cuda-qualification",
+        {"operation": "qualify-finish", "backend": "cuda", **COMBINED},
+        optional=True,
+        python=python,
+    )
+    ready = {
+        "A": lut.get("status") == "SUCCEEDED" and lut.get("passed") is True,
+        "B": cuda.get("status") == "SUCCEEDED"
+        and cuda.get("passed") is True
+        and cuda.get("gpu_qualified") is True
+        and bool(config.get("cuda_environment")),
+    }
+    raster: str | None = None
+    for side in "AB":
+        name = f"{label}-r01-{side}"
+        if not ready[side]:
+            skipped(name, "independent side qualification unavailable; no fallback")
+            continue
+        request: dict[str, Any] = {
+            "operation": "service",
+            "jobs": 1,
+            "matched_cpu_cuda": True,
+            "full_source_confirmation": True,
+            "visual_overrides": {},
+            "workload": {
+                "id": "full",
+                "kind": "full",
+                "start": None,
+                "duration": None,
+                "frames": 23741,
+            },
+            "finish_lut": side == "A",
+            "torch_finish": side == "B",
+            "backend": "cpu-lut" if side == "A" else "cuda",
+            **({} if side == "A" else COMBINED),
+            "pair": {
+                "id": label,
+                "repeat": 1,
+                "order": "AB",
+                "side": side,
+                "comparison": "n=1 full-source combined serial CPU LUT recursive-blur pipeline "
+                "vs CUDA FIR device-RGBA8/batch2/ordinary pipeline; not isolated kernel speedup; "
+                "fresh service workers include lazy import/context and per-encode qualification; "
+                "standalone verification on both sides, no cross-algorithm pixel oracle",
+            },
+        }
+        if raster:
+            request["expected_raster_sha256"] = raster
+        value = step(name, request, optional=True, python=python)
+        if value.get("status") == "SUCCEEDED" and value.get("validation", {}).get("passed") is True:
+            raster = value.get("original_raster_sha256") or raster
 
 
 def compare_campaign(
