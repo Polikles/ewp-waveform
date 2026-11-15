@@ -444,6 +444,7 @@ def report(
     reused: bool = False,
     fresh_names: set[str] | None = None,
     retained_source: dict[str, Any] | None = None,
+    failure: dict[str, Any] | None = None,
 ) -> Path:
     folder = run / "reports"
     folder.mkdir(parents=True, exist_ok=True)
@@ -454,6 +455,7 @@ def report(
     value = {
         "status": status,
         "error": error,
+        "failure": failure,
         "results": results,
         "pair_statistics": pairs,
         "result_use": {name: "FRESH" if name in fresh_names else "REUSED" for name in results},
@@ -480,6 +482,7 @@ def report(
         {
             "status": status,
             "error": error,
+            "failure": failure,
             "results": compact_metrics(results),
             "pair_statistics": pairs,
             "result_use": value["result_use"],
@@ -550,6 +553,15 @@ def report(
     ]
     if error:
         lines += [f"Failure / refusal: {clean(error, 1000)}", ""]
+    if failure:
+        actual_python = failure.get("interpreter", {}).get("executable", "not retained")
+        lines += [
+            f"Failing stage: `{clean(failure.get('stage'))}`; "
+            f"actual failing Python: `{clean(actual_python, 1000)}`.",
+            "Full chained traceback and failing frame are retained in the structured "
+            "report, critical measurements and diagnostic packet (field `failure`).",
+            "",
+        ]
     if status == "FAILED_STORAGE_OBSERVATION":
         lines += [
             "Storage accounting could not obtain a complete observation. This is an "

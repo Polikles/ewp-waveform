@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from ewp_waveform.application.portable_experiments_diagnostics import failure_stage
+
 
 def campaign(
     config: dict[str, Any],
@@ -130,6 +132,7 @@ def campaign(
         skipped("single-file-jobs32", "requires original-input successful GEQ short controls")
         skipped("single-file-lut32", "requires original-input complete matched short pairs")
     if config.get("cuda"):
-        from ewp_waveform.application.cuda_combined_experiment import campaign as cuda_campaign
+        with failure_stage("campaign:cuda-combined"):
+            from ewp_waveform.application.cuda_combined_experiment import campaign as cuda_campaign
 
-        cuda_campaign({**config, "cuda_combined_service32": True}, workloads, step, skipped)
+            cuda_campaign({**config, "cuda_combined_service32": True}, workloads, step, skipped)

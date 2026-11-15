@@ -23,6 +23,10 @@ import wave
 from pathlib import Path
 from typing import Any
 
+from ewp_waveform.application.portable_experiments_diagnostics import (
+    exception_diagnostic,
+    failure_stage,
+)
 from ewp_waveform.application.portable_experiments_process import (
     MonitorFailureError,
     ProcessOwnershipError,
@@ -1257,7 +1261,8 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
 
     def step(name: str, request: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         if name not in results:
-            results[name] = invoke(config, name, {**tools, **request}, **kwargs)
+            with failure_stage("worker:" + name):
+                results[name] = invoke(config, name, {**tools, **request}, **kwargs)
         return results[name]
 
     def skipped(name: str, reason: str) -> None:
@@ -1267,14 +1272,18 @@ def execute(config: dict[str, Any], done: dict[str, dict[str, Any]]) -> dict[str
     plan = step("audio-plan", {"operation": "audio-plan", "smoke": config["smoke"]})
     workloads = plan["workloads"]
     if config.get("optimize_single_file"):
-        from ewp_waveform.application.single_file_campaign import campaign as single_file_campaign
+        with failure_stage("campaign:single-file"):
+            from ewp_waveform.application.single_file_campaign import (
+                campaign as single_file_campaign,
+            )
 
-        single_file_campaign(config, workloads, step, skipped)
+            single_file_campaign(config, workloads, step, skipped)
         return make_result_views(results, step)
     if config.get("cuda_combined"):
-        from ewp_waveform.application.cuda_combined_experiment import campaign as cuda_campaign
+        with failure_stage("campaign:cuda-combined"):
+            from ewp_waveform.application.cuda_combined_experiment import campaign as cuda_campaign
 
-        cuda_campaign(config, workloads, step, skipped)
+            cuda_campaign(config, workloads, step, skipped)
         return make_result_views(results, step)
     qualification: dict[str, Any] = {}
     if not config["smoke"] and (
@@ -1763,15 +1772,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if argv[:1] == ["--_worker"]:
         request = load(Path(argv[1]))
+        worker_stage = "worker:import-dispatch"
         try:
             from ewp_waveform.application.portable_experiments_worker import dispatch
 
+            worker_stage = "worker:" + str(request.get("operation", "missing-operation"))
             value = dispatch(request)
         except Exception as exc:
             traceback.print_exc()
             save(
                 Path(request["result_path"]),
-                {"status": "FAILED", "error": f"{type(exc).__name__}: {exc}"},
+                {
+                    "status": "FAILED",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "failure": exception_diagnostic(exc, stage=worker_stage),
+                },
             )
             return 1
         save(Path(request["result_path"]), value)
@@ -1904,9 +1919,12 @@ def main(argv: list[str] | None = None) -> int:
     existing: set[str] | None = None  # None means dispatch was never admitted.
     report_root = run
     namespace_admitted = False
+    stage = "startup:prerequisites"
+    failure: dict[str, Any] | None = None
     try:
         if not args.resume:
             prerequisite_admission(args)
+        stage = "startup:namespace"
         outside_git([run])
         namespace_admitted = True
         if args.resume:
@@ -1916,10 +1934,12 @@ def main(argv: list[str] | None = None) -> int:
             report_root = run.parent / ("resume-verification-" + token)
             report_root.mkdir()
             with lock(run):
+                stage = "resume:verify-config"
                 config = verify_config(run, report_root)
                 results = completed_steps(run)
                 existing = set(results)
                 # Check the retained graph BEFORE running any unattempted actions.
+                stage = "campaign:execute"
                 results = execute(config, results)
             fresh_names = set(results) - existing
             status, code = "RESUMED_WITH_NEW_WORK" if fresh_names else "VERIFIED_REUSED", 0
@@ -1932,10 +1952,13 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("run metadata and media namespaces must be disjoint")
             media.mkdir(mode=0o700, parents=True, exist_ok=False)
             original = original_inventory(run, media)
+            stage = "startup:freeze"
             config = freeze(args, run, media, original)
             with lock(run):
+                stage = "campaign:admission"
                 check_budget(run, media, config["limits"])
                 existing = set()
+                stage = "campaign:execute"
                 results = execute(config, {})
             optional_failures = bool(config.get("cuda_error")) or any(
                 v.get("status") == "FAILED" for v in results.values()
@@ -1952,6 +1975,7 @@ def main(argv: list[str] | None = None) -> int:
             )
     except BaseException as exc:
         error = f"{type(exc).__name__}: {exc}"
+        failure = exception_diagnostic(exc, stage=stage)
         if isinstance(exc, KeyboardInterrupt):
             status, code = "INTERRUPTED_NO_REPLAY", 130
         elif isinstance(exc, ProcessOwnershipError):
@@ -1994,6 +2018,8 @@ def main(argv: list[str] | None = None) -> int:
             report_root = parent / ("refused-" + token)
             report_root.mkdir(parents=True, exist_ok=False)
     try:
+        if failure is not None:
+            save(report_root / "failure.json", failure)
         path = report(
             report_root,
             status,
@@ -2002,6 +2028,7 @@ def main(argv: list[str] | None = None) -> int:
             results,
             reused=bool(args.resume),
             fresh_names=fresh_names,
+            failure=failure,
         )
         if config is not None and code == 0:
             try:
@@ -2023,6 +2050,8 @@ def main(argv: list[str] | None = None) -> int:
                     1,
                 )
                 error = str(budget_error)
+                failure = exception_diagnostic(budget_error, stage="report:post-budget")
+                save(report_root / "failure.json", failure)
                 path = report(
                     report_root,
                     status,
@@ -2031,6 +2060,7 @@ def main(argv: list[str] | None = None) -> int:
                     results,
                     reused=bool(args.resume),
                     fresh_names=fresh_names,
+                    failure=failure,
                 )
                 with path.open("a", encoding="utf-8") as stream:
                     stream.write(

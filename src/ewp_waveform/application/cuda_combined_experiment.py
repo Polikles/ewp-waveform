@@ -11,13 +11,15 @@ import math
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import asdict, dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from ewp_waveform.application import render_fixed, render_lifecycle
-from ewp_waveform.application.experiments_render import _View
-from ewp_waveform.application.render_pipelines import PipelineHooks
-from ewp_waveform.config.models import VisualPreset
-from ewp_waveform.domain.models import PlannedJob
+# campaign() runs in the stdlib-only invoking interpreter. Rendering imports
+# belong to the selected worker, not this module's scheduling surface.
+if TYPE_CHECKING:
+    from ewp_waveform.application import render_fixed, render_lifecycle
+    from ewp_waveform.application.render_pipelines import PipelineHooks
+    from ewp_waveform.config.models import VisualPreset
+    from ewp_waveform.domain.models import PlannedJob
 
 CONTROL: dict[str, Any] = {
     "output_mode": "host-reuse",
@@ -98,6 +100,10 @@ class TorchServiceExperiment:
         return base
 
     def pipeline_hooks(self, base: PipelineHooks) -> PipelineHooks:
+        from ewp_waveform.application import render_fixed
+        from ewp_waveform.application.experiments_render import _View
+        from ewp_waveform.application.render_pipelines import PipelineHooks
+
         experiment = self
 
         class Fixed(_View):
