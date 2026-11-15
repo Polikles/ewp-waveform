@@ -359,15 +359,214 @@ def _matched_diagnostic_shape_reason(repeats: dict[int, dict[str, Any]]) -> str 
     return None
 
 
+def _full_pair_reason(members: list[dict[str, Any]]) -> str | None:
+    """Full n1 is an ordered, standalone observation, not a shortened ABBA screen."""
+    import math
+    from fractions import Fraction
+
+    if len(members) != 2 or [r["pair"].get("side") for r in members] != ["A", "B"]:
+        return "requires exactly A CPU then B CUDA (two members)"
+    if (
+        not isinstance(members[0]["pair"].get("comparison"), str)
+        or not members[0]["pair"]["comparison"].strip()
+        or members[0]["pair"]["comparison"] != members[1]["pair"].get("comparison")
+    ):
+        return "unmatched full comparison declaration"
+    if any(
+        type(r["pair"].get("repeat")) is not int
+        or r["pair"]["repeat"] != 1
+        or r["pair"].get("order") != "AB"
+        for r in members
+    ):
+        return "requires full repeat1 order AB"
+    if members[0].get("output") == members[1].get("output"):
+        return "full sides require distinct standalone outputs"
+    malformed = _matched_diagnostic_shape_reason(
+        {1: {side: (side, r) for side, r in zip(("A", "B"), members, strict=True)}}
+    )
+    if malformed:
+        return malformed
+    for r in members:
+        w, valid = r["workload"], r["validation"]
+        frames = w.get("frames")
+        if (
+            w.get("id") != "full"
+            or w.get("kind") != "full"
+            or "start" not in w
+            or w["start"] is not None
+            or "duration" not in w
+            or w["duration"] is not None
+            or type(frames) is not int
+            or frames <= 0
+            or type(valid.get("frames")) is not int
+            or valid["frames"] != frames
+            or r.get("analysis_context") != "full-source"
+        ):
+            return "requires validated complete full-source normalization context/frame count"
+        context = r.get("full_source_context")
+        if r.get("full_source_confirmation") is not True or not isinstance(context, dict):
+            return "full-source confirmation/context unavailable"
+        duration: Any = context.get("duration_seconds")
+        if (
+            type(context.get("start_seconds")) not in (int, float)
+            or context["start_seconds"] != 0
+            or type(duration) not in (int, float)
+            or not math.isfinite(duration)
+            or duration <= 0
+            or not (frames - 1) / 60 < duration <= frames / 60
+            or type(context.get("frames")) is not int
+            or context["frames"] != frames
+            or context.get("normalization_scope") != "complete source"
+            or context.get("causal_history")
+            != "source origin through EOF; no independent intervals"
+            or context != members[0].get("full_source_context")
+        ):
+            return "unmatched complete-source normalization/causal-history proof"
+        service = r.get("service_result")
+        if not isinstance(service, dict) or any(
+            not isinstance(service.get(k), dict) or not service[k]
+            for k in ("analysis", "normalization")
+        ):
+            return "full production analysis/normalization evidence unavailable"
+        if service["normalization"] != members[0]["service_result"]["normalization"]:
+            return "unmatched full production normalization"
+        if (
+            valid.get("silent") is not True
+            or type(valid.get("audio_streams")) is not int
+            or (valid["audio_streams"] != 0)
+        ):
+            return "full silent/audio-stream validation unavailable"
+        if (
+            r.get("same_side_reference") is not None
+            or r.get("reference") is not None
+            or not r.get("output")
+            or not valid.get("decoded_rgba_sha256")
+            or not valid.get("decoded_alpha_sha256")
+            or not isinstance(r.get("spec"), dict)
+            or not r["spec"]
+            or not isinstance(r.get("effective_preset"), dict)
+            or not r["effective_preset"]
+        ):
+            return "requires standalone decoded RGBA/alpha proof and full appearance geometry"
+        if r.get("route") != "MATCHED_SERIAL_CPU_CUDA_SERVICE":
+            return "requires matched serial service route"
+        controls = r["experimental_controls"]
+        if (
+            any(
+                type(controls.get(k)) is not bool
+                for k in ("finish_lut", "torch_finish", "matched_cpu_cuda")
+            )
+            or type(controls.get("jobs")) is not int
+            or (r["pair"]["side"] == "B" and type(controls.get("batch_size")) is not int)
+        ):
+            return "malformed full pipeline controls"
+        settings = r["execution_settings"]
+        if any(
+            not isinstance(settings.get(k), str) or not settings[k].strip()
+            for k in ("python", "ffmpeg", "ffprobe")
+        ):
+            return "unavailable matched worker/tool settings"
+        try:
+            if (
+                Fraction(valid.get("fps", "0")) != 60
+                or not 0 < Fraction(valid.get("time_base", "0")) < Fraction(1, 60)
+                or Fraction(valid.get("max_pts_error_seconds", "-1")) != 0
+                or Fraction(valid.get("frame_grid_seconds", "0")) != Fraction(frames, 60)
+            ):
+                return "unavailable/mismatched full frame/PTS grid evidence"
+        except (ValueError, TypeError, ZeroDivisionError):
+            return "malformed full frame/PTS grid evidence"
+        spans: list[Any] = [
+            r.get(k)
+            for k in ("wall_seconds", "cold_process_wall_seconds", "external_verification_seconds")
+        ]
+        if any(type(v) not in (int, float) or not math.isfinite(v) or v <= 0 for v in spans):
+            return "unavailable full service/cold-worker/external-validation costs"
+        if spans[0] + spans[2] > spans[1]:
+            return "service/validation spans exceed cold worker envelope"
+        feed = r.get("raster_feed")
+        if (
+            not isinstance(feed, dict)
+            or type(feed.get("frames")) is not int
+            or (feed["frames"] != frames)
+        ):
+            return "full original-raster frame counter mismatch"
+    b = members[1]
+    if not b.get("finished_rgba_sha256"):
+        return "full CUDA finished RGBA proof unavailable"
+    worker, feed = b["worker"], b["raster_feed"]
+    if any(
+        worker.get(k) != v
+        for k, v in (("output_mode", "device-rgba"), ("batch_size", 2), ("timing_mode", "ordinary"))
+    ):
+        return "incorrect observed full CUDA combined controls"
+    calls, batches = worker.get("calls"), feed.get("batch_calls")
+    frames = b["workload"]["frames"]
+    count = (frames + 1) // 2
+    final_frames = frames - 2 * (count - 1)
+    tail = b.get("batch_tail_validation")
+    expected_tail = {
+        "frames": frames,
+        "batch_size": 2,
+        "batch_count": count,
+        "full_batch_count": frames // 2,
+        "final_batch_frames": final_frames,
+        "final_batch_first_frame": 2 * (count - 1),
+        "partial_batch_frames": frames % 2,
+    }
+    if (
+        not isinstance(tail, dict)
+        or tail.get("passed") is not True
+        or any(type(tail.get(k)) is not int or tail[k] != v for k, v in expected_tail.items())
+        or not isinstance(tail.get("ordering_scope"), str)
+        or not tail["ordering_scope"].strip()
+        or type(feed.get("emitted_frames")) is not int
+        or feed["emitted_frames"] != frames
+    ):
+        return "full CUDA batch-tail/emitted-frame validation unavailable/mismatched"
+    if (
+        not isinstance(calls, list)
+        or not isinstance(batches, list)
+        or (len(calls) != count or len(batches) != count)
+    ):
+        return "full CUDA batch/frame counters unavailable"
+    for ordinal, (call, batch) in enumerate(zip(calls, batches, strict=True)):
+        expected = min(2, frames - ordinal * 2)
+        if (
+            not isinstance(call, dict)
+            or not isinstance(batch, dict)
+            or type(call.get("ordinal")) is not int
+            or call["ordinal"] != ordinal
+            or type(call.get("batch_frames")) is not int
+            or call["batch_frames"] != expected
+            or type(batch.get("frames")) is not int
+            or batch["frames"] != expected
+            or type(batch.get("first_frame")) is not int
+            or batch["first_frame"] != ordinal * 2
+            or call.get("batch_capacity") != 2
+            or call.get("kind") != "finish"
+            or call.get("output_mode") != "device-rgba"
+            or call.get("timing_mode") != "ordinary"
+        ):
+            return "full CUDA ordered batch counters/partial final frame mismatch"
+    return None
+
+
 def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
     """Descriptive paired observations, never a ratio between unrelated scopes."""
     import math
     import statistics
 
     groups: dict[str, dict[int, dict[str, Any]]] = {}
+    full_members: list[dict[str, Any]] = []
     for name, result in results.items():
         pair = result.get("pair")
-        if pair:
+        if pair and pair.get("id") == "compare-cpu-cuda-full":
+            full_members.append(result)
+            sides = groups.setdefault(pair["id"], {}).setdefault(1, {})
+            if pair.get("side") in ("A", "B"):
+                sides[pair["side"]] = (name, result)
+        elif pair:
             groups.setdefault(pair["id"], {}).setdefault(pair["repeat"], {})[pair["side"]] = (
                 name,
                 result,
@@ -377,12 +576,22 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
         samples: dict[str, list[float]] = {"A": [], "B": []}
         excluded: list[dict[str, Any]] = []
         orders, comparison = [], ""
-        pipeline_contrast = group in ("compare-cpu-cuda-short", "compare-cpu-cuda-service32")
+        full_contrast = group == "compare-cpu-cuda-full"
+        pipeline_contrast = full_contrast or group in (
+            "compare-cpu-cuda-short",
+            "compare-cpu-cuda-service32",
+        )
         repeat_reason = None
-        malformed = _matched_diagnostic_shape_reason(repeats) if pipeline_contrast else None
+        malformed = (
+            _full_pair_reason(full_members)
+            if full_contrast
+            else _matched_diagnostic_shape_reason(repeats)
+            if pipeline_contrast
+            else None
+        )
         if malformed:
             excluded.append({"repeat": None, "reason": malformed})
-        if pipeline_contrast and not malformed:
+        if pipeline_contrast and not full_contrast and not malformed:
             if set(repeats) != {1, 2} or any(set(s) != {"A", "B"} for s in repeats.values()):
                 repeat_reason = "requires complete two-repeat CPU/CUDA ABBA"
             else:
@@ -466,6 +675,14 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "single-file-jobs32": {"jobs"},
                 "cuda-combined-short": {"output_mode", "batch_size", "timing_mode"},
                 "cuda-combined-service32": {"output_mode", "batch_size", "timing_mode"},
+                "compare-cpu-cuda-full": {
+                    "output_mode",
+                    "batch_size",
+                    "timing_mode",
+                    "finish_lut",
+                    "torch_finish",
+                    "backend",
+                },
                 "compare-cpu-cuda-short": {
                     "output_mode",
                     "batch_size",
@@ -568,15 +785,22 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
             excluded.append(
                 {
                     "repeat": None,
-                    "reason": "complete eligible CPU/CUDA ABBA required; all samples withheld",
+                    "reason": (
+                        "complete eligible CPU/CUDA full AB required; all samples withheld"
+                        if full_contrast
+                        else "complete eligible CPU/CUDA ABBA required; all samples withheld"
+                    ),
                 }
             )
         stats = {
             side: {
                 "n": len(values),
-                "median_seconds": statistics.median(values) if values else None,
-                "min_seconds": min(values) if values else None,
-                "max_seconds": max(values) if values else None,
+                "median_seconds": statistics.median(values)
+                if values and not full_contrast
+                else None,
+                "min_seconds": min(values) if values and not full_contrast else None,
+                "max_seconds": max(values) if values and not full_contrast else None,
+                **({"total_seconds": values[0] if values else None} if full_contrast else {}),
             }
             for side, values in samples.items()
         }
@@ -589,7 +813,17 @@ def pair_statistics(results: dict[str, Any]) -> list[dict[str, Any]]:
                 "sides": stats,
                 "excluded": excluded,
                 "speedup": None,
-                "claim": "descriptive combined pipeline contrast; "
+                **(
+                    {"execution_order": [r["pair"].get("side") for r in full_members]}
+                    if full_contrast
+                    else {}
+                ),
+                "claim": "full n1/side descriptive combined pipeline contrast; "
+                "CPU recursive/LUT versus CUDA FIR RGBA8 batch2 ordinary; no medians, winner, "
+                "extrapolation, isolated kernel speedup or cross-algorithm byte equivalence; "
+                "visual/Resolve acceptance pending"
+                if full_contrast
+                else "descriptive combined pipeline contrast; "
                 "recursive CPU blur versus CUDA FIR; "
                 "not isolated kernel speedup or cross-algorithm byte equivalence; "
                 "visual/NLE pending"
@@ -618,6 +852,8 @@ def report(
     path = folder / ("report-" + token + ".md")
     fresh_names = set(results) if fresh_names is None and not reused else (fresh_names or set())
     pairs = pair_statistics(results)
+    full_comparison = bool(config and config.get("compare_cpu_cuda_full"))
+    matched_comparison = bool(config and (config.get("compare_cpu_cuda") or full_comparison))
     value = {
         "status": status,
         "error": error,
@@ -669,6 +905,7 @@ def report(
                         "optimization",
                         "visual_overrides",
                         "compare_cpu_cuda",
+                        "compare_cpu_cuda_full",
                         "comparison_preset",
                     }
                 }
@@ -712,7 +949,7 @@ def report(
         "whole serial-service pipeline contrast, not isolated kernel acceleration or "
         "cross-algorithm byte equivalence. Both include qualification/validation/publication; "
         "original-raster hashing overhead is included on both sides."
-        if config and config.get("compare_cpu_cuda")
+        if matched_comparison
         else "No speedup claimed. Installed/selected tools are a build contrast, "
         "not isolated GPU acceleration. "
         "Stock service versus the custom FIR pipeline also changes wrapper/publication scope.",
@@ -749,7 +986,7 @@ def report(
             "Optional CUDA environment/setup failed; "
             + (
                 "independent CPU controls remain admitted in the selected CUDA interpreter:"
-                if config.get("compare_cpu_cuda")
+                if matched_comparison
                 else "independent CPU/Vulkan controls remain admitted:"
             ),
             "",
@@ -789,12 +1026,17 @@ def report(
             "",
         ]
     if config:
-        if config.get("compare_cpu_cuda"):
+        if matched_comparison:
             lines += [
                 "Matched CPU and CUDA worker Python: "
                 f"`{config.get('cuda_python', 'not retained')}`",
                 "",
-                "First A and first B are verified standalone; repeats use same-side decoded "
+                "Each A and B is verified standalone; no same-side repeats or historical "
+                "reference. Independent CPU LUT and actual CUDA FIR qualification are "
+                "required per encode. Service wall includes lazy import/context/setup; cold "
+                "worker envelope also includes external verification. Neither is pure kernel time."
+                if full_comparison
+                else "First A and first B are verified standalone; repeats use same-side decoded "
                 "references only. Independent CPU LUT and actual CUDA FIR qualification are "
                 "required per encode. Service wall includes lazy import/context/setup; cold "
                 "worker envelope also includes external verification. Neither is pure kernel time.",
@@ -807,7 +1049,10 @@ def report(
             "",
             f"Media: `{config.get('media', 'not retained')}` (excluded from diagnostic bundle).",
             "",
-            f"Frozen --repeats: **{config.get('repeats', 2)}**; AB/BA on speech shortlist "
+            "Full observation: **n1/side**, repeat1 order **AB** (A CPU then B CUDA); "
+            "not counterbalanced. Frozen short-screen --repeats does not apply."
+            if full_comparison
+            else f"Frozen --repeats: **{config.get('repeats', 2)}**; AB/BA on speech shortlist "
             "(six frames in smoke), plus explicitly selected serial service32. "
             "Other baseline intervals run once.",
             "",
@@ -817,6 +1062,8 @@ def report(
                 if config.get("preflight_only")
                 else "CPU six-frame usability validation; no full/pool2/GPU claims."
                 if config.get("smoke")
+                else "standalone full-source CPU LUT/CUDA FIR n1/side; A then B, descriptive only."
+                if full_comparison
                 else "matched serial CPU LUT/CUDA FIR: short4 and gated32s, never full."
                 if config.get("compare_cpu_cuda")
                 else "short-first production recipe."
@@ -832,6 +1079,7 @@ def report(
                     "full",
                     "reference_only",
                     "compare_cpu_cuda",
+                    "compare_cpu_cuda_full",
                     "cuda",
                     "optimize",
                 )
@@ -986,20 +1234,102 @@ def report(
                     + " |"
                 )
         lines.append("")
-    lines += [
-        "",
-        "## Counterbalanced descriptive observations",
-        "",
-        "Only complete fresh validated pairs with identical input/config/timer/route "
-        "enter these statistics. "
-        "Custom pairs require identical original-raster SHA-256 and finishing geometry. "
-        "n is retained pairs, not fresh work on resume. Ranges are min-max, "
-        "not confidence intervals.",
-        "",
-        "| Pair | Orders | Paired n | A median [range] s | B median [range] s | "
-        "Comparison / exclusions |",
-        "|---|---|---:|---|---|---|",
-    ]
+    full_pairs = [pair for pair in pairs if pair["id"] == "compare-cpu-cuda-full"]
+    if full_comparison or full_pairs:
+        members = [
+            r for r in results.values() if r.get("pair", {}).get("id") == "compare-cpu-cuda-full"
+        ]
+        admitted = bool(full_pairs and full_pairs[0]["validated_paired_n"] == 1)
+        lines += [
+            "",
+            "## Full-file n1 descriptive observations",
+            "",
+            "Admission: **" + ("VALIDATED PAIR" if admitted else "WITHHELD") + "**. "
+            "Exactly repeat1 AB: A CPU recursive/LUT then B CUDA FIR RGBA8 batch2 ordinary. "
+            "One observation per side, not counterbalanced; no medians, winner, extrapolation "
+            "or isolated kernel speedup. Visual/Resolve acceptance remains PENDING.",
+            "",
+            "Service totals include analysis, raster hashing, lazy import/context/setup, "
+            "per-encode independent qualification, production validation and publication. "
+            "Cold worker totals additionally include launch/import and external verification. "
+            "Inclusive costs overlap: do not add columns or subtract them into kernel time.",
+            "",
+            "Observed execution order: "
+            + (" → ".join(clean(r["pair"].get("side")) for r in members) or "not available")
+            + ".",
+            "",
+            "| Side / algorithm | Status | n | Service total s | Cold worker total s | "
+            "External verification s | Per-encode qualification | Frames / PTS evidence |",
+            "|---|---|---:|---:|---:|---:|---|---|",
+        ]
+        for side, algorithm in (
+            ("A", "CPU recursive/LUT"),
+            ("B", "CUDA FIR RGBA8 batch2 ordinary"),
+        ):
+            r: dict[str, Any] = next((r for r in members if r["pair"].get("side") == side), {})
+            full_valid = r.get("validation")
+            full_valid = full_valid if isinstance(full_valid, dict) else {}
+            proof = r.get("lut_setup" if side == "A" else "qualification")
+            proof = proof if isinstance(proof, dict) else {}
+            if side == "A":
+                proof = proof.get("qualification")
+                proof = proof if isinstance(proof, dict) else {}
+            qualification = (
+                "PASS (included)" if proof.get("passed") is True else "unavailable/failed"
+            )
+            costs = [
+                f"{r[k]:.3f}" if admitted else "withheld"
+                for k in (
+                    "wall_seconds",
+                    "cold_process_wall_seconds",
+                    "external_verification_seconds",
+                )
+            ]
+            lines.append(
+                f"| {side} {algorithm} | {clean(r.get('status', 'MISSING'))} | "
+                f"{1 if admitted else 0} | "
+                + " | ".join(costs)
+                + " | "
+                + qualification
+                + " | "
+                + clean(
+                    f"{full_valid.get('frames', 'unavailable')} frames; "
+                    f"max PTS error={full_valid.get('max_pts_error_seconds', 'unavailable')} s; "
+                    f"grid={full_valid.get('frame_grid_seconds', 'unavailable')} s"
+                )
+                + " |"
+            )
+        cuda_result: dict[str, Any] = next((r for r in members if r["pair"].get("side") == "B"), {})
+        tail = cuda_result.get("batch_tail_validation")
+        if isinstance(tail, dict):
+            lines += [
+                "",
+                "CUDA batch-tail evidence (raw diagnostics, not an extra timing sample): `"
+                + clean(json.dumps(tail, sort_keys=True), 2000)
+                + "`.",
+            ]
+        if full_pairs:
+            for item in full_pairs[0]["excluded"]:
+                lines += ["", "Comparison withheld: " + clean(item["reason"], 1000)]
+        else:
+            lines += ["", "Comparison withheld: complete validated full pair unavailable."]
+        lines.append("")
+    counterbalanced_pairs = [pair for pair in pairs if pair["id"] != "compare-cpu-cuda-full"]
+    if not full_comparison or counterbalanced_pairs:
+        lines += [
+            "",
+            "## Counterbalanced descriptive observations",
+            "",
+            "Only complete fresh validated pairs with identical input/config/timer/route "
+            "enter these statistics. "
+            "Custom pairs require identical original-raster SHA-256 and finishing geometry. "
+            "n is retained pairs, not fresh work on resume. Ranges are min-max, "
+            "not confidence intervals.",
+            "",
+            "| Pair | Orders | Paired n | A median [range] s | B median [range] s | "
+            "Comparison / exclusions |",
+            "|---|---|---:|---|---|---|",
+        ]
 
     def fmt(stats: dict[str, Any]) -> str:
         if not stats["n"]:
@@ -1008,7 +1338,7 @@ def report(
             f"{stats['median_seconds']:.3f} [{stats['min_seconds']:.3f}-{stats['max_seconds']:.3f}]"
         )
 
-    for pair in pairs:
+    for pair in counterbalanced_pairs:
         reasons = "; ".join(sorted({item["reason"] for item in pair["excluded"]}))
         lines.append(
             f"| {clean(pair['id'])} | {','.join(pair['orders'])} | {pair['validated_paired_n']} | "
